@@ -228,3 +228,27 @@ def test_gb4_plusieurs_fenetres_rien_n_est_propose(monkeypatch):
     r = ie.request_confirmation("window_send_message", {"text": "x", "target": "bloc-notes"}, {}, "envoyer")
     assert r["status"] != "confirmation_required" and confirmation._pending == {}
     assert "Rapport.txt - Bloc-notes" in r["message"], r
+
+
+# --------------------------------------------------------------------------- #
+#  6. Constaté en réel : la ponctuation dépendait du clavier de la machine
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("texte", ["(Atlas) Bonjour", "Rendez-vous à 18 h !", "test 5", "a.b"])
+def test_gb4_la_ponctuation_ne_depend_pas_du_clavier(monkeypatch, texte):
+    """Rejeu réel (sprint G-bis) : « (Atlas) » est arrivé « 5Atlas° » — la frappe simulée suit
+    un clavier américain ; sur un clavier AZERTY, « ( » et « ) » tombent sur « 5 » et « ° »,
+    et « 5 » sur « ( ». Seuls les lettres et les espaces sont sûrs : le reste passe par le
+    presse-papiers, qui est restauré ensuite."""
+    from tools import window_controller as wc
+
+    frappes, collages, presse = [], [], {"v": "contenu d'Alexis"}
+    monkeypatch.setattr(wc.pyautogui, "typewrite", lambda t, interval=0: frappes.append(t))
+    monkeypatch.setattr(wc.pyautogui, "hotkey", lambda *k: collages.append((presse["v"], k)))
+    monkeypatch.setattr(wc.pyperclip, "copy", lambda t: presse.__setitem__("v", t))
+    monkeypatch.setattr(wc.pyperclip, "paste", lambda: presse["v"])
+    monkeypatch.setattr(wc, "time", SimpleNamespace(sleep=lambda s: None))
+    wc._controller.type_text(texte)
+    assert frappes == [], f"frappé touche par touche : {frappes}"
+    assert collages == [(texte, ("ctrl", "v"))], collages
+    assert presse["v"] == "contenu d'Alexis", "presse-papiers d'Alexis non restauré"

@@ -372,8 +372,11 @@ class WindowController:
             use_clipboard: Force l'utilisation du presse-papier (pour caractères spéciaux / accents)
         """
         try:
-            # Détecter les caractères non-ASCII → forcer le clipboard
-            has_special = any(ord(c) > 127 for c in text)
+            # Détecter les caractères non-ASCII → forcer le clipboard.
+            # G-bis / GB4, constaté en réel : la frappe simulée suit un clavier américain. Sur un
+            # clavier AZERTY, « (Atlas) » arrivait « 5Atlas° » et « 5 » donnait « ( ». Seuls les
+            # lettres et les espaces sont sûrs : tout le reste passe par le presse-papiers.
+            has_special = any(not (c.isascii() and (c.isalpha() or c == " ")) for c in text)
             if has_special or use_clipboard:
                 # Méthode clipboard : plus fiable pour les accents/spéciaux
                 old_clipboard = ""
@@ -384,7 +387,7 @@ class WindowController:
 
                 pyperclip.copy(text)
                 pyautogui.hotkey("ctrl", "v")
-                time.sleep(0.1)
+                time.sleep(0.3)   # G-bis : laisser l'application coller avant de restaurer
 
                 # Restaurer le presse-papier précédent
                 try:
