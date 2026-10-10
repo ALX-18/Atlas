@@ -75,7 +75,7 @@ def _click_entry(
 class TestMetricsGroundingEmpty:
     def test_no_log_returns_zero_counts(self):
         import main
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/metrics/grounding")
         assert resp.status_code == 200
         body = resp.json()
@@ -103,7 +103,7 @@ class TestMetricsGroundingRealData:
             _click_entry("Discord", "vision", latency_ms=8200, grounding_attempts=attempts_ocr_fail_then_vision),
         ])
 
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/metrics/grounding")
         assert resp.status_code == 200
         body = resp.json()
@@ -129,7 +129,7 @@ class TestMetricsGroundingRealData:
             _click_entry("Steam", "ocr", disambiguation_triggered=False),
             _click_entry("Discord", "vision", disambiguation_triggered=True),
         ])
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/metrics/grounding")
         body = resp.json()
         assert body["disambiguation_count"] == 2
@@ -150,7 +150,7 @@ class TestMetricsGroundingRealData:
             _click_entry("Steam", "ocr", grounding_attempts=attempts1),
             _click_entry("Discord", "vision", grounding_attempts=attempts2),
         ])
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/metrics/grounding")
         body = resp.json()
 
@@ -182,7 +182,7 @@ class TestMetricsGroundingRealData:
             _click_entry("Steam", "global_timeout", result="failure", latency_ms=90359,
                          click_verified=False),
         ])
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/metrics/grounding")
         body = resp.json()
         assert body["layer_distribution"].get("global_timeout") == 1
@@ -191,13 +191,13 @@ class TestMetricsGroundingRealData:
     def test_limit_parameter_clamps(self):
         import main
         _write_entries([_click_entry("App", "ocr") for _ in range(20)])
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/metrics/grounding", params={"limit": 5})
         assert resp.status_code == 200
         assert resp.json()["total_actions"] == 5
 
     def test_limit_invalid_returns_400(self):
         import main
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/metrics/grounding", params={"limit": 0})
         assert resp.status_code == 400

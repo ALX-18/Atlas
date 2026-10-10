@@ -474,11 +474,52 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    # Sprint G / G1 : plus de « * ». Seule l'interface servie par Atlas lui-même.
+    allow_origins=[f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def _refus_autre_origine(request) -> str:
+    """Motif de refus si la requête vient d'ailleurs qu'Atlas lui-même, sinon « ».
+
+    Sprint G / G1. Restreindre allow_origins ne suffit pas : le CORS empêche seulement le
+    navigateur de LIRE la réponse, et une requête « simple » est exécutée quand même. Le
+    serveur refuse donc lui-même :
+      - un Host qui n'est pas la machine (rebinding DNS : un domaine hostile résolu vers
+        127.0.0.1 est « la même origine » pour le navigateur) ;
+      - une Origin qui n'est pas exactement l'adresse d'Atlas (comparée au Host, donc
+        valable quel que soit le port retenu au démarrage) ;
+      - Sec-Fetch-Site « cross-site » ou « same-site » : une balise <img> ou un lien
+        n'envoient pas d'Origin, mais le navigateur envoie toujours cet en-tête.
+    La fenêtre desktop (httpx) n'envoie ni Origin ni Sec-Fetch-Site : elle passe.
+    """
+    host = (request.headers.get("host") or "").strip().lower()
+    name = host.split("]")[0] + "]" if host.startswith("[") else host.rsplit(":", 1)[0]
+    if name not in _LOOPBACK_HOSTS:
+        return f"hôte « {host} »"
+    origin = request.headers.get("origin")
+    if origin is not None and origin.strip().rstrip("/").lower() != f"http://{host}":
+        return f"origine « {origin} »"
+    if (request.headers.get("sec-fetch-site") or "").lower() in ("cross-site", "same-site"):
+        return "requête venue d'un autre site"
+    return ""
+
+
+@app.middleware("http")
+async def _seul_atlas(request, call_next):
+    motif = _refus_autre_origine(request)
+    if motif:
+        from fastapi.responses import JSONResponse
+
+        logger.warning("[SECURITE] Requête refusée (%s) : %s %s", motif, request.method, request.url.path)
+        return JSONResponse(status_code=403,
+                            content={"detail": "Atlas n'accepte que les demandes venant d'Atlas lui-même."})
+    return await call_next(request)
 
 # Mount API routes
 from api.routes import router as api_router
