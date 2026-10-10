@@ -36,7 +36,9 @@ CHROMA_PORT: int = _cfg.get("chroma_port", 8001)
 COLLECTION_NAME: str = _cfg.get("collection_name", "atlas_memory")
 
 # Catégories valides (mémoire legacy)
-CATEGORIES = {"habit", "preference", "action_history", "correction"}
+# G4 : « user_fact » = ce que l'utilisateur a demandé de retenir (« retiens que… »). Seule
+# catégorie que « oublie… » peut effacer : jamais l'historique ni les corrections.
+CATEGORIES = {"habit", "preference", "action_history", "correction", "user_fact"}
 
 # --- F4 v6.0 : partitionnement + retrieval ---
 _COLL_CFG = _cfg.get("collections", {})

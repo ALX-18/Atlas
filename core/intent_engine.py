@@ -14,7 +14,7 @@ import tempfile
 import os
 import shutil
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from core.confirmation import needs_confirmation, store_pending, classify_process
 from core.validator import confirmation_reason
@@ -96,6 +96,26 @@ def list_pending_confirmations() -> list[dict]:
     ]
 
 
+def _protected_process_match(name) -> Optional[str]:
+    """Processus protégé que ce nom désignerait pour l'outil d'arrêt, ou None.
+
+    Constaté en réel (sprint G) : le refus ne marchait qu'avec le nom exact (« csrss.exe »).
+    Or kill_process cherche par morceau de nom (`nom in nom_du_processus`) : confirmer
+    « csrss » visait csrss.exe, « explorer » la barre des tâches. On applique donc la même
+    règle que l'outil, après avoir retiré « le processus ».
+    """
+    from core.confirmation import ALWAYS_PROTECTED
+
+    norm = re.sub(r"^(?:le\s+|la\s+|l')?(?:processus|programme|process)\s+", "",
+                  str(name or "").strip().lower()).strip()
+    if not norm:
+        return None
+    for protected in ALWAYS_PROTECTED:
+        if norm in protected or norm == protected.removesuffix(".exe"):
+            return protected
+    return None
+
+
 def request_confirmation(tool_name: str, args: dict, context: dict, reason: str) -> dict[str, Any]:
     """Met l'action en attente de confirmation — ou la refuse si elle vise un processus système.
 
@@ -110,7 +130,7 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
     if tool_name == "kill_process":
         conf = needs_confirmation(tool_name, args, context) or {}
         target = str(conf.get("target") or target)
-        if target.lower() in ALWAYS_PROTECTED:
+        if target.lower() in ALWAYS_PROTECTED or _protected_process_match(args.get("name") or target):
             logger.warning("[CONFIRMATION] Refus : « %s » est un processus système protégé.", target)
             return {
                 "status": "error",
@@ -121,6 +141,19 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
         level = conf.get("level", level)
         detail = conf.get("reason", reason)
         suggestion = conf.get("suggestion")
+    elif tool_name == "memory_forget":
+        # G4 : le souvenir est désigné AVANT la confirmation. Alexis confirme l'effacement
+        # de CE souvenir-là, et c'est celui-là — par son identifiant — qui sera effacé.
+        fact = _find_fact_to_forget(args)
+        if not fact:
+            query = _strip_phrase(args.get("text", ""), _FORGET_PREFIX)
+            return {
+                "status": "error",
+                "error_code": "ERR_NOTHING_TO_FORGET",
+                "message": f"Je n'ai rien retenu qui corresponde à « {query} » : rien n'a été effacé.",
+            }
+        args = {"memory_id": fact["id"], "content": fact["content"]}
+        target = fact["content"]
 
     now = time.time()
     confirmation_id = str(uuid.uuid4())[:8]
@@ -288,6 +321,11 @@ TOOL_HANDLERS = {
     "maintenance_empty_bin": lambda args: _run_maintenance_empty_bin(args),
     "maintenance_cleanup_temp": lambda args: _run_maintenance_cleanup_temp(args),
     "maintenance_gc": lambda args: _run_maintenance_gc(args),
+
+    # --- Sprint G / G4 : retenir, rappeler, oublier --- #
+    "memory_save": lambda args: _run_memory_save(args),
+    "memory_recall": lambda args: _run_memory_recall(args),
+    "memory_forget": lambda args: _run_memory_forget(args),
 }
 
 
@@ -542,6 +580,92 @@ async def _run_notify(args: dict):
         title=args.get("title", "Atlas"),
         duration_seconds=args.get("duration_seconds", 5),
     )
+
+
+# --------------------------------------------------------------------------- #
+#  Sprint G / G4 — « retiens que… » ne ment plus
+#
+#  Règle : Atlas ne dit « c'est noté » que si l'écriture a réussi. Les faits retenus vont
+#  dans la catégorie « user_fact » ; « oublie… » ne peut effacer que là — jamais
+#  l'historique, jamais les corrections.
+# --------------------------------------------------------------------------- #
+
+MEMORY_TOOLS = {"memory_save", "memory_recall", "memory_forget"}
+
+_SAVE_PREFIX = re.compile(
+    r"^\s*(?:atlas[\s,]*)?(?:s'il te pla[iî]t[\s,]*)?"
+    r"(?:retiens|souviens[- ]toi|rappelle[- ]toi|n'oublie pas|m[ée]morise|note|remember|memorize)"
+    r"\s*(?:bien\s*)?(?:que\s+|qu'|de\s+|d'|:\s*)?",
+    re.IGNORECASE,
+)
+_RECALL_PREFIX = re.compile(
+    r"^\s*(?:atlas[\s,]*)?(?:est-ce que\s+)?"
+    r"(?:tu te souviens|te souviens[- ]tu|tu te rappelles|rappelle[- ]moi|rappelle[- ]toi|recall)"
+    r"\s*(?:bien\s*)?(?:de\s+|du\s+|des\s+|d'|que\s+|qu')?",
+    re.IGNORECASE,
+)
+_FORGET_PREFIX = re.compile(r"^\s*(?:atlas[\s,]*)?(?:oublie|oublier|forget)\s*(?:que\s+|qu')?", re.IGNORECASE)
+
+# Un « oublie… » ne propose un fait que s'il est assez proche pour qu'Atlas le rappellerait
+# (même seuil que le rappel, memory.retrieval_min_score). La protection contre le mauvais
+# souvenir, c'est la confirmation : le dialogue montre le souvenir exact avant tout effacement.
+# Mesuré en réel (sprint G) : 0,85 rejetait « oublie le code du portail » (score e5 0,839).
+FORGET_MIN_SCORE = None
+
+
+def _strip_phrase(text: str, prefix: re.Pattern) -> str:
+    return prefix.sub("", text or "", count=1).strip().rstrip(" .!?").strip()
+
+
+def _memory():
+    from core import memory_manager as mm
+
+    return mm.get_memory_manager()
+
+
+def _run_memory_save(args: dict) -> dict:
+    fact = _strip_phrase(args.get("text", ""), _SAVE_PREFIX)
+    if not fact:
+        return {"success": False, "message": "Que veux-tu que je retienne ?"}
+    mem = _memory()
+    memory_id = mem.save("user_fact", fact) if mem.is_connected() else None
+    if not memory_id:
+        return {"success": False,
+                "message": f"Je n'ai pas pu le retenir : ma mémoire est indisponible. « {fact} » n'est pas enregistré."}
+    return {"success": True, "message": f"C'est noté : « {fact} ».", "memory_id": memory_id}
+
+
+def _run_memory_recall(args: dict) -> dict:
+    query = _strip_phrase(args.get("text", ""), _RECALL_PREFIX)
+    mem = _memory()
+    if not mem.is_connected():
+        return {"success": False, "message": "Ma mémoire est indisponible pour le moment."}
+    if not query:
+        return {"success": False, "message": "De quoi veux-tu que je me souvienne ?"}
+    facts = mem.recall(query, top_k=3, category="user_fact")
+    if not facts:
+        return {"success": True, "message": f"Je n'ai rien retenu à ce sujet (« {query} »)."}
+    quoted = " ; ".join(f"« {f['content']} »" for f in facts)
+    return {"success": True, "message": f"Tu m'as dit : {quoted}."}
+
+
+def _find_fact_to_forget(args: dict) -> Optional[dict]:
+    query = _strip_phrase(args.get("text", ""), _FORGET_PREFIX)
+    mem = _memory()
+    if not query or not mem.is_connected():
+        return None
+    facts = mem.recall(query, top_k=1, category="user_fact", min_score=FORGET_MIN_SCORE)
+    return facts[0] if facts else None
+
+
+def _run_memory_forget(args: dict) -> dict:
+    """N'efface que le souvenir montré dans le dialogue de confirmation (memory_id)."""
+    memory_id, content = args.get("memory_id"), args.get("content", "")
+    if not memory_id:
+        return {"success": False, "message": "Aucun souvenir désigné : rien n'a été effacé."}
+    if not _memory().forget(memory_id):
+        return {"success": False, "message": f"Je n'ai pas pu effacer « {content} » : ma mémoire est indisponible."}
+    return {"success": True, "message": f"C'est oublié : « {content} »."}
 
 
 def _run_maintenance_empty_bin(args: dict):
@@ -1559,6 +1683,9 @@ def save_rejection(confirmation_id: str, tool_name: str, args: dict, context: di
 
 def _save_action_to_memory(tool_name: str, args: dict, result: Any, context: dict):
     """Sauvegarde une action exécutée avec succès dans la mémoire long terme."""
+    if tool_name in MEMORY_TOOLS:
+        # G4 : l'historique recopierait le fait retenu — et ressusciterait un fait oublié.
+        return
     try:
         mem = get_memory_manager()
         result_msg = ""

@@ -796,22 +796,12 @@ async def memory_recall(query: str, top_k: int = 5, category: str | None = None)
     return mem.recall(query, top_k=top_k, category=category)
 
 
-@router.delete("/memory/{memory_id}")
-async def memory_forget(memory_id: str):
-    """Supprime un souvenir spécifique."""
-    mem = get_memory_manager()
-    success = mem.forget(memory_id)
-    if success:
-        return {"status": "ok", "message": f"Souvenir '{memory_id}' supprimé."}
-    return {"status": "error", "message": "Souvenir introuvable ou ChromaDB indisponible."}
-
-
-@router.delete("/memory/category/{category}")
-async def memory_forget_category(category: str):
-    """Supprime tous les souvenirs d'une catégorie."""
-    mem = get_memory_manager()
-    count = mem.forget_category(category)
-    return {"status": "ok", "message": f"{count} souvenir(s) supprimé(s) de '{category}'."}
+# Sprint G / G2 : DELETE /memory/{id} et DELETE /memory/category/{x} sont retirées.
+# Aucun appelant (interface web, fenêtre desktop, scripts, documentation), et elles
+# effaçaient sans confirmation ni sauvegarde — une catégorie entière d'un seul appel.
+# Oublier un souvenir passe désormais par la conversation (« oublie que… »), donc par la
+# confirmation (CONFIRMATION_POLICY). Un nettoyage de masse passe par
+# scripts/memory_cleanup.py, qui exige une sauvegarde vérifiée.
 
 
 @router.post("/memory/reconnect")

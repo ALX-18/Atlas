@@ -151,6 +151,8 @@ CONFIRMATION_POLICY: dict[str, tuple[str, str]] = {
     # pas à cette absence — une suppression définitive attend toujours l'accord d'Alexis.
     "maintenance_empty_bin": ("toujours", "vider la corbeille efface définitivement son contenu"),
     "schedule_remove": ("toujours", "supprimer une tâche planifiée d'Alexis"),
+    # Sprint G / G4 : oublier efface, comme toute suppression.
+    "memory_forget": ("toujours", "effacer définitivement ce souvenir"),
     "schedule_add":    ("interactif", "créer une tâche qui se rejouera seule"),
     "trigger_add":     ("interactif", "créer un déclencheur automatique"),
     "workflow_create": ("interactif", "créer un workflow"),
@@ -498,6 +500,18 @@ class Validator:
             return ResolvedAction(
                 tool="redo_last_action",
                 params={},
+                intent=intent,
+            )
+
+        # --- G4 : retenir, rappeler, oublier. La phrase entière est transmise : la cible
+        # extraite par le classifieur perd les petits mots (« que code portail est 4521 »).
+        if category == "memory" and verb in ("remember", "recall", "forget"):
+            tool_name = {"remember": "memory_save", "recall": "memory_recall",
+                         "forget": "memory_forget"}[verb]
+            return ResolvedAction(
+                tool=tool_name,
+                params={"text": intent.raw_input},
+                confirmation_required=confirmation_reason(tool_name, interactive=True) is not None,
                 intent=intent,
             )
 
