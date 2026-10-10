@@ -518,6 +518,15 @@ class IntentClassifier:
                             raw_input=raw,
                         )
 
+        # G4 : « souviens » sert aux deux sens. « Souviens-toi que… » est une consigne ;
+        # « tu te souviens de… ? » est une question, donc un rappel — l'enregistrer
+        # stockerait la question comme un fait.
+        if best_match and best_match.category == "memory" and best_match.verb == "remember":
+            if raw.strip().endswith("?") or re.search(
+                    r"\b(tu te souviens|te souviens[- ]tu|vous vous souvenez|est-ce que tu te souviens)\b",
+                    normalized):
+                best_match.verb = "recall"
+
         if best_match and best_match.confidence >= 0.85:
             return best_match
 

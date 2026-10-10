@@ -194,3 +194,142 @@ def test_g3_le_client_chromadb_d_atlas_n_envoie_pas_de_telemetrie():
     assert lignes[-1] == "TELEMETRIE=False", (
         f"le client ChromaDB d'Atlas a la télémétrie active : {lignes[-1]}"
     )
+
+
+# --------------------------------------------------------------------------- #
+#  G4 — « Retiens que… » ne ment plus
+#
+#  De bout en bout : vrai classifieur, vrai validateur, vrai moteur, vrai MemoryManager,
+#  sur le ChromaDB JETABLE des tests (conftest) — jamais la mémoire d'Alexis.
+# --------------------------------------------------------------------------- #
+
+@pytest.fixture
+def memoire_test(monkeypatch):
+    import uuid as _uuid
+
+    import core.memory_manager as mm_mod
+
+    name = f"atlas_memory_test_g4_{_uuid.uuid4().hex[:8]}"
+    monkeypatch.setattr(mm_mod, "COLLECTION_NAME", name)
+    manager = mm_mod.MemoryManager()
+    if not manager.is_connected():
+        pytest.skip("ChromaDB de test indisponible")
+    monkeypatch.setattr(mm_mod, "get_memory_manager", lambda: manager)
+    # L'historique des actions écrit lui aussi dans la mémoire : il n'est PAS neutralisé,
+    # pour vérifier qu'il ne recopie pas un fait retenu — ni ne ressuscite un fait oublié.
+    monkeypatch.setattr(ie, "get_memory_manager", lambda: manager)
+    confirmation._pending.clear()
+    yield manager
+    confirmation._pending.clear()
+    try:
+        manager._client.delete_collection(name)
+    except Exception:
+        pass
+
+
+def _dire(texte):
+    import asyncio
+
+    from core.intent_classifier import get_classifier
+    from core.validator import get_validator
+
+    intent = get_classifier().classify(texte, {})
+    resolved = get_validator().resolve(intent, {})
+    return intent, asyncio.run(ie.get_execution_engine().execute(resolved, {}))
+
+
+def _message(resultat):
+    res = resultat.get("result")
+    return (res.get("message") if isinstance(res, dict) else None) or resultat.get("message") or ""
+
+
+def _tout(manager):
+    found = manager._collection.get()
+    return list(zip(found.get("ids") or [], found.get("documents") or [],
+                    [m.get("category") for m in (found.get("metadatas") or [])]))
+
+
+def test_g4_retiens_que_enregistre_vraiment(memoire_test):
+    _, r = _dire("retiens que le code du portail est 4521")
+    docs = [(d, c) for _, d, c in _tout(memoire_test)]
+    assert ("le code du portail est 4521", "user_fact") in docs, f"rien d'enregistré : {docs} — {r}"
+    assert len([d for d, _ in docs if "4521" in d]) == 1, f"fait recopié ailleurs : {docs}"
+    assert "4521" in _message(r), r
+
+
+def test_g4_ne_dit_jamais_retenu_s_il_n_a_pas_pu(memoire_test, monkeypatch):
+    """Mémoire indisponible : Atlas ne doit pas faire croire que c'est noté."""
+    monkeypatch.setattr(memoire_test, "save", lambda *a, **k: None)
+    _, r = _dire("retiens que le code du portail est 4521")
+    msg = _message(r).lower()
+    assert r.get("status") != "success" or "pas pu" in msg, r
+    assert "pas pu" in msg, f"réponse trompeuse : {msg!r}"
+
+
+@pytest.mark.parametrize("question", ["tu te souviens du code du portail ?",
+                                      "rappelle-moi le code du portail"])
+def test_g4_rappel_d_un_fait_retenu(memoire_test, question):
+    _dire("retiens que le code du portail est 4521")
+    intent, r = _dire(question)
+    assert intent.verb == "recall", f"« {question} » classé {intent.category}/{intent.verb}"
+    assert "4521" in _message(r), r
+    assert len(_tout(memoire_test)) == 1, "une question ne doit rien enregistrer"
+
+
+def test_g4_rappel_sans_souvenir_le_dit(memoire_test):
+    _, r = _dire("tu te souviens du code du portail ?")
+    assert "rien retenu" in _message(r).lower(), r
+
+
+@pytest.mark.parametrize("phrase,verbe", [
+    ("est-ce que tu te souviens de ma soeur", "recall"),
+    ("tu te souviens du code ?", "recall"),
+    ("souviens-toi que ma soeur s'appelle Léa", "remember"),
+    ("retiens que le code du portail est 4521", "remember"),
+])
+def test_g4_question_ou_consigne(phrase, verbe):
+    from core.intent_classifier import get_classifier
+
+    intent = get_classifier().classify(phrase, {})
+    assert (intent.category, intent.verb) == ("memory", verbe), f"{phrase!r} → {intent.verb}"
+
+
+def test_g4_oublier_passe_par_la_confirmation_et_n_efface_que_ce_fait(memoire_test):
+    _dire("retiens que le code du portail est 4521")
+    _dire("retiens que ma soeur s'appelle Léa")
+    autre = memoire_test.save("action_history", "Ouverture de Steam")
+    avant = _tout(memoire_test)
+
+    _, r = _dire("oublie le code du portail")
+    assert r.get("status") == "confirmation_required", r
+    assert "4521" in (r.get("target") or ""), f"le dialogue doit montrer le souvenir visé : {r}"
+    assert _tout(memoire_test) == avant, "effacé avant la confirmation"
+
+    fait = asyncio_run(ie.execute_confirmed(r["confirmation_id"], {}))
+    apres = [d for _, d, _ in _tout(memoire_test)]
+    assert not any("4521" in d for d in apres), f"le fait oublié subsiste : {apres} — {fait}"
+    assert "ma soeur s'appelle Léa" in apres and "Ouverture de Steam" in apres, apres
+    assert autre in [i for i, _, _ in _tout(memoire_test)]
+
+
+def test_g4_oublier_sans_correspondance_n_efface_rien(memoire_test):
+    _dire("retiens que ma soeur s'appelle Léa")
+    autre = memoire_test.save("action_history", "Ouverture de Steam")
+    avant = _tout(memoire_test)
+    _, r = _dire("oublie le code du portail")
+    assert r.get("status") != "confirmation_required", r
+    assert "rien" in _message(r).lower(), r
+    assert _tout(memoire_test) == avant and confirmation._pending == {}
+
+
+def test_g4_oublier_est_dans_la_table_de_confirmation():
+    from core.validator import confirmation_reason
+
+    assert confirmation_reason("memory_forget", interactive=True)
+    assert confirmation_reason("memory_forget", interactive=False)
+
+
+def asyncio_run(coro):
+    import asyncio
+
+    return asyncio.run(coro)
