@@ -96,6 +96,26 @@ def list_pending_confirmations() -> list[dict]:
     ]
 
 
+def _protected_process_match(name) -> Optional[str]:
+    """Processus protégé que ce nom désignerait pour l'outil d'arrêt, ou None.
+
+    Constaté en réel (sprint G) : le refus ne marchait qu'avec le nom exact (« csrss.exe »).
+    Or kill_process cherche par morceau de nom (`nom in nom_du_processus`) : confirmer
+    « csrss » visait csrss.exe, « explorer » la barre des tâches. On applique donc la même
+    règle que l'outil, après avoir retiré « le processus ».
+    """
+    from core.confirmation import ALWAYS_PROTECTED
+
+    norm = re.sub(r"^(?:le\s+|la\s+|l')?(?:processus|programme|process)\s+", "",
+                  str(name or "").strip().lower()).strip()
+    if not norm:
+        return None
+    for protected in ALWAYS_PROTECTED:
+        if norm in protected or norm == protected.removesuffix(".exe"):
+            return protected
+    return None
+
+
 def request_confirmation(tool_name: str, args: dict, context: dict, reason: str) -> dict[str, Any]:
     """Met l'action en attente de confirmation — ou la refuse si elle vise un processus système.
 
@@ -110,7 +130,7 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
     if tool_name == "kill_process":
         conf = needs_confirmation(tool_name, args, context) or {}
         target = str(conf.get("target") or target)
-        if target.lower() in ALWAYS_PROTECTED:
+        if target.lower() in ALWAYS_PROTECTED or _protected_process_match(args.get("name") or target):
             logger.warning("[CONFIRMATION] Refus : « %s » est un processus système protégé.", target)
             return {
                 "status": "error",

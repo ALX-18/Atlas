@@ -343,3 +343,36 @@ def test_g4_oublier_avec_une_formulation_naturelle(memoire_test):
     _, r = _dire("oublie le code du portail")
     assert r.get("status") == "confirmation_required", r
     assert "4521" in (r.get("target") or ""), r
+
+
+# --------------------------------------------------------------------------- #
+#  Constaté en réel (sprint G) — la protection des processus système contournée par le nom
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("phrase", ["arrête csrss", "arrête le processus csrss", "arrête winlogon",
+                                    "tue explorer", "arrête lsass"])
+def test_g_un_processus_systeme_est_refuse_quel_que_soit_le_nom(executed, phrase):
+    """Décision d'Alexis (sprint F) : un processus système n'est jamais arrêté, même confirmé.
+    Le refus ne marchait qu'avec le nom exact (« csrss.exe ») ; or l'outil d'arrêt cherche par
+    morceau de nom : confirmer « csrss » visait bien csrss.exe."""
+    import asyncio
+
+    from core.intent_classifier import get_classifier
+    from core.validator import get_validator
+
+    intent = get_classifier().classify(phrase, {})
+    resolved = get_validator().resolve(intent, {})
+    r = asyncio.run(ie.get_execution_engine().execute(resolved, {}))
+    assert r.get("error_code") == "ERR_PROTECTED_PROCESS", f"{phrase!r} → {r}"
+    assert confirmation._pending == {} and executed == []
+
+
+def test_g_un_processus_ordinaire_reste_confirmable(executed):
+    import asyncio
+
+    from core.intent_classifier import get_classifier
+    from core.validator import get_validator
+
+    resolved = get_validator().resolve(get_classifier().classify("arrête notepad", {}), {})
+    r = asyncio.run(ie.get_execution_engine().execute(resolved, {}))
+    assert r.get("status") == "confirmation_required", r
