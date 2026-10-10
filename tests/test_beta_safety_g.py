@@ -367,8 +367,12 @@ def test_g_un_processus_systeme_est_refuse_quel_que_soit_le_nom(executed, phrase
     assert confirmation._pending == {} and executed == []
 
 
-def test_g_un_processus_ordinaire_reste_confirmable(executed):
+def test_g_un_processus_ordinaire_reste_confirmable(executed, monkeypatch):
     import asyncio
+
+    # G-bis / GB3 : la confirmation désigne des processus qui tournent. Un Bloc-notes simulé.
+    import tools.process_manager as pm
+    monkeypatch.setattr(pm, "find_processes_by_name", lambda n: [{"pid": 4242, "name": "notepad.exe"}])
 
     from core.intent_classifier import get_classifier
     from core.validator import get_validator

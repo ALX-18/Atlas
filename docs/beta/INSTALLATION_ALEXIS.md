@@ -72,6 +72,7 @@ Détail et vérification de chaque étape : `docs/install_checklist.md`, aux sec
    python scripts\download_voice_models.py
    ```
    Sans carte NVIDIA : `voice.stt_device` = `cpu` dans `config\settings.json`.
+   **Premier lancement : Internet obligatoire.** Atlas télécharge alors son modèle de transcription (environ 145 Mo, `Systran/faster-whisper-base`). Ensuite, il le charge depuis le disque et **ne se connecte plus à rien au démarrage** (sprint G-bis, mesuré).
 8. **Diagnostic complet :** `python scripts\doctor.py`. Le verdict est en tête. Une ligne « Installation incomplète » nomme ce qui manque.
 9. **Raccourci :** crée sur le bureau un raccourci vers `C:\Atlas\start_atlas_desktop.bat`. Le guide testeur dit « demandez à Alexis, qui vous aura laissé un raccourci ».
 10. **Sur place, trois minutes, avec le proche :**

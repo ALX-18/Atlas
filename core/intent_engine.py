@@ -96,6 +96,12 @@ def list_pending_confirmations() -> list[dict]:
     ]
 
 
+def _strip_process_word(name) -> str:
+    """« le processus csrss » → « csrss »."""
+    return re.sub(r"^(?:le\s+|la\s+|l')?(?:processus|programme|process)\s+", "",
+                  str(name or "").strip(), flags=re.IGNORECASE).strip()
+
+
 def _protected_process_match(name) -> Optional[str]:
     """Processus protégé que ce nom désignerait pour l'outil d'arrêt, ou None.
 
@@ -106,8 +112,7 @@ def _protected_process_match(name) -> Optional[str]:
     """
     from core.confirmation import ALWAYS_PROTECTED
 
-    norm = re.sub(r"^(?:le\s+|la\s+|l')?(?:processus|programme|process)\s+", "",
-                  str(name or "").strip().lower()).strip()
+    norm = _strip_process_word(name).lower()
     if not norm:
         return None
     for protected in ALWAYS_PROTECTED:
@@ -141,6 +146,33 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
         level = conf.get("level", level)
         detail = conf.get("reason", reason)
         suggestion = conf.get("suggestion")
+        if args.get("name") and not args.get("pid"):
+            # GB3 : les processus sont désignés AVANT la confirmation, par leur nom exact.
+            # La confirmation montre ce qui sera arrêté — nom et PID —, et rien d'autre ne
+            # le sera. Aucun processus de ce nom : rien n'est proposé.
+            wanted = _strip_process_word(args["name"])
+            matches = process_manager.find_processes_by_name(wanted)
+            if not matches:
+                return {
+                    "status": "error",
+                    "error_code": "ERR_NO_SUCH_PROCESS",
+                    "message": f"Aucun processus ne s'appelle « {wanted} » : rien n'est arrêté.",
+                }
+            exact = matches[0]["name"]
+            pid_list = ", ".join(str(m["pid"]) for m in matches)
+            args = {"name": exact, "pids": [m["pid"] for m in matches]}
+            target = (f"{exact} ({len(matches)} processus : PID {pid_list})" if len(matches) > 1
+                      else f"{exact} (PID {pid_list})")
+    elif tool_name == "window_send_message":
+        # GB4 : la fenêtre est résolue AVANT la confirmation. Le dialogue montre le texte exact
+        # et la fenêtre exacte ; c'est dans celle-là que le message partira. Plusieurs
+        # fenêtres possibles, ou aucune : rien n'est proposé.
+        window, error = window_controller.resolve_app_window(args.get("target") or "")
+        if error:
+            return {"status": "error", "error_code": "ERR_WINDOW_UNRESOLVED",
+                    "message": f"Message non envoyé : {error}."}
+        args = {"text": args.get("text", ""), "target": window["title"]}
+        target = f"« {args['text']} » dans « {window['title']} »"
     elif tool_name == "memory_forget":
         # G4 : le souvenir est désigné AVANT la confirmation. Alexis confirme l'effacement
         # de CE souvenir-là, et c'est celui-là — par son identifiant — qui sera effacé.
@@ -188,6 +220,7 @@ TOOL_HANDLERS = {
     "kill_process": lambda args: process_manager.kill_process(
         pid=args.get("pid"),
         name=args.get("name"),
+        pids=args.get("pids"),   # GB3 : les PID montrés dans la confirmation
     ),
     "set_priority": lambda args: process_manager.set_priority(
         pid=args["pid"],
@@ -258,6 +291,11 @@ TOOL_HANDLERS = {
     "window_get_active": lambda args: window_controller.window_get_active(),
 
     # --- MVP 2.3 : Window management étendu --- #
+    # GB4 : écrire puis Entrée — n'est atteint qu'après confirmation (CONFIRMATION_POLICY)
+    "window_send_message": lambda args: window_controller.window_send_message(
+        text=args.get("text", ""),
+        target=args.get("target"),
+    ),
     "window_close": lambda args: window_controller.window_close(
         title=args.get("title", ""),
     ),
@@ -751,7 +789,20 @@ class ExecutionEngine:
 
         # Special: conversation → no execution
         if tool_name == "__conversation__":
-            return {"status": "conversation", "message": params.get("message", "")}
+            # GB1 : le message (refus du validateur, par exemple) est aussi rendu comme
+            # résultat. Sans lui, la voix ne trouvait rien à résumer et disait « C'est fait. »
+            # pour une action refusée.
+            message = params.get("message", "")
+            return {"status": "conversation", "message": message,
+                    "result": {"success": False, "message": message}}
+
+        # GB1 : une action qu'aucun outil ne sait faire. Réponse fixe — rien n'est exécuté,
+        # rien n'est appris, rien n'est mémorisé.
+        if tool_name == "__unsupported__":
+            from core.validator import UNSUPPORTED_REPLY
+
+            return {"status": "unsupported", "message": UNSUPPORTED_REPLY,
+                    "result": {"success": False, "message": UNSUPPORTED_REPLY}}
 
         # F2 : le moteur honore la décision du validateur, pour TOUTES les actions. Avant,
         # il n'appliquait qu'une liste à lui (trois outils) : fermer une fenêtre ou créer

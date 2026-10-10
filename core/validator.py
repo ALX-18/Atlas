@@ -5,6 +5,7 @@ Zéro appel LLM. Mappe IntentResult → ResolvedAction en tenant compte du conte
 """
 
 import logging
+import re
 import time
 import unicodedata
 from dataclasses import dataclass, field
@@ -153,11 +154,121 @@ CONFIRMATION_POLICY: dict[str, tuple[str, str]] = {
     "schedule_remove": ("toujours", "supprimer une tâche planifiée d'Alexis"),
     # Sprint G / G4 : oublier efface, comme toute suppression.
     "memory_forget": ("toujours", "effacer définitivement ce souvenir"),
+    # Sprint G-bis / GB4 : envoyer un message, c'est agir au nom d'Alexis ; il ne se reprend pas.
+    "window_send_message": ("toujours", "envoyer ce message au nom d'Alexis — un message envoyé ne se reprend pas"),
     "schedule_add":    ("interactif", "créer une tâche qui se rejouera seule"),
     "trigger_add":     ("interactif", "créer un déclencheur automatique"),
     "workflow_create": ("interactif", "créer un workflow"),
     "workflow_run":    ("interactif", "lancer un workflow, soit plusieurs actions d'un coup"),
 }
+
+
+# --------------------------------------------------------------------------- #
+#  Sprint G-bis / GB1 — Atlas ne prétend plus avoir agi
+#
+#  Dans la boucle contrôlée, c'est le MOTEUR qui rend compte d'une action. Une réponse de
+#  la route de conversation n'a exécuté aucun outil : si elle affirme ou promet une action,
+#  elle ment (ligne de base du 10/10 : 15 demandes d'action sur 34). Garde déterministe :
+#  une telle réponse n'est pas transmise, elle est remplacée par UNSUPPORTED_REPLY.
+#
+#  Limites (rapport G-bis) : liste de verbes finie ; une affirmation formulée autrement
+#  passe ; une explication rédigée au passif sur un appareil (« le Bluetooth est activé
+#  par défaut ») peut être prise pour une affirmation. Les deux sont mesurés.
+# --------------------------------------------------------------------------- #
+
+UNSUPPORTED_REPLY = "Je ne sais pas encore faire ça."
+
+_ACTION_INFINITIVES = (
+    "baisser|monter|augmenter|diminuer|régler|ajuster|mettre|couper|activer|désactiver|allumer|"
+    "éteindre|ouvrir|fermer|lancer|démarrer|arrêter|redémarrer|vider|supprimer|effacer|nettoyer|"
+    "envoyer|transférer|répondre|programmer|planifier|créer|ajouter|enregistrer|sauvegarder|noter|"
+    "retenir|installer|désinstaller|télécharger|déplacer|copier|renommer|imprimer|partager|"
+    "commander|réserver|acheter|appeler|jouer|passer|connecter|déconnecter|modifier|changer|"
+    "configurer|bloquer|débloquer|verrouiller|exécuter|effectuer|lire"
+)
+_ACTION_PRESENT = (
+    "baisse|monte|augmente|diminue|règle|ajuste|mets|coupe|active|désactive|allume|éteins|ouvre|"
+    "ferme|lance|démarre|arrête|redémarre|vide|supprime|efface|nettoie|envoie|transfère|réponds|"
+    "programme|planifie|crée|ajoute|enregistre|sauvegarde|note|retiens|installe|désinstalle|"
+    "télécharge|déplace|copie|renomme|imprime|partage|commande|réserve|achète|appelle|joue|passe|"
+    "connecte|déconnecte|modifie|change|configure|bloque|débloque|verrouille|exécute|effectue|"
+    "m'en occupe|m'occupe"
+)
+_ACTION_PARTICIPLES = (
+    "baissée?s?|montée?s?|augmentée?s?|diminuée?s?|réglée?s?|ajustée?s?|mise?s?|coupée?s?|"
+    "activée?s?|désactivée?s?|allumée?s?|éteinte?s?|ouverte?s?|fermée?s?|lancée?s?|démarrée?s?|"
+    "arrêtée?s?|redémarrée?s?|vidée?s?|supprimée?s?|effacée?s?|nettoyée?s?|envoyée?s?|"
+    "transférée?s?|programmée?s?|planifiée?s?|créée?s?|ajoutée?s?|enregistrée?s?|sauvegardée?s?|"
+    "notée?s?|retenue?s?|installée?s?|désinstallée?s?|téléchargée?s?|déplacée?s?|copiée?s?|"
+    "renommée?s?|imprimée?s?|partagée?s?|commandée?s?|réservée?s?|achetée?s?|appelée?s?|jouée?s?|"
+    "connectée?s?|déconnectée?s?|modifiée?s?|changée?s?|configurée?s?|bloquée?s?|débloquée?s?|"
+    "verrouillée?s?|exécutée?s?|effectuée?s?|terminée?s?|réussie?s?"
+)
+# Ce sur quoi Atlas prétendrait avoir agi : l'appareil, les fichiers, les messages.
+_ACTION_OBJECTS = (
+    r"volume|son|musique|chanson|morceau|piste|playlist|bluetooth|wi-?fi|luminosité|écran|"
+    r"corbeille|fichiers?|dossiers?|documents?|messages?|mails?|e-mails?|courriels?|sms|minuteur|"
+    r"alarme|rappels?|réveil|fond d'écran|mode \w+|ordinateur|pc|lumières?|imprimante|commande|"
+    r"action|opération|suppression|envoi|téléchargement|installation|impression|réservation|"
+    r"appel|application|programme|tâche"
+)
+
+_CLAIM_PATTERNS = [
+    # « J'ai baissé le volume », « j'ai bien envoyé »
+    rf"\bj'ai\s+(?:bien\s+|déjà\s+|maintenant\s+)?(?:{_ACTION_PARTICIPLES})\b",
+    # « Je vais supprimer vos fichiers », « je vais vous l'envoyer »
+    rf"\bje\s+vais\s+(?:(?:vous|te|le|la|les|lui|leur|l')\s*)*(?:{_ACTION_INFINITIVES})\b",
+    # « Je baisse la luminosité », « j'envoie un mail », « je m'en occupe »
+    rf"\bje\s+(?:{_ACTION_PRESENT})\b",
+    r"\bj'(?:envoie|active|éteins|imprime|ajoute|efface|allume|appelle|achète|installe|ouvre|arrête|"
+    r"augmente|enregistre|exécute|effectue)\b",
+    r"\bc'est\s+(?:fait|parti|réglé)\b",
+    # « Volume baissé. », « Corbeille vidée ! » — une phrase courte qui constate l'action
+    rf"(?:^|[.!?]\s+)(?:(?:le|la|les|l'|votre|vos|ton|ta|tes)\s*)?(?:{_ACTION_OBJECTS})(?:\s+\w+)?\s+"
+    rf"(?:{_ACTION_PARTICIPLES})\s*[.!]?\s*$",
+    # « Le Bluetooth est désactivé », « le volume a été ajusté », « la corbeille sera vidée »
+    rf"\b(?:{_ACTION_OBJECTS})\b[^.!?]{{0,30}}?\b(?:est|sont|a\s+été|ont\s+été|sera|seront|va\s+être|"
+    rf"vont\s+être)\s+(?:bien\s+|maintenant\s+|désormais\s+|déjà\s+)?(?:en\s+cours|en\s+pause|"
+    rf"{_ACTION_PARTICIPLES})\b",
+    # « Commande corbeille lancée », « L'action est en cours »
+    rf"\b(?:commande|action|opération|suppression|envoi|téléchargement|installation|impression)\b"
+    rf"[^.!?]{{0,30}}?\b(?:lancée?|en\s+cours|effectuée?|terminée?|réussie?)\b",
+    # « Le système passe à la chanson suivante »
+    rf"\b(?:le\s+système|l'ordinateur|atlas)\s+(?:{_ACTION_PRESENT})\b",
+    # « La musique commence à jouer »
+    r"\b(?:musique|chanson|morceau|lecture)\s+commence\b",
+]
+_CLAIM_RE = re.compile("|".join(f"(?:{p})" for p in _CLAIM_PATTERNS), re.IGNORECASE | re.MULTILINE)
+
+
+# Ce qui, plus tôt dans la même phrase, fait d'un passage une hypothèse ou une proposition
+# et non une affirmation : « si ton ordinateur est connecté… », « voulez-vous que je lance… ».
+_NOT_A_CLAIM_BEFORE = re.compile(
+    r"\b(?:si|s'il|lorsque|lorsqu'|quand|dès que|pour que|afin que|une fois que|"
+    r"voulez-vous|veux-tu|souhaitez-vous|souhaites-tu|préférez-vous|aimeriez-vous|"
+    r"vérifiez que|assurez-vous que|que je|qu'on|pouvez-vous|peux-tu)\b",
+    re.IGNORECASE,
+)
+
+
+def claims_action(reply: str) -> Optional[str]:
+    """Le passage d'une réponse de conversation qui affirme ou promet une action, ou None."""
+    text = (reply or "").replace("’", "'")
+    for m in _CLAIM_RE.finditer(text):
+        sentence_start = max(text.rfind(c, 0, m.start()) for c in ".!?\n") + 1
+        if _NOT_A_CLAIM_BEFORE.search(text[sentence_start:m.start() + 3]):
+            continue
+        return m.group(0).strip()
+    return None
+
+
+def honest_reply(reply: str) -> tuple[str, bool]:
+    """(réponse à transmettre, bloquée ?) — pour toute réponse produite sans outil exécuté."""
+    claim = claims_action(reply)
+    if claim:
+        logger.warning("[HONNETETE] Réponse sans action qui affirme agir (« %s ») : remplacée.", claim)
+        return UNSUPPORTED_REPLY, True
+    return reply, False
 
 
 def confirmation_reason(tool_name: str, *, interactive: bool) -> Optional[str]:
@@ -321,6 +432,7 @@ AUTOMATION_ACTION_CHECKS = {
 _AUTOMATION_EXCLUSIONS = {
     "action interactive : la fenêtre au premier plan au moment du déclenchement est inconnue": {
         "window_type", "window_hotkey", "window_click", "window_close", "window_focus",
+        "window_send_message",
         "window_minimize", "window_maximize", "window_snap", "ui_click_element",
         "web_search_to_notepad", "browser_click", "browser_type", "browser_scroll", "browser_close",
         "browser_navigate", "browser_new_tab", "browser_ext_click", "browser_ext_type",
@@ -492,6 +604,14 @@ class Validator:
             return ResolvedAction(
                 tool="__conversation__",
                 params={"message": intent.raw_input},
+                intent=intent,
+            )
+
+        # --- GB1 : action qu'aucun outil ne sait faire → réponse fixe, jamais le modèle ---
+        if category == "unsupported":
+            return ResolvedAction(
+                tool="__unsupported__",
+                params={"message": UNSUPPORTED_REPLY},
                 intent=intent,
             )
 
@@ -709,6 +829,20 @@ class Validator:
                     "element_name": params.get("element_name", target or ""),
                     "app_title": app_title,
                 }
+
+            elif verb == "send":
+                # GB4 : envoyer exige une fenêtre NOMMÉE. Jamais la fenêtre de travail récente,
+                # jamais le premier plan : un message envoyé au mauvais endroit ne se reprend pas.
+                text, error = check_type_text(params.get("text"))
+                if error:
+                    return self._reject(intent, f"message invalide ({error})")
+                window, error = check_window_title(params.get("target"))
+                if error:
+                    return self._reject(intent, "fenêtre où envoyer non précisée",
+                                        "Précise-la, par exemple « envoie bonjour dans Discord ».")
+                tool_name = "window_send_message"
+                params = {"text": text, "target": window}
+                verification = VerificationRule(type="none")
 
             elif verb in ("type", "hotkey"):
                 if verb == "type":

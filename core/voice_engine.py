@@ -52,6 +52,26 @@ def ensure_cuda_libraries() -> tuple[bool, str]:
         else "cublas64_12.dll introuvable dans les paquets nvidia"
 
 
+def _load_whisper(whisper_cls, model_name: str, device: str):
+    """Charge le modèle de transcription HORS LIGNE ; ne le télécharge que s'il manque.
+
+    Sprint G-bis / GB5 : faster-whisper interrogeait huggingface.co à chaque démarrage, même
+    modèle en cache (local_files_only=False par défaut) — constaté en réel, une connexion
+    HTTPS 24,6 s après le lancement. Le téléchargement n'a lieu qu'au premier lancement, et il
+    est annoncé.
+    """
+    try:
+        return whisper_cls(model_name, device=device, compute_type="int8", local_files_only=True)
+    except Exception as e:
+        names = {cls.__name__ for cls in type(e).__mro__}
+        if not ({"LocalEntryNotFoundError", "EntryNotFoundError"} & names
+                or "local_files_only" in str(e) or "cannot find the requested files" in str(e).lower()):
+            raise
+        logger.info("[VOIX] Modèle de transcription « %s » absent du disque : téléchargement depuis "
+                    "Hugging Face (premier lancement seulement).", model_name)
+        return whisper_cls(model_name, device=device, compute_type="int8", local_files_only=False)
+
+
 # F3 — fenêtre de suite. Au micro (24/09), Alexis enchaînait ses questions dans les
 # secondes qui suivaient la réponse. Six secondes laissent le temps de réagir sans faire
 # d'Atlas un micro ouvert : passé ce délai, il faut redire « Hey Atlas ».
@@ -520,7 +540,7 @@ class VoiceEngine:
                 else:
                     logger.info("[VOIX] %s", detail)
             try:
-                self._whisper_model = WhisperModel(model_name, device=device, compute_type="int8")
+                self._whisper_model = _load_whisper(WhisperModel, model_name, device)
                 self._stt_device_used = device
                 self._stt_error = None
             except Exception as e:
@@ -529,7 +549,7 @@ class VoiceEngine:
                 self._stt_error = f"{type(e).__name__}: {e}"
                 logger.error("[VOIX] Transcription sur '%s' impossible (%s) — repli processeur, "
                              "la réponse sera nettement plus lente.", device, self._stt_error)
-                self._whisper_model = WhisperModel(model_name, device="cpu", compute_type="int8")
+                self._whisper_model = _load_whisper(WhisperModel, model_name, "cpu")
                 self._stt_device_used = "cpu"
 
         audio_np = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0

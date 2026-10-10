@@ -12,6 +12,8 @@ Supprime UNIQUEMENT ce que le brief E a listé :
 
     python scripts/memory_cleanup.py plan            # aucune écriture
     python scripts/memory_cleanup.py apply --yes     # supprime, après sauvegarde vérifiée
+    python scripts/memory_cleanup.py plan-ids --ids liste.json           # GB7 : liste explicite
+    python scripts/memory_cleanup.py apply-ids --ids liste.json --yes
 
 Exige une sauvegarde vérifiée au préalable (scripts/backup_memory.py backup + verify).
 """
@@ -79,6 +81,55 @@ def build_plan(client) -> dict:
     return plan
 
 
+# --------------------------------------------------------------------------- #
+#  Sprint G-bis / GB7 — identifiants explicites
+#
+#  Décision d'Alexis : retirer exactement ce que les tests du sprint G ont écrit.
+#  Le fichier liste {collection: {identifiant: début du texte attendu}}. Un seul
+#  identifiant introuvable ou dont le texte diffère, et RIEN n'est supprimé.
+#  atlas_memory reste intouchable. atlas_conversations n'est atteignable QUE par
+#  cette liste explicite : les règles automatiques du sprint E ne la touchent pas.
+# --------------------------------------------------------------------------- #
+
+NEVER_TOUCH = {"atlas_memory"}
+
+
+def build_ids_plan(client, wanted: dict) -> dict:
+    """Vérifie, sans rien écrire, que chaque identifiant existe et porte le texte attendu."""
+    plan: dict[str, dict] = {}
+    problems: list[str] = []
+    for name, ids in wanted.items():
+        if name in NEVER_TOUCH:
+            raise ValueError(f"{name} est intouchable (retour arrière du sprint D)")
+        coll = client.get_collection(name)
+        got = coll.get(ids=list(ids), include=["documents"])
+        found = dict(zip(got.get("ids") or [], got.get("documents") or []))
+        for mid, expected in ids.items():
+            if mid not in found:
+                problems.append(f"{name}/{mid} introuvable")
+            elif not (found[mid] or "").startswith(expected):
+                problems.append(f"{name}/{mid} : texte différent ({(found[mid] or '')[:60]!r})")
+        plan[name] = {"total": coll.count(), "delete": sorted(ids), "texts": found}
+    if problems:
+        raise ValueError("rien n'est supprimé — " + " ; ".join(problems))
+    return plan
+
+
+def apply_ids_plan(client, plan: dict) -> dict:
+    """Supprime exactement les identifiants du plan ; vérifie le décompte après chaque collection."""
+    done: dict[str, dict] = {}
+    for name, info in plan.items():
+        assert name not in NEVER_TOUCH, f"{name} est intouchable"
+        coll = client.get_collection(name)
+        before = coll.count()
+        coll.delete(ids=info["delete"])
+        after = coll.count()
+        if before - after != len(info["delete"]):
+            raise RuntimeError(f"{name} : {before} → {after}, attendu −{len(info['delete'])}")
+        done[name] = {"avant": before, "après": after, "ids": info["delete"]}
+    return done
+
+
 def show(plan: dict) -> None:
     for name, info in plan.items():
         artefacts = sum(1 for r in info["delete"].values() if r.startswith("artefact"))
@@ -91,7 +142,8 @@ def show(plan: dict) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["plan", "apply"])
+    parser.add_argument("command", choices=["plan", "apply", "plan-ids", "apply-ids"])
+    parser.add_argument("--ids", help="GB7 : JSON {collection: {identifiant: début du texte attendu}}")
     parser.add_argument("--yes", action="store_true", help="confirmation explicite requise pour apply")
     parser.add_argument("--host", default="localhost")
     parser.add_argument("--port", type=int, default=8001)
@@ -100,6 +152,36 @@ def main() -> int:
 
     client = chromadb.HttpClient(host=args.host, port=args.port)
     client.heartbeat()
+
+    if args.command in ("plan-ids", "apply-ids"):
+        if not args.ids:
+            print("Refus : --ids FICHIER est obligatoire.")
+            return 1
+        wanted = json.loads(pathlib.Path(args.ids).read_text(encoding="utf-8"))
+        try:
+            plan = build_ids_plan(client, wanted)
+        except ValueError as e:
+            print(f"Refus : {e}")
+            return 1
+        for name, info in plan.items():
+            print(f"{name:20} {info['total']:4} éléments → supprimer {len(info['delete'])}")
+            for mid in info["delete"]:
+                print(f"    {mid}  {(info['texts'][mid] or '')[:90]!r}")
+        if args.command == "plan-ids":
+            print("\nAucune écriture : mode plan-ids.")
+            return 0
+        if not args.yes:
+            print("\nRefus : 'apply-ids' exige --yes (et une sauvegarde vérifiée au préalable).")
+            return 1
+        done = apply_ids_plan(client, plan)
+        for name, d in done.items():
+            print(f"{name:20} {d['avant']} → {d['après']} ({len(d['ids'])} supprimés)")
+        if args.report:
+            pathlib.Path(args.report).write_text(json.dumps(done, ensure_ascii=False, indent=2),
+                                                 encoding="utf-8")
+            print(f"\nIdentifiants supprimés consignés : {args.report}")
+        return 0
+
     plan = build_plan(client)
     show(plan)
 
