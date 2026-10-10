@@ -181,17 +181,18 @@ UNSUPPORTED_REPLY = "Je ne sais pas encore faire ça."
 _ACTION_INFINITIVES = (
     "baisser|monter|augmenter|diminuer|régler|ajuster|mettre|couper|activer|désactiver|allumer|"
     "éteindre|ouvrir|fermer|lancer|démarrer|arrêter|redémarrer|vider|supprimer|effacer|nettoyer|"
-    "envoyer|transférer|répondre|programmer|planifier|créer|ajouter|enregistrer|sauvegarder|noter|"
+    "envoyer|transférer|programmer|planifier|créer|ajouter|enregistrer|sauvegarder|noter|"
     "retenir|installer|désinstaller|télécharger|déplacer|copier|renommer|imprimer|partager|"
-    "commander|réserver|acheter|appeler|jouer|passer|connecter|déconnecter|modifier|changer|"
-    "configurer|bloquer|débloquer|verrouiller|exécuter|effectuer|lire"
+    "commander|réserver|acheter|appeler|jouer|connecter|déconnecter|modifier|changer(?!\\s+d[e'])|"
+    "configurer|bloquer|débloquer|verrouiller|exécuter|effectuer|"
+    "passer\\s+(?:à|au)\\s+(?:la|le)\\s+(?:chanson|piste|morceau|titre|suivant|suivante)"
 )
 _ACTION_PRESENT = (
     "baisse|monte|augmente|diminue|règle|ajuste|mets|coupe|active|désactive|allume|éteins|ouvre|"
-    "ferme|lance|démarre|arrête|redémarre|vide|supprime|efface|nettoie|envoie|transfère|réponds|"
+    "ferme|lance|démarre|arrête|redémarre|vide|supprime|efface|nettoie|envoie|transfère|"
     "programme|planifie|crée|ajoute|enregistre|sauvegarde|note|retiens|installe|désinstalle|"
     "télécharge|déplace|copie|renomme|imprime|partage|commande|réserve|achète|appelle|joue|passe|"
-    "connecte|déconnecte|modifie|change|configure|bloque|débloque|verrouille|exécute|effectue|"
+    "connecte|déconnecte|modifie|change(?!\\s+d[e'])|configure|bloque|débloque|verrouille|exécute|effectue|"
     "m'en occupe|m'occupe"
 )
 _ACTION_PARTICIPLES = (
@@ -217,7 +218,10 @@ _CLAIM_PATTERNS = [
     # « J'ai baissé le volume », « j'ai bien envoyé »
     rf"\bj'ai\s+(?:bien\s+|déjà\s+|maintenant\s+)?(?:{_ACTION_PARTICIPLES})\b",
     # « Je vais supprimer vos fichiers », « je vais vous l'envoyer »
-    rf"\bje\s+vais\s+(?:(?:vous|te|le|la|les|lui|leur|l')\s*)*(?:{_ACTION_INFINITIVES})\b",
+    rf"\bje\s+vais\s+(?:(?:vous|te|le|la|les|lui|leur|l'|me|m'|nous|se|s')\s*)*(?:{_ACTION_INFINITIVES})\b",
+    # « je réponds à ton dernier mail » — répondre n'est une action qu'à un message
+    r"\bje\s+(?:vais\s+)?répond(?:s|re)\s+(?:à|au|aux)\s+(?:ton|ta|tes|votre|vos|ce|cet|cette|le|la|les|son|sa)\s+"
+    r"(?:\w+\s+)?(?:mail|message|courriel|sms|e-mail)",
     # « Je baisse la luminosité », « j'envoie un mail », « je m'en occupe »
     rf"\bje\s+(?:{_ACTION_PRESENT})\b",
     r"\bj'(?:envoie|active|éteins|imprime|ajoute|efface|allume|appelle|achète|installe|ouvre|arrête|"

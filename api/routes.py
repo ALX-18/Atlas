@@ -159,6 +159,14 @@ async def chat_endpoint(req: ChatRequest):
     else:
         # Simple → Validator → ExecutionEngine
         resolved = validator.resolve(intent, context)
+        if resolved.tool == "__conversation__" and getattr(resolved, "rejected", False):
+            # Suivi G-bis : une action REFUSÉE par le validateur. Son message dit pourquoi et
+            # quoi préciser. Le transmettre tel quel : laissé au modèle, il inventait des
+            # instructions (« Ctrl + Tab ») ou promettait (« je vais me fermer »).
+            message = resolved.params.get("message", "")
+            mem.add_to_session("assistant", message)
+            ws.add_to_history("assistant", message)
+            return {"type": "text", "message": message, "tool_results": []}
         if resolved.tool == "__conversation__":
             # Validator decided it's conversation after all
             full_response = ""
@@ -319,6 +327,15 @@ async def chat_stream_endpoint(req: ChatRequest):
             results = await engine.execute_plan(plan, context, step_callback)
         else:
             resolved = validator.resolve(intent, context)
+            if resolved.tool == "__conversation__" and getattr(resolved, "rejected", False):
+                # Suivi G-bis : un refus du validateur est transmis tel quel (voir /chat).
+                message = resolved.params.get("message", "")
+                mem.add_to_session("assistant", message)
+                ws.add_to_history("assistant", message)
+                yield f"data: {json.dumps({'type': 'token', 'content': message}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'result', 'content': {'type': 'text', 'message': message, 'tool_results': []}}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                return
             if resolved.tool == "__conversation__":
                 # Fallback to LLM
                 full_response = ""
