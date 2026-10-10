@@ -400,11 +400,28 @@ def detect_gpu() -> tuple[list[Check], dict]:
         # CTranslate2 voit le GPU même sans cuBLAS, mais chaque transcription échoue alors
         # (« cublas64_12.dll is not found ») : on tente le chargement réel de la DLL.
         import ctypes
+        # Sprint G : déclarer d'abord les DLL des paquets pip nvidia-*, comme Atlas le fait
+        # au démarrage (core/voice_engine.ensure_cuda_libraries). Sans cela, doctor concluait
+        # « installation incomplète » sur une machine où la transcription tourne sur GPU.
+        pip_dirs: list[str] = []
+        try:
+            import nvidia
+            for base in getattr(nvidia, "__path__", []):
+                pip_dirs += [str(d) for d in Path(base).glob("*/bin") if any(d.glob("*.dll"))]
+        except Exception:
+            pass
+        for d in pip_dirs:
+            os.environ["PATH"] = d + os.pathsep + os.environ.get("PATH", "")
+            try:
+                os.add_dll_directory(d)
+            except Exception:
+                pass
         try:
             ctypes.WinDLL("cublas64_12.dll")
-            ok, detail = True, "cublas64_12.dll chargeable"
+            ok, detail = True, ("cublas64_12.dll chargeable" +
+                                (" (paquets pip nvidia-*, déclarés par Atlas au démarrage)" if pip_dirs else ""))
         except OSError:
-            ok, detail = False, "cublas64_12.dll introuvable dans le PATH (le STT sur GPU échouera)"
+            ok, detail = False, "cublas64_12.dll introuvable (PATH et paquets pip nvidia-*) : le STT sur GPU échouera"
         voice = (_load_settings() or {}).get("voice", {})
         needed = voice.get("enabled") and voice.get("stt_device") == "cuda"
         checks.append(Check("GPU", "cuBLAS 12 pour le STT GPU", ok, CRITICAL if needed else WARNING, detail,

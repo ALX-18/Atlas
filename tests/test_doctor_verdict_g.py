@@ -88,3 +88,27 @@ def test_g5_le_verdict_est_en_tete_du_rapport():
                        capture_output=True, text=True, encoding="utf-8", timeout=120, cwd=ROOT)
     premiere = next(l for l in r.stdout.splitlines() if l.strip())
     assert any(v in premiere for v in (BIEN, DEGRADE, NON)), f"première ligne : {premiere!r}"
+
+
+def test_g5_cublas_installe_par_pip_est_reconnu():
+    """Constaté en réel (sprint G) : doctor concluait « ❌ installation incomplète : cuBLAS »
+    sur la machine d'Alexis, où la transcription tourne pourtant sur GPU. Atlas déclare les
+    DLL des paquets pip nvidia-* au démarrage (ensure_cuda_libraries, sprint E) ; doctor
+    cherchait seulement dans le PATH. Chez un proche, ce faux ❌ ferait renoncer pour rien."""
+    import os
+
+    if os.name != "nt":
+        pytest.skip("Windows uniquement")
+    try:
+        import nvidia  # noqa: F401
+        has_pip_cublas = any(pathlib.Path(p, "cublas", "bin", "cublas64_12.dll").exists()
+                             for p in nvidia.__path__)
+    except Exception:
+        has_pip_cublas = False
+    if not has_pip_cublas:
+        pytest.skip("nvidia-cublas-cu12 absent de cet environnement")
+    import doctor
+
+    checks, _ = doctor.detect_gpu()
+    cublas = [c for c in checks if "cuBLAS" in c.name]
+    assert cublas and cublas[0].ok, [(c.name, c.ok, c.detail) for c in cublas]
