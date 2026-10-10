@@ -333,3 +333,13 @@ def asyncio_run(coro):
     import asyncio
 
     return asyncio.run(coro)
+
+
+def test_g4_oublier_avec_une_formulation_naturelle(memoire_test):
+    """Constaté en réel (sprint G) : « oublie le code du portail » ne retrouvait pas « le code
+    du portail de test est 4521 » (score e5 0,839 sous un seuil de 0,85). La confirmation
+    montre le souvenir exact : c'est elle qui protège, le seuil évite seulement l'absurde."""
+    _dire("retiens que le code du portail de test est 4521")
+    _, r = _dire("oublie le code du portail")
+    assert r.get("status") == "confirmation_required", r
+    assert "4521" in (r.get("target") or ""), r

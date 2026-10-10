@@ -586,9 +586,11 @@ _RECALL_PREFIX = re.compile(
 )
 _FORGET_PREFIX = re.compile(r"^\s*(?:atlas[\s,]*)?(?:oublie|oublier|forget)\s*(?:que\s+|qu')?", re.IGNORECASE)
 
-# Un « oublie… » ne vise un fait que s'il lui ressemble nettement : en dessous, rien
-# n'est proposé à l'effacement plutôt que d'effacer le mauvais souvenir.
-FORGET_MIN_SCORE = 0.85
+# Un « oublie… » ne propose un fait que s'il est assez proche pour qu'Atlas le rappellerait
+# (même seuil que le rappel, memory.retrieval_min_score). La protection contre le mauvais
+# souvenir, c'est la confirmation : le dialogue montre le souvenir exact avant tout effacement.
+# Mesuré en réel (sprint G) : 0,85 rejetait « oublie le code du portail » (score e5 0,839).
+FORGET_MIN_SCORE = None
 
 
 def _strip_phrase(text: str, prefix: re.Pattern) -> str:
