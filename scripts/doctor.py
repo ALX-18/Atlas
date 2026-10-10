@@ -18,6 +18,7 @@ Usage:
     cd assistant-bureau
     python scripts/doctor.py            # rapport lisible
     python scripts/doctor.py --json     # rapport machine (pour un futur installeur)
+    python scripts/doctor.py --precheck # AVANT installation : verdict matériel, Python nu suffit
 
 Code de retour:
     0 — aucun composant critique manquant (des avertissements peuvent subsister)
@@ -309,17 +310,10 @@ def check_memory_and_web(settings: dict | None) -> list[Check]:
 def check_virtualization() -> list[Check]:
     if os.name != "nt":
         return []
-    # VirtualizationFirmwareEnabled vaut False dès qu'un hyperviseur tourne (WSL2/Docker) :
-    # on accepte aussi HypervisorPresent=True (constaté au sprint A).
-    code, out = _run(["powershell", "-NoProfile", "-Command",
-                      "'{0};{1}' -f (Get-CimInstance Win32_Processor | Select-Object -First 1).VirtualizationFirmwareEnabled,"
-                      "(Get-CimInstance Win32_ComputerSystem).HypervisorPresent"],
-                     timeout=15)
-    firmware, _, hypervisor = out.strip().partition(";")
-    enabled = "true" in (firmware.lower(), hypervisor.lower())
+    state, detail = _virtualization_state()
+    enabled = bool(state)
     docker = shutil.which("docker")
-    checks = [Check("Docker", "Virtualisation activée dans le BIOS", enabled, WARNING,
-                    f"VirtualizationFirmwareEnabled={firmware or '?'} HypervisorPresent={hypervisor or '?'}",
+    checks = [Check("Docker", "Virtualisation activée dans le BIOS", enabled, WARNING, detail,
                     "Activer Intel VT-x / AMD-V (SVM) dans le BIOS, puis redémarrer. "
                     "Sans cela, WSL2 et Docker Desktop ne démarrent pas (HCS_E_HYPERV_NOT_INSTALLED).")]
     checks.append(Check("Docker", "CLI docker installée", docker is not None, INFO, docker or "absente",
@@ -553,6 +547,168 @@ def check_voice(settings: dict | None) -> list[Check]:
 
 
 # --------------------------------------------------------------------------- #
+#  Sprint G / G5 — verdict lisible par un non-informaticien
+#
+#  Bibliothèque standard UNIQUEMENT dans cette section : la pré-vérification
+#  (--precheck) doit tourner sur le PC d'un proche avant toute installation,
+#  avec un Python nu (testé avec `python -S`, sans site-packages).
+#
+#  Seuils fondés sur les mesures, justifiées dans RAPPORT_SPRINT_G.md :
+#    - VRAM : pic 6 674 Mio, chaîne complète (qwen2.5:7b + transcription GPU, sprint E) ;
+#    - RAM  : pic 18,7 Go sans Docker, 23,4 Go avec, sur 24 Go (98 %, sprint A, L23) ;
+#    - disque : ~17 Go installés (venv 3,6 ; Ollama 2,8 ; qwen2.5:7b 4,4 ; e5 1,1 ;
+#      whisper 0,1 ; Docker Desktop 3,9 ; images ChromaDB + SearXNG 1,2 — sprint G) ;
+#    - sans NVIDIA : transcription ~5 s par phrase au lieu de 0,3 s.
+# --------------------------------------------------------------------------- #
+
+VERDICT_OK = "✅ Atlas tournera bien"
+VERDICT_DEGRADED = "⚠️ Atlas tournera, en mode dégradé"
+VERDICT_KO = "❌ Atlas ne tournera pas correctement"
+
+RAM_COMFORT_GIB = 31.0     # machines de 32 Go : marge au-dessus du pic de 23,4 Go
+RAM_TIGHT_GIB = 23.0       # 24 Go : mesuré plein à 98 % avec Docker
+RAM_MIN_GIB = 15.0         # 16 Go : au-dessous du pic sans Docker (18,7) — pagination
+VRAM_COMFORT_MIB = 7_500   # cartes 8 Go : pic mesuré 6 674 Mio
+DISK_MIN_GIB = 25.0        # ~17 Go installés + installeurs et caches pendant l'installation
+
+
+def _ram_gib() -> float:
+    if os.name != "nt":
+        try:
+            return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1024 ** 3
+        except (ValueError, OSError, AttributeError):
+            return 0.0
+    import ctypes
+
+    class _MemStatus(ctypes.Structure):
+        _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+    status = _MemStatus()
+    status.dwLength = ctypes.sizeof(_MemStatus)
+    ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
+    return status.ullTotalPhys / 1024 ** 3
+
+
+def _virtualization_state() -> tuple[bool | None, str]:
+    """True / False, ou None si la question n'a pas pu être posée."""
+    if os.name != "nt":
+        return None, "hors Windows"
+    # VirtualizationFirmwareEnabled vaut False dès qu'un hyperviseur tourne (WSL2/Docker) :
+    # on accepte aussi HypervisorPresent=True (constaté au sprint A).
+    code, out = _run(["powershell", "-NoProfile", "-Command",
+                      "'{0};{1}' -f (Get-CimInstance Win32_Processor | Select-Object -First 1).VirtualizationFirmwareEnabled,"
+                      "(Get-CimInstance Win32_ComputerSystem).HypervisorPresent"],
+                     timeout=15)
+    firmware, _, hypervisor = out.strip().partition(";")
+    detail = f"VirtualizationFirmwareEnabled={firmware or '?'} HypervisorPresent={hypervisor or '?'}"
+    if code != 0 or not (firmware or hypervisor):
+        return None, detail
+    return "true" in (firmware.lower(), hypervisor.lower()), detail
+
+
+def collect_machine() -> dict:
+    """Ce que le verdict a besoin de savoir de la machine — lecture seule, stdlib seule."""
+    windows = os.name == "nt"
+    release = platform.release()
+    if windows:
+        try:
+            if int(platform.version().split(".")[-1]) >= 22000:
+                release = "11"
+        except ValueError:
+            pass
+    arch = (os.environ.get("PROCESSOR_ARCHITEW6432") or os.environ.get("PROCESSOR_ARCHITECTURE")
+            or platform.machine())
+    gpu_name, vram = None, None
+    exe = shutil.which("nvidia-smi")
+    if exe:
+        code, out = _run([exe, "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"])
+        if code == 0 and out.strip():
+            name, _, total = out.strip().splitlines()[0].rpartition(",")
+            try:
+                gpu_name, vram = name.strip(), int(float(total.strip()))
+            except ValueError:
+                pass
+    virtualization, _ = _virtualization_state()
+    # Atlas s'installe dans le profil de l'utilisateur : c'est ce disque qui compte, pas
+    # celui d'où le script est lancé (une clé USB, par exemple).
+    disk = shutil.disk_usage(Path.home().anchor or str(Path.home()))
+    return {
+        "windows": windows,
+        "windows_release": release,
+        "arch64": str(arch).upper().endswith("64"),
+        "ram_gib": round(_ram_gib(), 1),
+        "gpu_name": gpu_name,
+        "vram_mib": vram,
+        "virtualization": virtualization,
+        "disk_free_gib": round(disk.free / 1024 ** 3, 1),
+    }
+
+
+def machine_verdict(m: dict) -> tuple[str, list[str]]:
+    """(verdict, raisons) — en français courant, sans jargon."""
+    ko: list[str] = []
+    degraded: list[str] = []
+
+    if not m.get("windows"):
+        ko.append("Atlas ne fonctionne que sous Windows 10 ou 11.")
+    elif not m.get("arch64"):
+        ko.append("Windows doit être en version 64 bits.")
+
+    disk = float(m.get("disk_free_gib") or 0)
+    if disk < DISK_MIN_GIB:
+        ko.append(f"Pas assez de place sur le disque : {disk:.0f} Go libres, il en faut au moins "
+                  f"{DISK_MIN_GIB:.0f} (Atlas occupe environ 17 Go une fois installé).")
+
+    ram = float(m.get("ram_gib") or 0)
+    if ram < RAM_MIN_GIB:
+        ko.append(f"Pas assez de mémoire vive : {ram:.0f} Go, il en faut au moins 16.")
+    elif ram < RAM_TIGHT_GIB:
+        degraded.append(f"Mémoire vive juste ({ram:.0f} Go) : l'ordinateur ralentira pendant qu'Atlas "
+                        "travaille. Fermer le navigateur et les jeux aide.")
+    elif ram < RAM_COMFORT_GIB:
+        degraded.append(f"Mémoire vive un peu juste ({ram:.0f} Go) : elle a été mesurée pleine à 98 % sur "
+                        "un ordinateur de 24 Go quand tout Atlas tourne. Éviter de garder un jeu ouvert "
+                        "en même temps.")
+
+    vram = m.get("vram_mib")
+    if not m.get("gpu_name") or not vram:
+        degraded.append("Pas de carte graphique NVIDIA (ou pilote absent) : Atlas mettra environ "
+                        "5 secondes à comprendre chaque phrase dite à voix haute, au lieu d'un tiers "
+                        "de seconde, et ses réponses seront plus lentes.")
+    elif vram < VRAM_COMFORT_MIB:
+        degraded.append(f"Carte graphique un peu juste ({m['gpu_name']}, {vram / 1024:.0f} Go de "
+                        "mémoire) : il faudra choisir un modèle plus petit à l'installation, sinon "
+                        "Atlas répondra lentement.")
+
+    if m.get("virtualization") is False:
+        degraded.append("La virtualisation n'est pas activée dans le BIOS : Docker ne pourra pas "
+                        "démarrer, donc pas de mémoire à long terme (« retiens que… ») ni de "
+                        "recherche web locale. Elle s'active dans le BIOS (Intel VT-x ou AMD-V).")
+    elif m.get("virtualization") is None:
+        degraded.append("Impossible de vérifier si la virtualisation est activée (nécessaire pour "
+                        "Docker et la mémoire d'Atlas) : à contrôler dans le BIOS.")
+
+    if ko:
+        return VERDICT_KO, ko + degraded
+    if degraded:
+        return VERDICT_DEGRADED, degraded
+    return VERDICT_OK, ["Mémoire vive, carte graphique, disque et virtualisation suffisent."]
+
+
+def render_verdict(verdict: str, reasons: list[str], m: dict) -> None:
+    print(verdict)
+    for r in reasons:
+        print(f"  - {r}")
+    gpu = f"{m['gpu_name']} ({m['vram_mib']} Mio)" if m.get("gpu_name") else "aucune carte NVIDIA détectée"
+    print(f"  (Windows {m.get('windows_release')} — {m.get('ram_gib')} Go de mémoire vive — {gpu} — "
+          f"{m.get('disk_free_gib')} Go libres — virtualisation : {m.get('virtualization')})")
+
+
+# --------------------------------------------------------------------------- #
 #  Rendu
 # --------------------------------------------------------------------------- #
 
@@ -585,6 +741,8 @@ def render(checks: list[Check]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Diagnostic d'installation Atlas")
     parser.add_argument("--json", action="store_true", help="sortie JSON")
+    parser.add_argument("--precheck", action="store_true",
+                        help="pré-vérification AVANT installation : matériel seulement, Python nu suffit")
     args = parser.parse_args(argv)
 
     for stream in (sys.stdout, sys.stderr):
@@ -592,6 +750,20 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
+
+    # G5 : le verdict d'abord, en une ligne, pour un non-informaticien.
+    machine = collect_machine()
+    verdict, reasons = machine_verdict(machine)
+    if args.precheck:
+        if args.json:
+            print(json.dumps({"verdict": verdict, "reasons": reasons, "machine": machine},
+                             ensure_ascii=False, indent=2))
+        else:
+            render_verdict(verdict, reasons, machine)
+            print()
+            print("Pré-vérification du matériel seulement. Après l'installation, relancer sans "
+                  "--precheck pour tout vérifier.")
+        return {VERDICT_OK: 0, VERDICT_DEGRADED: 1}.get(verdict, 2)
 
     settings = _load_settings()
     voice_enabled = bool((settings or {}).get("voice", {}).get("enabled"))
@@ -614,11 +786,17 @@ def main(argv: list[str] | None = None) -> int:
     checks += check_voice(settings)
 
     failed_critical = any(not c.ok and c.severity == CRITICAL for c in checks)
+    if failed_critical and verdict != VERDICT_KO:
+        verdict = VERDICT_KO
+        reasons = [f"Installation incomplète : {c.section} / {c.name}."
+                   for c in checks if not c.ok and c.severity == CRITICAL] + reasons
     if args.json:
-        print(json.dumps({"ok": not failed_critical, "gpu": gpu,
+        print(json.dumps({"verdict": verdict, "reasons": reasons, "machine": machine,
+                          "ok": not failed_critical, "gpu": gpu,
                           "checks": [asdict(c) | {"status": _status(c)} for c in checks]},
                          ensure_ascii=False, indent=2))
     else:
+        render_verdict(verdict, reasons, machine)
         render(checks)
     return 1 if failed_critical else 0
 
