@@ -112,3 +112,56 @@ def test_g1_la_page_d_accueil_de_l_interface_web_s_ouvre(client):
     """Taper l'adresse dans la barre du navigateur : Sec-Fetch-Site vaut « none »."""
     r = client.get("/", headers={"Sec-Fetch-Site": "none"})
     assert r.status_code == 200
+
+
+# --------------------------------------------------------------------------- #
+#  G2 — aucune suppression de mémoire par l'API
+# --------------------------------------------------------------------------- #
+
+class MemoireSimulee:
+    """Enregistre les suppressions demandées ; n'efface rien."""
+
+    def __init__(self):
+        self.effacements = []
+
+    def forget(self, memory_id):
+        self.effacements.append(("forget", memory_id))
+        return True
+
+    def forget_category(self, category):
+        self.effacements.append(("forget_category", category))
+        return 42
+
+
+@pytest.fixture
+def memoire(monkeypatch):
+    import api.routes as routes
+
+    mem = MemoireSimulee()
+    monkeypatch.setattr(routes, "get_memory_manager", lambda: mem)
+    return mem
+
+
+@pytest.mark.parametrize("chemin", ["/api/memory/category/conversations", "/api/memory/abc123"])
+def test_g2_l_api_n_efface_pas_la_memoire(client, memoire, chemin):
+    """Requête de la fenêtre desktop (acceptée par G1) : même Atlas ne doit pas pouvoir
+    effacer une catégorie entière, ou un souvenir, sans confirmation ni sauvegarde.
+    Ces routes n'ont aucun appelant : elles sont retirées."""
+    r = client.delete(chemin)
+    assert memoire.effacements == [], f"{chemin} a effacé de la mémoire : {memoire.effacements}"
+    assert r.status_code in (404, 405), f"{r.status_code} {r.text[:200]}"
+
+
+def test_g2_aucune_route_ne_supprime_de_la_memoire():
+    """Recensement : aucune route DELETE, et aucune route qui appelle forget / forget_category."""
+    import inspect
+
+    import api.routes as routes
+
+    fautives = []
+    for route in routes.router.routes:
+        methodes = getattr(route, "methods", set()) or set()
+        source = inspect.getsource(route.endpoint) if hasattr(route, "endpoint") else ""
+        if "DELETE" in methodes or ".forget(" in source or "forget_category" in source:
+            fautives.append(f"{sorted(methodes)} {route.path}")
+    assert fautives == [], f"routes qui suppriment de la mémoire : {fautives}"
