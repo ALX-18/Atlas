@@ -181,7 +181,10 @@ def test_f2_processus_systeme_refuse_sans_confirmation_possible(executed):
     assert not confirmation._pending
 
 
-def test_f2_processus_ordinaire_reste_confirmable(executed):
+def test_f2_processus_ordinaire_reste_confirmable(executed, monkeypatch):
+    # G-bis / GB3 : la confirmation désigne des processus qui tournent. Un Bloc-notes simulé.
+    import tools.process_manager as pm
+    monkeypatch.setattr(pm, "find_processes_by_name", lambda n: [{"pid": 4242, "name": "notepad.exe"}])
     resolved, result = _run("process", "kill", target="notepad.exe", params={"name": "notepad.exe"})
     assert executed == []
     assert result["status"] == "confirmation_required"

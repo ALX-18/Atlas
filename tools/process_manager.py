@@ -63,11 +63,53 @@ def find_process(name: str) -> list[dict[str, Any]]:
     return results
 
 
-def kill_process(pid: int | None = None, name: str | None = None) -> dict[str, Any]:
+def _same_process_name(a: str, b: str) -> bool:
+    a, b = (a or "").strip().lower(), (b or "").strip().lower()
+    return bool(a) and (a == b or a.removesuffix(".exe") == b.removesuffix(".exe"))
+
+
+def find_processes_by_name(name: str) -> list[dict[str, Any]]:
+    """Processus dont le nom est EXACTEMENT celui-ci, avec ou sans « .exe » (sprint G-bis, GB3)."""
+    found = []
+    for p in psutil.process_iter(["pid", "name"]):
+        try:
+            if _same_process_name(p.info["name"], name):
+                found.append({"pid": p.info["pid"], "name": p.info["name"]})
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return found
+
+
+def kill_process(pid: int | None = None, name: str | None = None,
+                 pids: list[int] | None = None) -> dict[str, Any]:
     """
     Termine un processus par PID ou par nom.
     Retourne le résultat de l'opération.
+
+    GB3 : par nom, correspondance EXACTE (avant : un morceau — « e » visait tout processus
+    contenant un « e »). `pids` : les PID montrés dans la confirmation ; chacun n'est arrêté
+    que s'il porte toujours ce nom (un PID peut être réattribué entre-temps).
     """
+    if pids:
+        killed, skipped = [], []
+        for one in pids:
+            try:
+                proc = psutil.Process(one)
+                if not _same_process_name(proc.name(), name or ""):
+                    skipped.append(one)
+                    continue
+                proc.terminate()
+                killed.append({"pid": one, "name": proc.name()})
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                skipped.append(one)
+        if not killed:
+            return {"success": False, "message": f"Aucun des processus confirmés ({name}) n'a été arrêté : "
+                                                 "ils ne tournent plus sous ce nom."}
+        msg = f"{len(killed)} processus « {name} » arrêté(s)."
+        if skipped:
+            msg += f" Non arrêtés (terminés ou renommés depuis) : PID {', '.join(map(str, skipped))}."
+        return {"success": True, "message": msg, "killed": killed}
+
     if pid:
         try:
             proc = psutil.Process(pid)
@@ -92,7 +134,7 @@ def kill_process(pid: int | None = None, name: str | None = None) -> dict[str, A
         killed = []
         for p in psutil.process_iter(["pid", "name"]):
             try:
-                if name.lower() in (p.info["name"] or "").lower():
+                if _same_process_name(p.info["name"], name):
                     p.terminate()
                     killed.append({"pid": p.info["pid"], "name": p.info["name"]})
             except (psutil.NoSuchProcess, psutil.AccessDenied):

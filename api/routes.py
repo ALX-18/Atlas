@@ -20,7 +20,7 @@ from core.context_monitor import collect_context
 from core.ollama_client import chat_stream, chat_full, OllamaStreamTimeout, STREAM_TIMEOUT
 from core.intent_engine import process_ai_response, execute_confirmed, save_rejection, get_execution_engine
 from core.intent_classifier import get_classifier
-from core.validator import get_validator
+from core.validator import get_validator, honest_reply
 from core.planner import get_planner
 from core.world_state import get_world_state
 from core.memory_manager import get_memory_manager
@@ -133,14 +133,18 @@ async def chat_endpoint(req: ChatRequest):
             except Exception:
                 from core.ollama_client import LANG_FALLBACK_MESSAGE
                 full_response = LANG_FALLBACK_MESSAGE
+        # GB1 : aucun outil n'a tourné — une réponse qui affirme agir n'est pas transmise.
+        full_response, blocked = honest_reply(full_response)
         mem.add_to_session("assistant", full_response)
         ws.add_to_history("assistant", full_response)
-        # F4 — ingestion conversation (long terme, non bloquant si échec)
-        try:
-            mem.ingest_conversation(req.message, full_response,
-                                    intent_category=intent.category, success=True)
-        except Exception as _e:
-            logger.debug("Ingestion conversation échouée : %s", _e)
+        # F4 — ingestion conversation (long terme, non bloquant si échec). GB1 : jamais un
+        # échange où le modèle prétendait agir — il resservirait d'exemple.
+        if not blocked:
+            try:
+                mem.ingest_conversation(req.message, full_response,
+                                        intent_category=intent.category, success=True)
+            except Exception as _e:
+                logger.debug("Ingestion conversation échouée : %s", _e)
         return {"type": "text", "message": full_response, "tool_results": []}
 
     # --- Step 3: Action execution ---
@@ -165,13 +169,15 @@ async def chat_endpoint(req: ChatRequest):
                 return _api_error("Timeout Atlas.", "ERR_MODEL_TIMEOUT")
             except Exception:
                 return _api_error("Le modèle local est indisponible.", "ERR_MODEL_UNAVAILABLE")
+            full_response, blocked = honest_reply(full_response)   # GB1
             mem.add_to_session("assistant", full_response)
             ws.add_to_history("assistant", full_response)
-            try:
-                mem.ingest_conversation(req.message, full_response,
-                                        intent_category=intent.category, success=True)
-            except Exception as _e:
-                logger.debug("Ingestion conversation échouée : %s", _e)
+            if not blocked:
+                try:
+                    mem.ingest_conversation(req.message, full_response,
+                                            intent_category=intent.category, success=True)
+                except Exception as _e:
+                    logger.debug("Ingestion conversation échouée : %s", _e)
             return {"type": "text", "message": full_response, "tool_results": []}
 
         result = await engine.execute(resolved, context)
@@ -264,7 +270,8 @@ async def chat_stream_endpoint(req: ChatRequest):
                         token = await asyncio.wait_for(token_iter.__anext__(), timeout=5.0)
                         last_activity = time.monotonic()
                         full_response += token
-                        yield f"data: {json.dumps({'type': 'token', 'content': token}, ensure_ascii=False)}\n\n"
+                        # GB1 : pas de diffusion mot à mot — une affirmation d'action serait
+                        # déjà affichée avant qu'on puisse la garder. Tampon, puis garde.
                     except StopAsyncIteration:
                         break
                     except asyncio.TimeoutError:
@@ -285,8 +292,10 @@ async def chat_stream_endpoint(req: ChatRequest):
                 yield "data: [DONE]\n\n"
                 return
 
+            full_response, _blocked = honest_reply(full_response)   # GB1
             mem.add_to_session("assistant", full_response)
             ws.add_to_history("assistant", full_response)
+            yield f"data: {json.dumps({'type': 'token', 'content': full_response}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'result', 'content': {'type': 'text', 'message': full_response, 'tool_results': []}}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
             return
@@ -316,9 +325,10 @@ async def chat_stream_endpoint(req: ChatRequest):
                 try:
                     async for token in chat_stream(req.message, context, req.history, memories=memories):
                         full_response += token
-                        yield f"data: {json.dumps({'type': 'token', 'content': token}, ensure_ascii=False)}\n\n"
                 except Exception:
                     pass
+                full_response, _blocked = honest_reply(full_response)   # GB1
+                yield f"data: {json.dumps({'type': 'token', 'content': full_response}, ensure_ascii=False)}\n\n"
                 mem.add_to_session("assistant", full_response)
                 ws.add_to_history("assistant", full_response)
                 yield f"data: {json.dumps({'type': 'result', 'content': {'type': 'text', 'message': full_response, 'tool_results': []}}, ensure_ascii=False)}\n\n"

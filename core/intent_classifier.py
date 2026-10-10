@@ -268,6 +268,68 @@ _REDO_FUZZY_VERBS = (
 )
 
 
+# GB2 — mots courants à 2 lettres ou moins d'un verbe de rejeu : jamais un rejeu.
+_REDO_FUZZY_STOPWORDS = {
+    "faire", "fais", "fait", "faite", "faites", "repas", "relais", "refus", "refuse", "retour",
+    "rapide", "reste", "relis", "remets", "revoir", "repose", "repos", "recette", "regarde",
+    "repars", "reçois", "recois", "rejet", "rendre", "redis", "redit", "redire", "relire",
+}
+
+# GB2 — verbes de rejeu reconnus en tête de phrase.
+_REDO_LEAD_WORDS = (
+    "refais", "refaire", "refait", "relance", "relancer", "répète", "repete", "répéter", "repeter",
+    "rejoue", "rejouer", "réexécute", "reexecute", "recommence", "recommencer", "redo", "repeat",
+)
+# Ce qui peut précéder la demande : « atlas, », politesse, « peux-tu », « tu peux ».
+_REDO_LEAD_RE = re.compile(
+    r"^(?:atlas[\s,]*)?(?:s'il te pla[iî]t[\s,]*)?(?:(?:peux-tu|tu peux|pourrais-tu|tu pourrais)\s+)?",
+    re.IGNORECASE,
+)
+
+
+# --------------------------------------------------------------------------- #
+#  Sprint G-bis / GB1 — demandes d'action qu'aucun outil ne sait faire
+#
+#  Un impératif d'action en tête de phrase (« baisse le volume », « vide la corbeille »),
+#  ou « peux-tu / tu peux » suivi de l'infinitif. Seulement quand aucune catégorie n'a
+#  reconnu la phrase : ce qui a un outil garde son outil. Les tournures de conversation qui
+#  empruntent ces verbes sont exclues (« appelle-moi Alex », « réponds-moi », « passe une
+#  bonne journée », « mets-toi à ma place »).
+# --------------------------------------------------------------------------- #
+
+_UNSUPPORTED_IMPERATIVES = (
+    r"baisse|monte|augmente|diminue|règle|ajuste|coupe|active|désactive|allume|éteins|vide|"
+    r"supprime|efface|nettoie|envoie(?![- ]moi)|transfère|commande|achète|réserve|appelle(?![- ]moi)|"
+    r"imprime|partage|télécharge|installe|désinstalle|redémarre|connecte|déconnecte|bloque|"
+    r"débloque|verrouille|"
+    r"mets(?![- ](?:toi|moi))\s+(?:de la|du|des|la|le|les|l'|un|une|en|à|au)|"
+    r"change\s+(?:le|la|les|l'|mon|ma|mes)|modifie\s+(?:le|la|les|l'|mon|ma|mes)|"
+    r"passe\s+(?:à la|au|la|le)\s+(?:chanson|piste|morceau|titre|suivant|suivante|précédent|précédente)|"
+    r"joue\s+(?:de la|la|une|un|ma|mon|du)\s+(?:musique|chanson|playlist|morceau|titre)|"
+    r"réponds\s+(?:à|au|aux)\s+(?:mon|ma|mes|ce|cet|cette|le|la|les)\s+\w*\s*(?:mail|message|courriel|sms|e-mail)|"
+    r"ajoute\s+.{1,40}\s+(?:à ma liste|à la liste|au calendrier|à mon agenda|aux favoris)"
+)
+_UNSUPPORTED_INFINITIVES = (
+    r"baisser|monter|augmenter|diminuer|régler|ajuster|couper|activer|désactiver|allumer|éteindre|"
+    r"vider|supprimer|effacer|nettoyer|envoyer|transférer|commander|acheter|réserver|appeler|"
+    r"imprimer|partager|télécharger|installer|désinstaller|redémarrer|connecter|déconnecter|"
+    r"bloquer|débloquer|verrouiller|mettre|changer|modifier|jouer"
+)
+_UNSUPPORTED_RE = re.compile(
+    r"^(?:atlas[\s,]*)?(?:s'il te pla[iî]t[\s,]*)?(?:"
+    rf"(?:{_UNSUPPORTED_IMPERATIVES})\b"
+    r"|(?:peux-tu|tu peux|pourrais-tu|tu pourrais|est-ce que tu peux|est-ce que tu pourrais|"
+    r"je voudrais que tu|j'aimerais que tu)\s+(?:(?:me|m'|le|la|les|lui|leur|nous)\s*)?"
+    rf"(?:{_UNSUPPORTED_INFINITIVES})\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _is_unsupported_action(normalized: str) -> bool:
+    return bool(_UNSUPPORTED_RE.match((normalized or "").strip().replace("’", "'")))
+
+
 def _levenshtein(a: str, b: str) -> int:
     """Iterative Levenshtein distance — O(len(a)*len(b)) time, O(min) space."""
     if a == b:
@@ -460,20 +522,10 @@ class IntentClassifier:
             )
 
         # --- Détection spéciale : "refais" / "encore" / variantes → memory/redo ---
-        # v5.2 clôture — expanded list to cover common typos and synonyms
-        redo_words = [
-            # FR canon + variantes
-            "refais", "refaire", "refait",
-            "relance", "relancer",
-            "répète", "repete", "répéter", "repeter",
-            "rejoue", "rejouer",
-            "réexécute", "reexecute",
-            "encore", "encore une fois", "à nouveau", "a nouveau",
-            "recommence", "recommencer", "une autre fois",
-            # EN
-            "redo", "repeat", "again",
-        ]
-        if any(w in normalized for w in redo_words):
+        # GB2 : un mot de rejeu ne compte qu'en TÊTE de phrase (« refais ça », « peux-tu
+        # refaire ça »). Avant, il suffisait qu'il apparaisse n'importe où : « je suis encore
+        # fatigué » rejouait la dernière action.
+        if self._is_redo_request(normalized):
             return IntentResult(
                 category="memory",
                 verb="redo",
@@ -518,6 +570,13 @@ class IntentClassifier:
                             raw_input=raw,
                         )
 
+        # GB2 : la table des verbes trouve aussi « encore », « refaire »… par sous-chaîne,
+        # n'importe où. Un rejeu n'est retenu que si c'est une demande de rejeu.
+        if best_match and best_match.category == "memory" and best_match.verb == "redo" \
+                and not self._is_redo_request(normalized):
+            best_match = None
+            best_confidence = 0.0
+
         # G4 : « souviens » sert aux deux sens. « Souviens-toi que… » est une consigne ;
         # « tu te souviens de… ? » est une question, donc un rappel — l'enregistrer
         # stockerait la question comme un fait.
@@ -550,6 +609,18 @@ class IntentClassifier:
             # Match partiel — retourner quand même mais avec confidence basse
             return best_match
 
+        # GB1 : une demande d'action qu'aucun outil ne sait faire ne part PAS en conversation.
+        # Le modèle y répondait « Volume baissé. » sans rien exécuter (15 demandes sur 34).
+        if _is_unsupported_action(normalized):
+            return IntentResult(
+                category="unsupported",
+                verb="action",
+                target=None,
+                confidence=0.9,
+                is_complex=False,
+                raw_input=raw,
+            )
+
         return IntentResult(
             category="conversation",
             verb="chat",
@@ -568,18 +639,36 @@ class IntentClassifier:
         """Détecte si l'input nécessite plusieurs actions."""
         return any(kw in text for kw in _SEQUENCE_KEYWORDS)
 
+    def _is_redo_request(self, normalized: str) -> bool:
+        """GB2 — une demande de rejeu, pas une phrase qui contient un mot de rejeu."""
+        text = _REDO_LEAD_RE.sub("", normalized.strip().lower()).strip(" .!?,")
+        text = re.sub(r"[\s,]*(?:s'il te pla[iî]t|s'il vous pla[iî]t|stp|svp|merci)$", "", text).strip(" .!?,")
+        if not text:
+            return False
+        # « encore », « à nouveau », « again » : seuls ou presque — « encore une fois s'il
+        # te plaît » oui, « je suis encore fatigué » ou « donne-moi encore une idée » non.
+        if re.match(r"^(encore|à nouveau|a nouveau|une autre fois|again)\b", text):
+            return len(text.split()) <= 5
+        return any(re.match(rf"^{re.escape(w)}\b", text) for w in _REDO_LEAD_WORDS)
+
     def _fuzzy_redo_match(self, normalized: str) -> bool:
         """
         v5.2 clôture — typo-tolerant memory/redo detection.
         Returns True if any word in `normalized` is within Levenshtein distance ≤ 2
         of a known redo verb. Skipped for short words (< 4 chars) to avoid false positives.
         Strict scope: redo only — does not match other categories.
+
+        GB2 : seulement pour une commande de deux mots au plus (« refoit », « rrefait »), et
+        jamais sur un mot courant. « qu'est-ce que tu sais faire » relançait la dernière
+        action (« faire » / « refaire »), « une idée de repas » aussi (« repas » / « refais »).
         """
         # Strip punctuation lightly so "refoit." → "refoit"
         cleaned = re.sub(r"[^\w\s'éèêëàâäùûüôöîïçñ-]", " ", normalized, flags=re.UNICODE)
+        if len(cleaned.split()) > 2:
+            return False
         for token in cleaned.split():
             token = token.strip("'-")
-            if len(token) < 4:
+            if len(token) < 4 or token in _REDO_FUZZY_STOPWORDS:
                 continue
             for verb in _REDO_FUZZY_VERBS:
                 if abs(len(token) - len(verb)) > 2:

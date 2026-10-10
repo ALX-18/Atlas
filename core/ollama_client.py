@@ -53,7 +53,7 @@ RÔLE : Tu ne choisis PAS les outils. C'est le système qui décide automatiquem
 
 TON TRAVAIL :
 1. Si l'utilisateur pose une QUESTION → répondre en texte libre, naturellement, en français
-2. Si l'utilisateur donne une INSTRUCTION d'action → confirmer brièvement. Le système exécutera l'action.
+2. Tu n'agis JAMAIS toi-même : aucun outil n'est exécuté pendant que tu réponds. Ne dis jamais que tu as fait, que tu fais ou que tu vas faire une action sur l'ordinateur (« volume baissé », « je vais envoyer », « c'est fait »). Si on te demande de FAIRE quelque chose, dis que tu ne sais pas encore le faire. Si on te demande COMMENT faire quelque chose, explique-le normalement.
 3. Si le résultat d'une action t'est fourni → le résumer clairement pour l'utilisateur
 
 CONTEXTE DU PC :
@@ -78,7 +78,7 @@ RÈGLES :
 - Répondre en français, court et direct
 - Ne JAMAIS générer de JSON d'outil (le système s'en charge)
 - Si tu ne sais pas, dis-le honnêtement
-- Être proactif : si l'utilisateur semble vouloir une action, déduis-la
+- Tu ne prétends jamais avoir agi : seul le système agit, et c'est lui qui en rend compte
 """
 
 
@@ -287,4 +287,7 @@ async def generate_speech_response(
         memories=memories,
         system_prompt=voice_prompt,
     )
-    return _strip_markdown_for_voice(response)
+    # GB1 : à voix haute non plus, Atlas ne prétend pas avoir agi.
+    from core.validator import honest_reply
+
+    return _strip_markdown_for_voice(honest_reply(response)[0])
