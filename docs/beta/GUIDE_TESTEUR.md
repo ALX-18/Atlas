@@ -8,11 +8,12 @@ Merci d'essayer Atlas. Ce guide tient en quelques minutes de lecture. Tout ce qu
 
 Atlas est un assistant pour Windows. Vous lui parlez à voix haute ou vous lui écrivez, et il vous répond ou agit sur votre ordinateur : ouvrir une application, fermer une fenêtre, retenir une information, chercher sur internet.
 
-**Il tourne sur votre ordinateur.** Ce que vous lui dites, ce qu'il vous répond et ce qu'il retient restent chez vous : rien n'est envoyé à une entreprise pour être analysé. Il y a trois exceptions, pour être complet :
+**Il tourne sur votre ordinateur.** Ce que vous lui dites, ce qu'il vous répond et ce qu'il retient restent chez vous : rien n'est envoyé à une entreprise pour être analysé. Il y a deux exceptions, pour être complet :
 
 - **la recherche sur internet**, quand vous la demandez : votre recherche part alors sur internet, comme dans un navigateur ;
-- **au démarrage**, Atlas vérifie en ligne si son module de reconnaissance de la voix a une mise à jour. Ni vos paroles ni vos informations ne sont envoyées : seulement la demande de mise à jour, comme le fait tout logiciel ;
 - **deux logiciels installés avec Atlas** (Ollama et Docker) vérifient eux-mêmes leurs mises à jour, comme le font la plupart des logiciels.
+
+Au démarrage, Atlas lui-même ne se connecte à rien sur internet. Son module de reconnaissance de la voix n'est téléchargé qu'une fois, au tout premier lancement, quand Alexis l'installe.
 
 ---
 
@@ -38,14 +39,21 @@ La **première réponse** après le démarrage peut prendre **plus d'une minute*
 | « Tu te souviens du code du portail ? » | Il vous répète ce que vous lui avez dit, ou vous dit qu'il n'a rien retenu à ce sujet. |
 | « Oublie le code du portail » | Il vous montre à l'écran le souvenir qu'il va effacer, et attend votre confirmation. |
 | « Cherche sur internet la météo à Paris » | Il cherche. Les résultats s'affichent encore de façon brute, peu lisible. |
+| « Écris Bonjour à tous dans le Bloc-notes » | Il tape le texte, tel quel, dans la fenêtre que vous nommez. Il **n'envoie rien**. |
+| « Envoie (Atlas) J'arrive dans 10 minutes dans Discord » | Il vous montre **à l'écran** le texte exact et la fenêtre où il va l'envoyer, et attend votre confirmation. |
+| « Baisse le volume », « Vide la corbeille »… | Ce qu'il ne sait pas faire, il le dit : « **Je ne sais pas encore faire ça.** » |
 
 **S'il dit « C'est noté », c'est vraiment enregistré.** S'il n'a pas pu retenir, il le dit (« Je n'ai pas pu le retenir… »).
+
+**Ce qu'il fait se voit** : une application s'ouvre, du texte apparaît, une fenêtre de confirmation s'affiche. Atlas ne prétend pas avoir fait ce qu'il n'a pas fait. S'il vous arrivait de l'entendre dire qu'il a fait quelque chose sans que rien ne change, c'est un défaut : notez-le pour Alexis.
+
+Pour écrire ou envoyer, **nommez l'application** (« dans Discord », « dans le Bloc-notes »). Si plusieurs fenêtres lui correspondent, Atlas vous demande laquelle au lieu de choisir à votre place. L'écriture et l'envoi ont été vérifiés sur une fenêtre de test, pas encore dans chaque application : dites à Alexis si quelque chose arrive mal.
 
 ---
 
 ## Les confirmations se donnent à l'écran, jamais à la voix
 
-Avant toute action qu'on ne peut pas défaire (fermer une fenêtre, effacer un souvenir, arrêter un programme…), Atlas ouvre une petite fenêtre **« Atlas — confirmation requise »** avec deux boutons :
+Avant toute action qu'on ne peut pas défaire (fermer une fenêtre, effacer un souvenir, arrêter un programme, **envoyer un message en votre nom**…), Atlas ouvre une petite fenêtre **« Atlas — confirmation requise »** avec deux boutons :
 
 - **Confirmer** : l'action est faite ;
 - **Annuler** : rien n'est fait.
@@ -54,7 +62,7 @@ Sans réponse, la fenêtre se ferme seule au bout d'**une minute**, et **rien n'
 
 Dire « oui » à voix haute ne confirme **jamais** rien : Atlas vous répondra que la confirmation se donne à l'écran. C'est voulu.
 
-Certains programmes essentiels de Windows ne peuvent pas être arrêtés par Atlas, même si vous le demandez.
+Certains programmes essentiels de Windows ne peuvent pas être arrêtés par Atlas, même si vous le demandez. Pour arrêter un programme, nommez-le : Atlas vous montre exactement lesquels il va arrêter.
 
 ---
 
@@ -62,12 +70,10 @@ Certains programmes essentiels de Windows ne peuvent pas être arrêtés par Atl
 
 Pour éviter les mauvaises surprises :
 
-- **Il lui arrive de dire qu'il a fait quelque chose alors qu'il ne l'a pas fait.** Par exemple « baisse le volume » → « Volume baissé », sans que le volume change ; « vide la corbeille » → « Commande corbeille lancée », sans que rien ne soit vidé. Ce n'est pas lui qui agit, c'est sa partie « conversation » qui parle. **Règle simple : une vraie action se voit** (une application s'ouvre, une fenêtre de confirmation apparaît). Sinon, rien n'a été fait. Notez-le pour Alexis.
+- **Régler le son, la luminosité, le Bluetooth, la musique, envoyer un mail, commander quelque chose…** : il ne sait pas encore, et il vous le dit.
 - **Il ne connaît pas l'heure.** S'il vous en donne une, elle est fausse. Regardez l'horloge de Windows.
 - **Il n'apprend pas de ses erreurs.** S'il se trompe, il pourra refaire la même erreur.
 - **Pas de rappels programmés.** « Rappelle-moi d'appeler maman à 18 h » ne programme rien.
-- **Écrire du texte dans une autre application** (« écris bonjour dans Discord ») ne fonctionne pas correctement : le texte peut être déformé, certaines fenêtres ne sont pas trouvées, et il ne sait pas appuyer sur Entrée pour envoyer.
-- **Attention aux phrases avec « faire » ou « repas ».** « Qu'est-ce que tu sais faire ? » peut lui faire **refaire votre dernière action** (par exemple rouvrir une application). C'est un défaut connu.
 - **Fermer certaines applications de Windows** (la Calculatrice, par exemple) : il peut annoncer « fenêtre fermée » alors qu'elle est toujours là.
 - **Pas de « modes »** (jeu, travail…) pour l'instant.
 
