@@ -62,6 +62,7 @@ Certains programmes essentiels de Windows ne peuvent pas être arrêtés par Atl
 
 Pour éviter les mauvaises surprises :
 
+- **Il lui arrive de dire qu'il a fait quelque chose alors qu'il ne l'a pas fait.** Par exemple « baisse le volume » → « Volume baissé », sans que le volume change ; « vide la corbeille » → « Commande corbeille lancée », sans que rien ne soit vidé. Ce n'est pas lui qui agit, c'est sa partie « conversation » qui parle. **Règle simple : une vraie action se voit** (une application s'ouvre, une fenêtre de confirmation apparaît). Sinon, rien n'a été fait. Notez-le pour Alexis.
 - **Il ne connaît pas l'heure.** S'il vous en donne une, elle est fausse. Regardez l'horloge de Windows.
 - **Il n'apprend pas de ses erreurs.** S'il se trompe, il pourra refaire la même erreur.
 - **Pas de rappels programmés.** « Rappelle-moi d'appeler maman à 18 h » ne programme rien.
