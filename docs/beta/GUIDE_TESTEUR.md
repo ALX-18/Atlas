@@ -49,6 +49,8 @@ La **première réponse** après le démarrage peut prendre **plus d'une minute*
 
 Pour écrire ou envoyer, **nommez l'application** (« dans Discord », « dans le Bloc-notes »). Si plusieurs fenêtres lui correspondent, Atlas vous demande laquelle au lieu de choisir à votre place. L'écriture et l'envoi ont été vérifiés sur une fenêtre de test, pas encore dans chaque application : dites à Alexis si quelque chose arrive mal.
 
+Bon à savoir : le texte qu'Atlas écrit dans une autre application passe par le presse-papiers de Windows. Si l'historique du presse-papiers est activé (touches **Windows + V**), ce texte peut y rester. Évitez donc de lui faire écrire un mot de passe ou un code secret.
+
 ---
 
 ## Les confirmations se donnent à l'écran, jamais à la voix
