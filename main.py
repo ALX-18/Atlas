@@ -13,6 +13,12 @@ import asyncio
 import webbrowser
 from contextlib import asynccontextmanager
 
+# Sprint G / G3 : « 100 % local » doit être vrai. Le serveur ChromaDB (docker-compose)
+# avait coupé sa télémétrie, pas le client dans ce processus — qui envoyait des statistiques
+# d'usage anonymes (« Anonymized telemetry enabled »). Posé AVANT tout import qui crée un
+# client, et imposé (pas setdefault) : un réglage de la machine ne doit pas la rallumer.
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

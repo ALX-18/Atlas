@@ -165,3 +165,32 @@ def test_g2_aucune_route_ne_supprime_de_la_memoire():
         if "DELETE" in methodes or ".forget(" in source or "forget_category" in source:
             fautives.append(f"{sorted(methodes)} {route.path}")
     assert fautives == [], f"routes qui suppriment de la mémoire : {fautives}"
+
+
+# --------------------------------------------------------------------------- #
+#  G3 — aucune télémétrie du client ChromaDB dans le processus Atlas
+# --------------------------------------------------------------------------- #
+
+def test_g3_le_client_chromadb_d_atlas_n_envoie_pas_de_telemetrie():
+    """Le serveur Chroma (docker-compose) a coupé la télémétrie ; le client dans le processus
+    Atlas, non : 200 lignes « Anonymized telemetry enabled » dans atlas.log.
+
+    Processus séparé, sans pytest : Chroma coupe sa télémétrie de lui-même quand pytest est
+    chargé, ce qui masquerait le défaut. Variable d'environnement retirée : c'est Atlas qui
+    doit la couper, pas la machine de l'utilisateur.
+    """
+    import os
+    import subprocess
+
+    racine = pathlib.Path(__file__).resolve().parent.parent
+    env = {k: v for k, v in os.environ.items() if k.upper() != "ANONYMIZED_TELEMETRY"}
+    code = ("import main\n"
+            "from chromadb.config import Settings\n"
+            "print('TELEMETRIE=' + str(Settings().anonymized_telemetry))\n")
+    sortie = subprocess.run([sys.executable, "-c", code], cwd=racine, env=env,
+                            capture_output=True, text=True, timeout=180)
+    lignes = [l for l in sortie.stdout.splitlines() if l.startswith("TELEMETRIE=")]
+    assert lignes, f"import de main impossible : {sortie.stderr[-800:]}"
+    assert lignes[-1] == "TELEMETRIE=False", (
+        f"le client ChromaDB d'Atlas a la télémétrie active : {lignes[-1]}"
+    )
