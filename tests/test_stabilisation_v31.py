@@ -82,7 +82,7 @@ def test_04_recent_logs_endpoint_returns_last_n():
         for d in data:
             f.write(json.dumps(d, ensure_ascii=False) + "\n")
 
-    client = TestClient(main.app)
+    client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
     resp = client.get("/api/logs/recent", params={"limit": 2})
     assert resp.status_code == 200
     body = resp.json()

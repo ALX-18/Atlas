@@ -180,7 +180,7 @@ class TestClickSurAppParsing:
 class TestTesseractHealth:
     def test_health_endpoint_has_tesseract_status(self):
         import main
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/health")
         assert resp.status_code == 200
         body = resp.json()
@@ -189,7 +189,7 @@ class TestTesseractHealth:
 
     def test_health_endpoint_has_vision_enabled(self):
         import main
-        client = TestClient(main.app)
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
         resp = client.get("/api/health")
         assert resp.status_code == 200
         body = resp.json()
