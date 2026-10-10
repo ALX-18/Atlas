@@ -8,6 +8,7 @@ Utilise PyAutoGUI + Win32 API pour :
 """
 
 import logging
+import re
 import time
 import unicodedata
 from typing import Any
@@ -69,6 +70,60 @@ def _resolve_aliases(title: str) -> list[str]:
     if key in _WINDOW_ALIASES:
         return _WINDOW_ALIASES[key]
     return [title]
+
+
+def _list_visible_windows() -> list[dict]:
+    """Fenêtres visibles et titrées : {hwnd, title, process} (sprint G-bis, GB4)."""
+    if not HAS_WIN32:
+        return []
+    found: list[dict] = []
+
+    def callback(hwnd, _):
+        if win32gui.IsWindowVisible(hwnd):
+            text = win32gui.GetWindowText(hwnd)
+            if text:
+                process = ""
+                try:
+                    import psutil
+
+                    _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                    process = psutil.Process(pid).name()
+                except Exception:
+                    pass
+                found.append({"hwnd": hwnd, "title": text, "process": process})
+        return True
+
+    try:
+        win32gui.EnumWindows(callback, None)
+    except Exception as e:
+        logger.debug("EnumWindows a échoué : %s", e)
+    return found
+
+
+def resolve_app_window(name: str) -> tuple[dict | None, str | None]:
+    """La fenêtre que désigne ce nom d'application : (fenêtre, None) ou (None, explication).
+
+    GB4 : retrouvée par le nom dans le titre (« discord » → « #général | Atlas - Discord »,
+    sans tenir compte de la casse) ou par le nom du programme (« slack » → Slack.exe). Si
+    plusieurs fenêtres correspondent, on ne choisit pas : on demande laquelle.
+    """
+    wanted = (name or "").strip().lower()
+    if not wanted:
+        return None, "fenêtre cible absente"
+    aliases = [a.lower() for a in _resolve_aliases(name)] or [wanted]
+    windows = _list_visible_windows()
+    exact = [w for w in windows if w["title"].lower() == wanted]
+    if len(exact) == 1:
+        return exact[0], None
+    matches = [w for w in windows
+               if any(a in w["title"].lower() for a in aliases)
+               or any(w["process"].lower().removesuffix(".exe") == a.removesuffix(".exe") for a in aliases)]
+    if not matches:
+        return None, f"aucune fenêtre « {name} » ouverte"
+    if len(matches) > 1:
+        titres = " ; ".join(f"« {w['title']} »" for w in matches[:6])
+        return None, f"plusieurs fenêtres correspondent à « {name} » : {titres}. Précise laquelle"
+    return matches[0], None
 
 
 def _enum_windows_by_title(title_fragment: str) -> list[dict]:
@@ -236,19 +291,28 @@ class WindowController:
         title, error = check_window_title(title)
         if error:
             return _refused(error)
+        # GB4 : la fenêtre que désigne ce nom, par titre ou par programme. Plusieurs
+        # correspondances : on ne choisit pas au hasard, on demande laquelle.
+        resolved, ambiguity = resolve_app_window(title)
+        if resolved is None and ambiguity and ambiguity.startswith("plusieurs"):
+            return _refused(ambiguity)
+        candidates = [resolved["title"]] if resolved else _resolve_aliases(title)
         retries = [0.2, 0.5, 1.0]
         for attempt, delay in enumerate(retries, start=1):
-            for alias in _resolve_aliases(title):
-                # 1) pywinauto attempt
+            for alias in candidates:
+                # 1) pywinauto attempt — GB4 : titre échappé (« | » devenait une alternative)
+                # et sans tenir compte de la casse (« discord » ne trouvait pas « Discord »).
                 if HAS_PYWINAUTO:
                     try:
-                        app = PywinautoApplication(backend="uia").connect(title_re=f".*{alias}.*", timeout=1)
+                        app = PywinautoApplication(backend="uia").connect(
+                            title_re=f"(?i).*{re.escape(alias)}.*", timeout=1)
                         window = app.top_window()
                         window.set_focus()
                         time.sleep(0.2)
                         return {
                             "success": True,
                             "message": f"Fenêtre '{window.window_text()}' mise au premier plan (pywinauto).",
+                            "title": window.window_text(),
                         }
                     except Exception as e:
                         logger.debug("pywinauto focus failed for '%s' (attempt %d): %s", alias, attempt, e)
@@ -266,6 +330,7 @@ class WindowController:
                         return {
                             "success": True,
                             "message": f"Fenêtre '{w.title}' mise au premier plan (pygetwindow).",
+                            "title": w.title,
                         }
                 except Exception as e:
                     logger.debug("pygetwindow focus failed for '%s' (attempt %d): %s", alias, attempt, e)
@@ -284,6 +349,7 @@ class WindowController:
                             return {
                                 "success": True,
                                 "message": f"Fenêtre '{win32_results[0]['title']}' mise au premier plan (Win32 fallback).",
+                                "title": win32_results[0]["title"],
                             }
                     except Exception as e:
                         logger.debug("Win32 focus fallback failed for '%s' (attempt %d): %s", alias, attempt, e)
@@ -470,7 +536,9 @@ def _focus_and_verify(target: str):
         logger.debug("getActiveWindow a échoué : %s", e)
         active = None
     active_title = (getattr(active, "title", "") or "") if active else ""
-    if not any(alias.lower() in active_title.lower() for alias in _resolve_aliases(target)):
+    focused_title = (focus_result.get("title") or "").lower()
+    if not ((focused_title and active_title.lower() == focused_title)
+            or any(alias.lower() in active_title.lower() for alias in _resolve_aliases(target))):
         return None, _refused(
             f"la fenêtre '{target}' n'est pas passée au premier plan "
             f"(premier plan : '{active_title or '?'}'), aucune action effectuée"
@@ -495,6 +563,44 @@ def window_type(text: str, target: str | None = None, use_clipboard: bool = Fals
     if refusal:
         return refusal
     return _controller.type_text(text, use_clipboard=use_clipboard)
+
+
+def window_send_message(text: str, target: str | None = None) -> dict[str, Any]:
+    """Écrit le texte dans la fenêtre, puis Entrée — c'est-à-dire envoie (sprint G-bis, GB4).
+
+    Envoyer, c'est agir au nom d'Alexis, et ça ne se reprend pas : cet outil n'est atteint
+    qu'après une confirmation qui montre le texte et la fenêtre (CONFIRMATION_POLICY).
+    Règles B1 / B1-bis inchangées : cible obligatoire, premier plan vérifié avant la frappe,
+    jamais la fenêtre au premier plan par défaut. Entrée est la DERNIÈRE touche, et seulement
+    si la fenêtre est toujours devant après la frappe.
+    """
+    target, error = check_window_title(target)
+    if error:
+        return _refused("fenêtre cible absente pour l'envoi")
+    text, error = check_type_text(text)
+    if error:
+        return _refused(error)
+    window, error = resolve_app_window(target)
+    if error:
+        return _refused(error)
+    active, refusal = _focus_and_verify(window["title"])
+    if refusal:
+        return refusal
+    expected = (getattr(active, "title", "") or "").lower()
+    typed = _controller.type_text(text)
+    if not typed.get("success"):
+        return typed
+    time.sleep(0.2)
+    try:
+        now = gw.getActiveWindow()
+    except Exception:
+        now = None
+    now_title = (getattr(now, "title", "") or "") if now else ""
+    if now_title.lower() != expected:
+        return _refused(f"la fenêtre a perdu le premier plan pendant la frappe (devant : « {now_title or '?'} ») : "
+                        "texte tapé, mais NON envoyé")
+    _controller.send_hotkey("enter")
+    return {"success": True, "message": f"Message envoyé dans « {getattr(active, 'title', target)} » : « {text} »."}
 
 
 def window_hotkey(*keys: str, target: str | None = None) -> dict[str, Any]:

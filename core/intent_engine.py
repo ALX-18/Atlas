@@ -163,6 +163,16 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
             args = {"name": exact, "pids": [m["pid"] for m in matches]}
             target = (f"{exact} ({len(matches)} processus : PID {pid_list})" if len(matches) > 1
                       else f"{exact} (PID {pid_list})")
+    elif tool_name == "window_send_message":
+        # GB4 : la fenêtre est résolue AVANT la confirmation. Le dialogue montre le texte exact
+        # et la fenêtre exacte ; c'est dans celle-là que le message partira. Plusieurs
+        # fenêtres possibles, ou aucune : rien n'est proposé.
+        window, error = window_controller.resolve_app_window(args.get("target") or "")
+        if error:
+            return {"status": "error", "error_code": "ERR_WINDOW_UNRESOLVED",
+                    "message": f"Message non envoyé : {error}."}
+        args = {"text": args.get("text", ""), "target": window["title"]}
+        target = f"« {args['text']} » dans « {window['title']} »"
     elif tool_name == "memory_forget":
         # G4 : le souvenir est désigné AVANT la confirmation. Alexis confirme l'effacement
         # de CE souvenir-là, et c'est celui-là — par son identifiant — qui sera effacé.
@@ -281,6 +291,11 @@ TOOL_HANDLERS = {
     "window_get_active": lambda args: window_controller.window_get_active(),
 
     # --- MVP 2.3 : Window management étendu --- #
+    # GB4 : écrire puis Entrée — n'est atteint qu'après confirmation (CONFIRMATION_POLICY)
+    "window_send_message": lambda args: window_controller.window_send_message(
+        text=args.get("text", ""),
+        target=args.get("target"),
+    ),
     "window_close": lambda args: window_controller.window_close(
         title=args.get("title", ""),
     ),

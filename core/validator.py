@@ -154,6 +154,8 @@ CONFIRMATION_POLICY: dict[str, tuple[str, str]] = {
     "schedule_remove": ("toujours", "supprimer une tâche planifiée d'Alexis"),
     # Sprint G / G4 : oublier efface, comme toute suppression.
     "memory_forget": ("toujours", "effacer définitivement ce souvenir"),
+    # Sprint G-bis / GB4 : envoyer un message, c'est agir au nom d'Alexis ; il ne se reprend pas.
+    "window_send_message": ("toujours", "envoyer ce message au nom d'Alexis — un message envoyé ne se reprend pas"),
     "schedule_add":    ("interactif", "créer une tâche qui se rejouera seule"),
     "trigger_add":     ("interactif", "créer un déclencheur automatique"),
     "workflow_create": ("interactif", "créer un workflow"),
@@ -430,6 +432,7 @@ AUTOMATION_ACTION_CHECKS = {
 _AUTOMATION_EXCLUSIONS = {
     "action interactive : la fenêtre au premier plan au moment du déclenchement est inconnue": {
         "window_type", "window_hotkey", "window_click", "window_close", "window_focus",
+        "window_send_message",
         "window_minimize", "window_maximize", "window_snap", "ui_click_element",
         "web_search_to_notepad", "browser_click", "browser_type", "browser_scroll", "browser_close",
         "browser_navigate", "browser_new_tab", "browser_ext_click", "browser_ext_type",
@@ -826,6 +829,20 @@ class Validator:
                     "element_name": params.get("element_name", target or ""),
                     "app_title": app_title,
                 }
+
+            elif verb == "send":
+                # GB4 : envoyer exige une fenêtre NOMMÉE. Jamais la fenêtre de travail récente,
+                # jamais le premier plan : un message envoyé au mauvais endroit ne se reprend pas.
+                text, error = check_type_text(params.get("text"))
+                if error:
+                    return self._reject(intent, f"message invalide ({error})")
+                window, error = check_window_title(params.get("target"))
+                if error:
+                    return self._reject(intent, "fenêtre où envoyer non précisée",
+                                        "Précise-la, par exemple « envoie bonjour dans Discord ».")
+                tool_name = "window_send_message"
+                params = {"text": text, "target": window}
+                verification = VerificationRule(type="none")
 
             elif verb in ("type", "hotkey"):
                 if verb == "type":

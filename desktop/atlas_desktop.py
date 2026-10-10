@@ -266,6 +266,8 @@ class AtlasDesktop:
         "browser_open": "Ouvrir l'adresse",
         "maintenance_empty_bin": "Vider la corbeille",
         "schedule_remove": "Supprimer la tâche planifiée",
+        "memory_forget": "Oublier ce souvenir",          # G-bis / GB6
+        "window_send_message": "Envoyer le message",     # G-bis / GB4 et GB6
         "schedule_add": "Créer la tâche planifiée",
         "trigger_add": "Créer le déclencheur",
         "workflow_create": "Créer le workflow",

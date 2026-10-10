@@ -146,6 +146,7 @@ INTENT_CATEGORIES = {
         },
         "tools": {
             "type": "window_type",
+            "send": "window_send_message",   # GB4 : écrire puis Entrée — toujours confirmé
             "click": "ui_click_element",
             "hotkey": "window_hotkey",
             "scroll": "browser_ext_scroll",
@@ -328,6 +329,79 @@ _UNSUPPORTED_RE = re.compile(
 
 def _is_unsupported_action(normalized: str) -> bool:
     return bool(_UNSUPPORTED_RE.match((normalized or "").strip().replace("’", "'")))
+
+
+# --------------------------------------------------------------------------- #
+#  Sprint G-bis / GB4 — « écris X dans Y », « envoie X dans Y », « écris X dans Y et envoie »
+# --------------------------------------------------------------------------- #
+
+_TYPING_LEAD = re.compile(
+    r"^\s*(?:atlas[\s,]*)?(?:s'il te pla[iî]t[\s,]*)?"
+    r"(?P<verb>écris|écrire|ecris|tape|taper|saisis|saisir|envoie|envoyer)\s+"
+    r"(?:(?:le|ce)\s+(?:message|texte)\s*:?\s*|:\s*)?(?P<rest>.+?)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_TYPING_TARGET_FIRST = re.compile(
+    r"^\s*(?:dans|sur)\s+(?P<window>[^,]+?)\s*,\s*(?P<verb>écris|tape|saisis|envoie)\s+(?P<text>.+?)\s*$",
+    re.IGNORECASE | re.DOTALL,
+)
+_SEND_SUFFIX = re.compile(r"\s+et\s+(?:envoie(?:[- ]le)?|appuie\s+sur\s+entrée|valide)\s*[.!]?\s*$", re.IGNORECASE)
+_WINDOW_PREFIX = re.compile(
+    r"^(?:la\s+fenêtre|la\s+fenetre|l'application|l'appli|le\s+salon|la\s+conversation|le\s+chat|le|la|l')\s*",
+    re.IGNORECASE,
+)
+_QUOTED = re.compile(r'^\s*(?:«\s*(?P<a>.+?)\s*»|"(?P<b>.+?)"|“(?P<c>.+?)”)\s*(?P<after>.*)$', re.DOTALL)
+
+
+def _clean_window(window: str) -> str:
+    window = _WINDOW_PREFIX.sub("", window.strip())
+    return window.strip().rstrip(".,!?;:").strip()
+
+
+def _parse_typing(raw: str):
+    """(verbe « type » ou « send », texte exact, fenêtre ou None), ou None si ce n'en est pas."""
+    raw = (raw or "").replace("’", "'")
+    send = False
+    m = _TYPING_TARGET_FIRST.match(raw)
+    if m:
+        text, window, verb = m.group("text"), m.group("window"), m.group("verb").lower()
+        if _SEND_SUFFIX.search(text):
+            text, send = _SEND_SUFFIX.sub("", text), True
+        send = send or verb.startswith("envoi")
+        return ("send" if send else "type"), text.strip(), _clean_window(window)
+    m = _TYPING_LEAD.match(raw)
+    if not m:
+        return None
+    verb, rest = m.group("verb").lower(), m.group("rest")
+    if _SEND_SUFFIX.search(rest):
+        rest, send = _SEND_SUFFIX.sub("", rest), True
+    window = None
+    q = _QUOTED.match(rest)
+    if q:
+        text = q.group("a") or q.group("b") or q.group("c")
+        after = q.group("after")
+        w = re.match(r"^(?:dans|sur)\s+(?P<w>.+)$", after.strip(), re.IGNORECASE)
+        window = _clean_window(w.group("w")) if w else None
+    else:
+        cut = None
+        for c in re.finditer(r"\s+(?:dans|sur)\s+", rest, re.IGNORECASE):
+            cut = c
+        if cut is None:
+            text = rest
+        else:
+            text, window = rest[:cut.start()], _clean_window(rest[cut.end():])
+    text = text.strip()
+    if verb.startswith("envoi"):
+        # « envoie un mail à ma mère » n'est PAS un envoi dans une fenêtre : sans fenêtre
+        # nommée, on laisse la phrase aux autres règles (GB1 : « je ne sais pas encore »).
+        if not window:
+            return None
+        send = True
+    if not text:
+        return None
+    if send and not window:
+        return None
+    return ("send" if send else "type"), text, window or None
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -517,6 +591,23 @@ class IntentClassifier:
                 target=target,
                 params={"keys": keys, "target": target},
                 confidence=0.92,
+                is_complex=False,
+                raw_input=raw,
+            )
+
+        # --- GB4 : écrire / envoyer dans une autre application ---
+        # Sur la phrase D'ORIGINE : casse et ponctuation intactes. Avant, le texte venait de
+        # la cible normalisée (minuscules, « dans discord » compris) ou d'une « citation »
+        # ouverte par une apostrophe (« l'assistant d'Alexis » → « assistant d »).
+        typing = _parse_typing(raw)
+        if typing:
+            verb, text, window = typing
+            return IntentResult(
+                category="interaction",
+                verb=verb,
+                target=window,
+                params={"text": text, "target": window} if window else {"text": text},
+                confidence=0.95,
                 is_complex=False,
                 raw_input=raw,
             )
