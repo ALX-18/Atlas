@@ -412,6 +412,15 @@ def _clean_action_target(target):
     return text or None
 
 
+# GT1 — « toi fais le », « fais-le », « vas-y fais-le », « tu peux le faire ? » (session d'Alexis)
+_FOLLOWUP_RE = re.compile(
+    r"^(?:atlas[\s,]*)?(?:(?:ok|bon|alors|vas-y|allez)[\s,]+)*(?:toi[\s,]+)?"
+    r"(?:fais[- ]le|tu\s+peux\s+le\s+faire|tu\s+le\s+fais|fais[- ]le\s+pour\s+moi)"
+    r"(?:[\s,]+toi)?(?:[\s,]+(?:alors|stp|s'il\s+te\s+pla[iî]t))?\s*[?!.]*\s*$",
+    re.IGNORECASE,
+)
+
+
 def _clean_window(window: str) -> str:
     window = _WINDOW_PREFIX.sub("", window.strip())
     return window.strip().rstrip(".,!?;:").strip()
@@ -657,6 +666,10 @@ class IntentClassifier:
             )
 
         # --- GT1 : « tu peux faire quoi ? » et ses variantes → réponse fixe ---
+        # GT1 : « toi fais le » renvoie à une action précédente, qu'Atlas ne retient pas.
+        if _FOLLOWUP_RE.match(raw.strip().lower().replace("’", "'")):
+            return IntentResult(category="help", verb="followup", target=None,
+                                confidence=0.95, is_complex=False, raw_input=raw)
         if _HELP_RE.match(raw.strip().lower().replace("’", "'")):
             return IntentResult(category="help", verb="capabilities", target=None,
                                 confidence=0.95, is_complex=False, raw_input=raw)

@@ -252,3 +252,42 @@ def test_gt5_alerte_si_la_transcription_ne_voit_pas_de_gpu(monkeypatch):
 def test_gt5_doctor_ne_dit_plus_que_main_affiche_un_faux_message():
     texte = (pathlib.Path(__file__).resolve().parent.parent / "scripts" / "doctor.py").read_text(encoding="utf-8")
     assert "faux 'aucun GPU CUDA'" not in texte
+
+
+def test_gt4_seule_une_fenetre_secondaire_steam_est_rappele(monkeypatch):
+    """Rejeu réel (G-ter) : fenêtre principale fermée, « Liste de contacts » restée ouverte.
+    « ouvre steam » a répondu « je ramène sa fenêtre » en ramenant la liste de contacts — la
+    fenêtre principale, elle, n'est pas revenue. Annonce trompeuse."""
+    import tools.app_launcher as al
+
+    fenetres = [{"hwnd": 6, "title": "Liste de contacts", "process": "steamwebhelper.exe"}]
+    devant, lances = _machine(monkeypatch, fenetres)
+
+    def startfile(target):
+        lances.append(target)
+        fenetres.append({"hwnd": 8, "title": "Steam", "process": "steamwebhelper.exe"})
+
+    monkeypatch.setattr(al.os, "startfile", startfile)
+    r = al.bring_running_app("steam")
+    assert lances == ["steam://open/main"], f"la fenêtre principale doit être rappelée : {lances}"
+    assert r["success"] is True and "Liste de contacts" not in r["message"], r
+
+
+def test_gt4_le_succes_n_est_annonce_que_si_la_fenetre_principale_revient(monkeypatch):
+    import tools.app_launcher as al
+
+    fenetres = [{"hwnd": 6, "title": "Liste de contacts", "process": "steamwebhelper.exe"}]
+    devant, lances = _machine(monkeypatch, fenetres)        # le rappel ne fait rien apparaître
+    r = al.bring_running_app("steam")
+    assert r["success"] is False and "aucune fenêtre" in r["message"], r
+
+
+@pytest.mark.parametrize("phrase", ["toi fais le", "fais-le", "vas-y fais-le", "fais le toi", "tu peux le faire ?"])
+def test_gt1_toi_fais_le_recoit_une_reponse_fixe_qui_ne_nie_pas(executed, phrase):
+    """Session d'Alexis : « toi fais le » → « je ne peux pas effectuer d'action sur votre
+    ordinateur ». Rejeu G-ter, consigne corrigée : encore 3 fois sur 5 « je ne peux pas effectuer
+    cette action pour vous ». Une réponse juste ne repose pas sur une probabilité."""
+    r = _run(phrase)
+    msg = _message(r)
+    assert executed == []
+    assert "ne peux pas" not in msg.lower() and "directement" in msg, f"{phrase!r} → {msg!r}"

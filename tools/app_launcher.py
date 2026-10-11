@@ -402,22 +402,30 @@ def bring_running_app(name: str) -> dict[str, Any] | None:
     from tools import window_controller as wc
 
     shown = (name or "").strip().capitalize()
+    base = _normalize_app_name(name).replace(" ", "")
+    recall = _SINGLE_INSTANCE_RECALL.get(base)
+
+    def main_windows():
+        return [w for w in _app_windows(name) if w["title"].strip().lower() == base]
+
     windows = _app_windows(name)
-    if windows:
-        title = windows[0]["title"]
+    # Rejeu réel (G-ter) : fenêtre principale fermée, « Liste de contacts » restée ouverte.
+    # Ramener la liste de contacts en disant « je ramène sa fenêtre » trompait. Pour une
+    # application qu'on sait rappeler, il faut sa fenêtre PRINCIPALE ; sinon, on la rappelle.
+    if windows and not (recall and not main_windows()):
+        title = (main_windows() or windows)[0]["title"]
         active, refusal = wc._focus_and_verify(title)
         if refusal is None:
-            return {"success": True, "message": f"{shown} était déjà lancé : je ramène sa fenêtre."}
+            return {"success": True, "message": f"{shown} était déjà lancé : je ramène sa fenêtre « {title} »."}
         return {"success": False, "message": f"{shown} est déjà lancé, mais sa fenêtre n'a pas pu passer "
                                              f"au premier plan ({refusal.get('message', '')})."}
-    recall = _SINGLE_INSTANCE_RECALL.get(_normalize_app_name(name).replace(" ", ""))
     if recall:
         os.startfile(recall)
         for _ in range(10):
             time.sleep(0.5)
-            if _app_windows(name):
+            if main_windows():
                 return {"success": True, "message": f"{shown} tournait en arrière-plan : je l'ai rappelé, "
-                                                    "sa fenêtre est revenue."}
+                                                    "sa fenêtre principale est revenue."}
         return {"success": False, "message": f"{shown} tourne en arrière-plan ; je l'ai rappelé, mais aucune "
                                              "fenêtre n'est apparue. Ouvrez-le depuis son icône près de l'horloge."}
     return {"success": False, "message": f"{shown} tourne déjà en arrière-plan, sans fenêtre. Je ne le relance pas, "

@@ -926,6 +926,14 @@ class ExecutionEngine:
             reply = capabilities_reply()
             return {"status": "success", "message": reply, "result": {"success": True, "message": reply}}
 
+        # GT1 : « toi fais le » — l'action précédente n'est pas retenue ; réponse fixe qui ne
+        # nie pas qu'Atlas sait agir (le modèle disait « je ne peux pas effectuer d'action »).
+        if tool_name == "__followup__":
+            reply = ("Je ne retiens pas l'action dont on parlait. Dites-la-moi directement, par exemple "
+                     "« mets Steam au premier plan » ou « ouvre Steam » : si je sais la faire, je la fais, "
+                     "sinon je vous le dis.")
+            return {"status": "success", "message": reply, "result": {"success": True, "message": reply}}
+
         # GB1 : une action qu'aucun outil ne sait faire. Réponse fixe — rien n'est exécuté,
         # rien n'est appris, rien n'est mémorisé.
         if tool_name == "__unsupported__":

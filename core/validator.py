@@ -613,7 +613,8 @@ class Validator:
 
         # --- GT1 : « tu peux faire quoi ? » → réponse fixe construite depuis le registre ---
         if category == "help":
-            return ResolvedAction(tool="__capabilities__", params={}, intent=intent)
+            tool = "__followup__" if intent.verb == "followup" else "__capabilities__"
+            return ResolvedAction(tool=tool, params={}, intent=intent)
 
         # --- GB1 : action qu'aucun outil ne sait faire → réponse fixe, jamais le modèle ---
         if category == "unsupported":
