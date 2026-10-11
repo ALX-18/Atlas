@@ -354,6 +354,77 @@ def _is_process_running(name: str) -> bool:
     return False
 
 
+# --------------------------------------------------------------------------- #
+#  Sprint G-ter / GT4 — « ouvre X » quand X tourne déjà
+#
+#  Avant : « déjà lancé », et rien ne revenait (Steam fermé dans la zone de notification).
+#  1. Une fenêtre de l'application existe (même réduite) : on la ramène au premier plan.
+#  2. Aucune fenêtre : seules les applications qui ne tournent qu'en UN exemplaire sont
+#     rappelées, par leur propre moyen documenté — jamais en relançant un .exe qui ouvrirait
+#     un second exemplaire. Steam : le protocole steam://open/main, qui s'adresse au Steam
+#     déjà lancé et affiche sa fenêtre principale.
+#  3. Sinon : on ne relance rien, et on le dit.
+#  Le message ne dit « je ramène sa fenêtre » que si la fenêtre est vérifiée devant.
+# --------------------------------------------------------------------------- #
+
+_SINGLE_INSTANCE_RECALL = {
+    "steam": "steam://open/main",
+}
+
+
+# Constaté sur la machine d'Alexis : les fenêtres de Steam appartiennent à steamwebhelper.exe,
+# pas à steam.exe. Une application peut afficher ses fenêtres depuis un processus auxiliaire.
+_WINDOW_PROCESSES = {
+    "steam": {"steam", "steamwebhelper"},
+}
+
+
+def _app_windows(name: str) -> list[dict]:
+    """Fenêtres visibles de cette application ; celle qui porte son nom d'abord."""
+    from tools import window_controller as wc
+
+    base = _normalize_app_name(name).replace(" ", "")
+    procs = _WINDOW_PROCESSES.get(base, {base})
+    found = []
+    for w in wc._list_visible_windows():
+        proc = (w.get("process") or "").lower().removesuffix(".exe").replace(" ", "")
+        if proc and proc in procs:
+            found.append(w)
+    # « Steam » avant « Liste de contacts » : la fenêtre principale porte le nom de l'application.
+    found.sort(key=lambda w: (w["title"].strip().lower() != base, w["title"]))
+    return found
+
+
+def bring_running_app(name: str) -> dict[str, Any] | None:
+    """Ramène une application déjà lancée ; None si elle ne tourne pas."""
+    if not _is_process_running(name):
+        return None
+    from tools import window_controller as wc
+
+    shown = (name or "").strip().capitalize()
+    windows = _app_windows(name)
+    if windows:
+        title = windows[0]["title"]
+        active, refusal = wc._focus_and_verify(title)
+        if refusal is None:
+            return {"success": True, "message": f"{shown} était déjà lancé : je ramène sa fenêtre."}
+        return {"success": False, "message": f"{shown} est déjà lancé, mais sa fenêtre n'a pas pu passer "
+                                             f"au premier plan ({refusal.get('message', '')})."}
+    recall = _SINGLE_INSTANCE_RECALL.get(_normalize_app_name(name).replace(" ", ""))
+    if recall:
+        os.startfile(recall)
+        for _ in range(10):
+            time.sleep(0.5)
+            if _app_windows(name):
+                return {"success": True, "message": f"{shown} tournait en arrière-plan : je l'ai rappelé, "
+                                                    "sa fenêtre est revenue."}
+        return {"success": False, "message": f"{shown} tourne en arrière-plan ; je l'ai rappelé, mais aucune "
+                                             "fenêtre n'est apparue. Ouvrez-le depuis son icône près de l'horloge."}
+    return {"success": False, "message": f"{shown} tourne déjà en arrière-plan, sans fenêtre. Je ne le relance pas, "
+                                         "pour ne pas en ouvrir un second exemplaire : ouvrez-le depuis son icône "
+                                         "près de l'horloge."}
+
+
 def _wait_for_process(name: str, timeout: int = 30, interval: float = 1.0) -> bool:
     """Attend qu'un processus apparaisse, avec timeout."""
     start = time.time()

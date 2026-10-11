@@ -611,6 +611,10 @@ class Validator:
                 intent=intent,
             )
 
+        # --- GT1 : « tu peux faire quoi ? » → réponse fixe construite depuis le registre ---
+        if category == "help":
+            return ResolvedAction(tool="__capabilities__", params={}, intent=intent)
+
         # --- GB1 : action qu'aucun outil ne sait faire → réponse fixe, jamais le modèle ---
         if category == "unsupported":
             return ResolvedAction(
@@ -926,8 +930,17 @@ class Validator:
             elif verb == "trigger":
                 tool_name = "trigger_add"
                 verification = VerificationRule(type="none")
-            elif verb == "workflow":
-                tool_name = "workflow_run"
+            elif verb in ("workflow", "workflow_describe"):
+                # GT2 : un mode qui n'existe pas n'est JAMAIS proposé au lancement (« active le
+                # mode sombre » obtenait une confirmation pour un workflow inventé). Une question
+                # sur un mode le décrit, sans rien lancer.
+                from core.workflow_engine import get_workflow_engine
+
+                engine_wf = get_workflow_engine()
+                if not engine_wf._workflows:
+                    engine_wf.load_workflows()
+                known = engine_wf.get_workflow(params.get("workflow_id", "")) is not None
+                tool_name = "workflow_run" if verb == "workflow" and known else "workflow_describe"
                 verification = VerificationRule(type="none")
             elif verb == "workflow_create":
                 tool_name = "workflow_create"

@@ -222,10 +222,13 @@ def test_10_gpu_absent_warning_no_crash(monkeypatch, caplog):
 
     fake_torch = SimpleNamespace(cuda=FakeCuda())
     monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    # G-ter / GT5 : l'alerte dépend de ce que la TRANSCRIPTION voit (CTranslate2), plus de torch.
+    monkeypatch.setitem(sys.modules, "ctranslate2", SimpleNamespace(get_cuda_device_count=lambda: 0))
+    monkeypatch.setitem(main.CONFIG, "voice", {**main.CONFIG.get("voice", {}), "stt_device": "cuda"})
 
     caplog.clear()
     main._warn_if_voice_gpu_missing(True)
-    assert "aucun GPU CUDA detecte" in caplog.text
+    assert "aucun GPU CUDA" in caplog.text and "lente" in caplog.text
 
 
 @pytest.mark.asyncio

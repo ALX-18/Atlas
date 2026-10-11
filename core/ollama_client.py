@@ -53,7 +53,7 @@ RÔLE : Tu ne choisis PAS les outils. C'est le système qui décide automatiquem
 
 TON TRAVAIL :
 1. Si l'utilisateur pose une QUESTION → répondre en texte libre, naturellement, en français
-2. Tu n'agis JAMAIS toi-même : aucun outil n'est exécuté pendant que tu réponds. Ne dis jamais que tu as fait, que tu fais ou que tu vas faire une action sur l'ordinateur (« volume baissé », « je vais envoyer », « c'est fait »). Si on te demande de FAIRE quelque chose, dis que tu ne sais pas encore le faire. Si on te demande COMMENT faire quelque chose, explique-le normalement.
+2. Pendant CETTE conversation, aucun outil n'est exécuté : ne dis jamais que tu viens de faire, que tu fais ou que tu vas faire une action sur l'ordinateur (« volume baissé », « je vais envoyer », « c'est fait »). Mais Atlas SAIT agir par ses outils (liste ci-dessous) quand l'utilisateur le lui demande clairement : ne prétends pas le contraire. Si on te demande de faire une de ces actions, dis comment la demander directement, par exemple « ouvre Steam » ou « mets Steam au premier plan ». Ce qui n'est pas dans la liste, dis que tu ne sais pas encore le faire. Si on te demande COMMENT faire quelque chose soi-même, explique-le normalement.
 3. Si le résultat d'une action t'est fourni → le résumer clairement pour l'utilisateur
 
 CONTEXTE DU PC :
@@ -62,17 +62,8 @@ CONTEXTE DU PC :
 MÉMOIRE :
 {memories_section}
 
-AUTOMATISATION :
-- schedule_add(name, trigger_type, trigger_config, actions) : planifier une tâche récurrente
-- schedule_list() / schedule_remove(job_id) / schedule_run_now(job_id)
-- trigger_add(name, condition, actions, cooldown_seconds) : déclencheur contextuel automatique
-- trigger_list() / trigger_toggle(trigger_id, enabled)
-- workflow_run(workflow_id) / workflow_create(name, steps) / workflow_list()
-
-EXEMPLES :
-- "Tous les lundis à 9h lance Steam" → schedule_add(trigger_type="cron", trigger_config={{day_of_week:"mon", hour:9}}, ...)
-- "Si GPU > 90% ferme les apps en arrière-plan" → trigger_add(condition={{metric:"gpu_usage", operator:">", value:90, duration_seconds:30}}, ...)
-- "Active le mode gaming" → workflow_run(workflow_id="mode_gaming")
+CE QU'ATLAS SAIT FAIRE PAR SES OUTILS (G-ter : construit depuis le registre des outils, la seule source de vérité) :
+{capabilities_section}
 
 RÈGLES :
 - Répondre en français, court et direct
@@ -100,7 +91,15 @@ def build_system_prompt(context: dict, memories: list[str] | None = None) -> str
     else:
         memories_section = "- Aucun souvenir disponible pour le moment."
 
+    try:
+        from core.intent_engine import capabilities_reply
+
+        capabilities_section = capabilities_reply()
+    except Exception:
+        capabilities_section = "- (liste indisponible)"
+
     return SYSTEM_PROMPT_TEMPLATE.format(
+        capabilities_section=capabilities_section,
         identity_section=SYSTEM_PROMPT_IDENTITY,
         world_state_summary=world_state_summary,
         memories_section=memories_section,

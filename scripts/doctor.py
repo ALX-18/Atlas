@@ -383,7 +383,8 @@ def detect_gpu() -> tuple[list[Check], dict]:
         detail = f"torch {torch.__version__} (CUDA build={torch.version.cuda})"
         checks.append(Check("GPU", "torch voit le GPU (EasyOCR, embeddings)", cuda, WARNING, detail,
                             "torch est une build CPU : EasyOCR et les embeddings tournent sur CPU "
-                            "et main.py affiche un faux 'aucun GPU CUDA'. Build CUDA : "
+                            "(la transcription n'est pas concernée : elle passe par CTranslate2, vérifié "
+                            "juste en dessous). Build CUDA : "
                             "pip install torch --index-url https://download.pytorch.org/whl/cu128 "
                             "(RTX 50xx : CUDA 12.8 minimum)"))
     except Exception as e:

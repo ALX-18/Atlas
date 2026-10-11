@@ -94,20 +94,41 @@ def _check_tesseract() -> dict:
         return {"ok": False, "error": str(e)}
 
 
+def _voice_gpu_status(voice_cfg: dict, ct2_cuda_devices: int, torch_cuda: bool) -> tuple[str, str]:
+    """(niveau, message) sur le GPU de la transcription — ce qu'elle utilise RÉELLEMENT.
+
+    Sprint G-ter / GT5 : le message disait « aucun GPU CUDA détecté » d'après torch, alors que
+    la transcription passe par CTranslate2 (faster-whisper), qui voit le GPU. torch en version
+    processeur ne concerne qu'EasyOCR et les embeddings.
+    """
+    device = voice_cfg.get("stt_device", "cuda")
+    if device != "cuda":
+        return "info", "Atlas Voice : transcription réglée sur le processeur (voice.stt_device=cpu), environ 5 s par phrase."
+    if ct2_cuda_devices <= 0:
+        return ("warning", "⚠️ Atlas Voice : CTranslate2 ne voit aucun GPU CUDA — la transcription passera sur "
+                           "le processeur et sera lente (environ 5 s par phrase).")
+    extra = "" if torch_cuda else " (torch est en version processeur : seuls EasyOCR et les embeddings tournent sur le processeur)"
+    return "info", f"Atlas Voice : transcription sur GPU ({ct2_cuda_devices} périphérique(s) CUDA vu(s) par CTranslate2){extra}."
+
+
 def _warn_if_voice_gpu_missing(voice_enabled: bool):
-    """Warn when voice is enabled but CUDA is unavailable."""
+    """Annonce le GPU de la transcription d'après CTranslate2, qui la fait (GT5)."""
     if not voice_enabled:
         return
     try:
+        import ctranslate2
+
+        ct2 = ctranslate2.get_cuda_device_count()
+    except Exception:
+        ct2 = 0
+    try:
         import torch
 
-        if not torch.cuda.is_available():
-            logger.warning(
-                "⚠️ Atlas Voice : aucun GPU CUDA detecte. La transcription STT sera lente (~3-5s). "
-                "Performance optimale sur GPU NVIDIA. Pour desactiver: voice.enabled=false"
-            )
+        torch_cuda = bool(torch.cuda.is_available())
     except Exception:
-        logger.warning("⚠️ Atlas Voice : torch indisponible, impossible de verifier CUDA.")
+        torch_cuda = False
+    level, message = _voice_gpu_status(CONFIG.get("voice", {}), ct2, torch_cuda)
+    (logger.warning if level == "warning" else logger.info)(message)
 
 
 def _is_port_free(host: str, port: int) -> bool:
