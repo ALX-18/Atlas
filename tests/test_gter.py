@@ -120,9 +120,29 @@ def test_gt2_une_question_sur_un_mode_le_decrit_sans_rien_lancer(executed, phras
 
 
 def test_gt2_lancer_le_mode_demande_toujours_la_confirmation(executed):
-    r = _run("lance le mode gaming")
+    r = _run("lance le mode travail")
     assert r.get("status") == "confirmation_required", r
-    assert "Mode Gaming" in r.get("target", ""), f"la confirmation doit nommer le mode et ses étapes : {r}"
+    assert "Mode Travail" in r.get("target", ""), f"la confirmation doit nommer le mode et ses étapes : {r}"
+
+
+@pytest.mark.parametrize("phrase,nom", [("lance le mode gaming", "Mode Gaming"),
+                                        ("nettoie le système", "Nettoyage Système")])
+def test_gt2_un_mode_desactive_n_est_pas_propose_au_lancement(executed, phrase, nom):
+    """Mode Gaming (arrête un processus) et Nettoyage Système (vide la corbeille) sont désactivés
+    depuis B1-ter : une action à confirmation n'a pas sa place dans un mode. Demander une
+    confirmation pour répondre ensuite « désactivé » serait une promesse non tenue."""
+    r = _run(phrase)
+    assert r.get("status") != "confirmation_required", f"{phrase!r} : {r}"
+    msg = _message(r)
+    assert nom in msg and "désactivé" in msg and "lance le" not in msg, msg
+
+
+def test_gt2_la_liste_des_capacites_ne_cite_que_les_modes_utilisables():
+    from core.workflow_engine import get_workflow_engine
+
+    get_workflow_engine().load_workflows()
+    texte = ie.capabilities_reply()
+    assert "Mode Travail" in texte and "Mode Gaming" not in texte, texte
 
 
 @pytest.mark.parametrize("phrase", ["active le mode sombre", "active le mode avion"])
@@ -130,7 +150,8 @@ def test_gt2_un_mode_inexistant_n_est_jamais_propose(executed, phrase):
     r = _run(phrase)
     assert r.get("status") != "confirmation_required", f"{phrase!r} : {r}"
     msg = _message(r)
-    assert "connais pas" in msg and "Mode Gaming" in msg, msg
+    # Seuls les modes utilisables sont cités (Mode Gaming est désactivé depuis B1-ter).
+    assert "connais pas" in msg and "Mode Travail" in msg and "Mode Gaming" not in msg, msg
 
 
 # --------------------------------------------------------------------------- #

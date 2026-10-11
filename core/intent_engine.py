@@ -448,9 +448,9 @@ def capabilities_reply() -> str:
     try:
         from core.workflow_engine import get_workflow_engine
 
-        modes = [wf.name for wf in get_workflow_engine()._workflows.values()]
+        modes = [wf.name for wf in get_workflow_engine()._workflows.values() if not wf.invalid_reason]
         if modes:
-            lines.append(f"  Modes existants : {', '.join(modes)}.")
+            lines.append(f"  Modes utilisables : {', '.join(modes)}.")
     except Exception:
         pass
     try:
@@ -818,14 +818,18 @@ def _run_workflow_describe(args: dict) -> dict:
     engine = _workflows()
     wf_id = (args.get("workflow_id") or "").strip()
     wf = engine.get_workflow(wf_id)
-    names = ", ".join(w.name for w in engine._workflows.values()) or "aucun"
+    names = ", ".join(w.name for w in engine._workflows.values() if not w.invalid_reason) or "aucun"
     if wf is None:
         shown = re.sub(r"^(?:(?:active|lance|démarre)_)?(?:le_)?(?:mode_)?", "", wf_id).replace("_", " ").strip()
         # Une réponse honnête, pas une panne : succès (sinon l'apprentissage par les erreurs écrirait).
         return {"success": True,
-                "message": f"Je ne connais pas de mode « {shown or wf_id} ». Modes existants : {names}."}
+                "message": f"Je ne connais pas de mode « {shown or wf_id} ». Modes utilisables : {names}."}
     steps = " ; ".join(f"{i}. {s.name}" for i, s in enumerate(wf.steps, start=1))
     desc = f" : {wf.description.rstrip('.')}." if wf.description else "."
+    if wf.invalid_reason:
+        return {"success": True,
+                "message": f"« {wf.name} »{desc} Étapes : {steps}. Ce mode est désactivé ({wf.invalid_reason}) : "
+                           "je ne peux pas le lancer."}
     return {"success": True,
             "message": f"« {wf.name} »{desc} Étapes : {steps}. Je ne le lance pas : "
                        f"dites « lance le {wf.name.lower()} » pour le lancer, avec confirmation."}

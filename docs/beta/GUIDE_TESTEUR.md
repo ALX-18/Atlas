@@ -33,7 +33,10 @@ La **première réponse** après le démarrage peut prendre **plus d'une minute*
 | Vous dites (ou écrivez) | Ce qui se passe |
 |---|---|
 | « Bonjour, présente-toi » ou toute question | Il répond en français. |
-| « Lance la calculatrice », « Ouvre Steam » | Il ouvre l'application, ou vous dit qu'elle est déjà ouverte. |
+| « Tu peux faire quoi ? », « aide » | Il donne la liste de ce qu'il sait faire, tirée de ses outils réels, et ce qui demande une confirmation. |
+| « Lance la calculatrice », « Ouvre Steam » | Il ouvre l'application. Si elle tourne déjà, il ramène sa fenêtre — pour Steam, même fermée dans la zone de notification. Il ne lance jamais un second exemplaire. |
+| « C'est quoi le mode travail ? » | Il décrit le mode et ses étapes, **sans le lancer**. |
+| « Lance le mode travail » | Il vous montre le mode et ses étapes à l'écran, et attend votre confirmation. |
 | « Ferme la fenêtre Steam » | Il vous demande d'abord **une confirmation à l'écran** (voir plus bas). |
 | « Retiens que le code du portail est 4521 » | Il le retient et répond « C'est noté : … ». |
 | « Tu te souviens du code du portail ? » | Il vous répète ce que vous lui avez dit, ou vous dit qu'il n'a rien retenu à ce sujet. |
@@ -77,7 +80,8 @@ Pour éviter les mauvaises surprises :
 - **Il n'apprend pas de ses erreurs.** S'il se trompe, il pourra refaire la même erreur.
 - **Pas de rappels programmés.** « Rappelle-moi d'appeler maman à 18 h » ne programme rien.
 - **Fermer certaines applications de Windows** (la Calculatrice, par exemple) : il peut annoncer « fenêtre fermée » alors qu'elle est toujours là.
-- **Pas de « modes »** (jeu, travail…) pour l'instant.
+- **Les modes sont des enchaînements préparés par Alexis** (Mode Travail, Démarrage Matin…). Ceux qui arrêteraient un programme ou videraient la corbeille sont désactivés par sécurité : Atlas vous le dit au lieu de les lancer. Un mode inconnu (« active le mode avion ») n'est jamais lancé : il vous cite ceux qui existent.
+- **Il ne retient pas l'action dont on vient de parler.** « Fais-le » ne suffit pas : redites l'action, par exemple « mets Steam au premier plan ».
 
 ---
 

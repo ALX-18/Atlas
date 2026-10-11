@@ -940,8 +940,11 @@ class Validator:
                 engine_wf = get_workflow_engine()
                 if not engine_wf._workflows:
                     engine_wf.load_workflows()
-                known = engine_wf.get_workflow(params.get("workflow_id", "")) is not None
-                tool_name = "workflow_run" if verb == "workflow" and known else "workflow_describe"
+                wf = engine_wf.get_workflow(params.get("workflow_id", ""))
+                # Un mode désactivé (B1-ter : action interdite dans un mode) n'est pas proposé non
+                # plus : la confirmation déboucherait sur « désactivé ».
+                runnable = wf is not None and not wf.invalid_reason
+                tool_name = "workflow_run" if verb == "workflow" and runnable else "workflow_describe"
                 verification = VerificationRule(type="none")
             elif verb == "workflow_create":
                 tool_name = "workflow_create"
