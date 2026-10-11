@@ -826,6 +826,10 @@ class IntentClassifier:
                 raw_low = raw.lower()
                 # Ex: "mets la fenetre de discord en premier plan"
                 m = re.search(r"\bde\s+(.+?)\s+\b(en|au)\s+premier\s+plan\b", raw_low)
+                # Suivi G-bis : « met steam en premier plan » (session d'Alexis) — sans « de ».
+                m2 = re.search(r"^\s*(?:re)?(?:mets?|passe|place)\s+(.+?)\s+\b(?:en|au)\s+premier\s+plan\b", raw_low)
+                if not m and m2 and m2.group(1).strip() not in ("la", "le", "l'", "celle", "celui", "ça", "ca"):
+                    m = m2
                 if m:
                     params["title"] = m.group(1).strip().rstrip(".,!?;:")
                 else:

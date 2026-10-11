@@ -55,6 +55,7 @@ Détail et vérification de chaque étape : `docs/install_checklist.md`, aux sec
    `requirements.txt` installe aussi cuBLAS et cuDNN (paquets pip `nvidia-*`). Depuis le sprint E, Atlas les déclare lui-même au démarrage : **pas besoin du CUDA Toolkit**, ni de toucher au PATH. Il fige aussi `piper-tts==1.4.1`, la version qui parle.
 4. **Tesseract 5.5**, avec la langue française et le PATH système (checklist §5).
 5. **Ollama** (checklist §7) :
+   **Version de référence : Ollama 0.40.2** (mise à jour par Alexis le 10/10/2026, validée par les tests du sprint G-bis sur le vrai modèle).
    ```powershell
    ollama pull qwen2.5:7b
    ollama run qwen2.5:7b "Réponds juste : ok"
