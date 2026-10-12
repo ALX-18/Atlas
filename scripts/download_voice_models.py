@@ -15,7 +15,6 @@ core/voice_engine.py avant le premier demarrage avec voice.enabled=true :
    https://huggingface.co/rhasspy/piper-voices/tree/main/fr/fr_FR/siwis/medium
 
 Usage:
-    cd assistant-bureau
     python scripts/download_voice_models.py
 """
 

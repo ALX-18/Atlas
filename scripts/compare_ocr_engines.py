@@ -5,7 +5,6 @@ Génère des images de libellés UI typiques (français, anti-aliasing simulé) 
 compare les deux moteurs OCR sur précision + latence.
 
 Usage:
-    cd assistant-bureau
     python scripts/compare_ocr_engines.py
 """
 

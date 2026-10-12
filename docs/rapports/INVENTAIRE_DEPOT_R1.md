@@ -42,6 +42,19 @@ Ce document ne cite que des fichiers et des **codes de motifs**. La liste exacte
 | 15 | Secrets | arbre + historique | **aucun trouvé**. `config/oauth_tokens/` et `.env` n'ont jamais été suivis. La seule « clé » est le modèle `atlas_secret_key_change_me` de SearXNG (service lié à 127.0.0.1, commentaire déjà présent dans `docker-compose.yml`) | **garder** ; à remplacer le jour où SearXNG sort de 127.0.0.1 |
 | 16 | Branches : 12 branches distantes (`sprint-*`, `g-bis-suivi`) | dépôt | **toutes fusionnées** : aucune n'a de commit absent de `main` (`git rev-list --count origin/main..<branche>` = 0 pour les 12) | **les supprimer** avant R3 (le brief demande « aucune branche ouverte ») ; elles restent dans la sauvegarde miroir — à confirmer |
 
-## Ce qu'il faut à Alexis pour R2/R3
+## Décisions d'Alexis (12/10/2026, dans la conversation)
 
-Une réponse par ligne suffit, par exemple « 1-4, 6-8 : comme proposé ; 5 : (a) ; 9 : réécrire ; 12 : garder ; 16 : oui ».
+| # | Décision | Où c'est appliqué |
+|---|---|---|
+| 1, 2, 3 | comme proposé : retirer, compléter `.gitignore` | R2 (arbre), R3 (historique) |
+| 4 | comme proposé : persona anonymisé (« Compagnon », proche fictive « Camille »), fichier de dépendances renommé `requirements-mac-compagnon.txt` | R2, R3 |
+| 5 | **garder** le nom complet | rien |
+| 6 | comme proposé : `C:\Users\utilisateur` | R2, R3 |
+| 7 | réglé par la ligne 1 | — |
+| 8 | comme proposé : les deux citations remplacées | R2, R3 |
+| 9 | **réécrire** l'adresse d'école vers l'adresse `noreply` de GitHub | R3 (`--mailmap`) |
+| 10, 11, 13, 14, 15 | garder | rien |
+| 12 | **garder** : ce sont des phrases d'exemple écrites dans un test, pas des habitudes détectées chez un testeur | rien |
+| 16 | **supprimer** les 12 branches distantes | avant la publication de R3, après la sauvegarde miroir |
+
+Alexis a tranché les points signalés comme à décider (5, 9, 12, 16). Les autres lignes sont appliquées comme proposé.

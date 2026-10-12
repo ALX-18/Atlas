@@ -95,3 +95,10 @@ desktop.ini
 notes_perso/
 WIP_*
 TODO_perso.md
+
+# === Fichiers de travail mémoire (sprint Dépôt + Ollama, R2) ===
+# Extraits de la mémoire réelle : jamais dans le dépôt.
+docs/rapports/INVENTAIRE_MEMOIRE_*.md
+cleanup_ids*.json
+# Ancien dossier du projet : seuls des artefacts de test y étaient écrits.
+assistant-bureau/

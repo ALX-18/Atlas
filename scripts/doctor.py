@@ -15,7 +15,6 @@ Ce script est en lecture seule : il ne modifie ni la configuration, ni les
 données, ni l'environnement Python.
 
 Usage:
-    cd assistant-bureau
     python scripts/doctor.py            # rapport lisible
     python scripts/doctor.py --json     # rapport machine (pour un futur installeur)
     python scripts/doctor.py --precheck # AVANT installation : verdict matériel, Python nu suffit
