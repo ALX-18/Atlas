@@ -20,6 +20,9 @@ import sys
 import time
 
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+# Dépôt + Ollama / C3 : hors de main.py, la vraie mémoire est neutralisée. Ce banc la branche
+# VOLONTAIREMENT, pour des rappels réels ; ReadOnlyMemory ci-dessous en bloque les écritures.
+os.environ["ATLAS_MEMORY"] = "real"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 ACTIONS = [

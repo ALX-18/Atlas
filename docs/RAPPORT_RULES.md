@@ -122,6 +122,11 @@ Le superviseur peut refuser un ajout hors scope même s'il est bien fait.
 ### Les consultants externes (GPT, Kimi) ne valident pas les rapports
 Seul le superviseur valide. Les consultants peuvent être cités comme source d'une décision architecturale, jamais comme autorité de validation.
 
+### Traces de test dans la mémoire réelle (décision d'Alexis, 12/10/2026)
+- **Ce qu'écrivent les tests ou les essais du développeur** dans la mémoire réelle est retiré **sans lui redemander** : sauvegarde d'abord (`backup_memory.py backup`), puis `verify`, puis `memory_cleanup.py plan-ids` et `apply-ids --yes`. Chaque élément retiré est **listé dans le rapport du sprint**, avec les décomptes avant et après.
+- **Ce qu'écrivent les vraies sessions d'Alexis reste à lui** : on lui demande toujours avant d'y toucher.
+- En cas de doute sur l'origine d'un élément, il est traité comme une session d'Alexis : on demande.
+
 ---
 
 ## 🔍 Cas spéciaux

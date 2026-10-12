@@ -437,7 +437,7 @@ _AUTOMATION_EXCLUSIONS = {
     "action interactive : la fenêtre au premier plan au moment du déclenchement est inconnue": {
         "window_type", "window_hotkey", "window_click", "window_close", "window_focus",
         "window_send_message",
-        "window_minimize", "window_maximize", "window_snap", "ui_click_element",
+        "window_minimize", "window_maximize", "window_restore", "window_snap", "ui_click_element",
         "web_search_to_notepad", "browser_click", "browser_type", "browser_scroll", "browser_close",
         "browser_navigate", "browser_new_tab", "browser_ext_click", "browser_ext_type",
         "browser_ext_scroll",
@@ -614,7 +614,9 @@ class Validator:
         # --- GT1 : « tu peux faire quoi ? » → réponse fixe construite depuis le registre ---
         if category == "help":
             tool = "__followup__" if intent.verb == "followup" else "__capabilities__"
-            return ResolvedAction(tool=tool, params={}, intent=intent)
+            # C1 : « que sais-tu faire avec les fenêtres ? » → le détail d'une seule famille.
+            params = {"family": intent.target} if intent.verb == "capabilities_family" else {}
+            return ResolvedAction(tool=tool, params=params, intent=intent)
 
         # --- GB1 : action qu'aucun outil ne sait faire → réponse fixe, jamais le modèle ---
         if category == "unsupported":

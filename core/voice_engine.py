@@ -805,7 +805,11 @@ class VoiceEngine:
                 summaries.append(item.get("message") or "Action refusée.")
                 continue
             res = item.get("result", {})
-            if isinstance(res, dict):
+            if item.get("spoken"):
+                # C1 : une version écrite pour la voix (« tu peux faire quoi ? » : la liste
+                # complète durait près d'une minute à l'oral).
+                msg = item["spoken"]
+            elif isinstance(res, dict):
                 msg = res.get("message", "")
             else:
                 msg = str(res)[:200]

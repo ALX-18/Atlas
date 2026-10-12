@@ -18,6 +18,8 @@ from contextlib import asynccontextmanager
 # d'usage anonymes (« Anonymized telemetry enabled »). Posé AVANT tout import qui crée un
 # client, et imposé (pas setdefault) : un réglage de la machine ne doit pas la rallumer.
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
+# Dépôt + Ollama / C3 : seul Atlas lui-même branche la vraie mémoire (core/memory_manager.py).
+os.environ.setdefault("ATLAS_MEMORY", "real")
 
 import uvicorn
 from fastapi import FastAPI

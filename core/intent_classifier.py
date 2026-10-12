@@ -48,6 +48,8 @@ INTENT_CATEGORIES = {
             "premier plan": "focus", "en premier plan": "focus",
             "focus": "focus",
             "liste les fenêtres": "list", "liste fenêtres": "list",
+            # C2 : « restaure le bloc-notes » (seul « restore », en anglais, y menait)
+            "restaure": "restore", "restaurer": "restore",
             # EN
             "open": "open", "launch": "open", "start": "open", "run": "open",
             "close": "close", "quit": "close", "exit": "close",
@@ -365,6 +367,39 @@ _HELP_RE = re.compile(
 )
 
 
+# C1 — le détail d'une famille, que la version vocale propose : « que sais-tu faire avec les
+# fenêtres ? », « tu peux faire quoi sur internet ? », « détaille la famille mémoire ». Seuls
+# des mots de famille connus : « tu peux faire quoi avec Photoshop ? » reste une conversation.
+HELP_FAMILY_WORDS = {
+    "Applications et fenêtres": r"applications?|applis?|fen[êe]tres?|logiciels?",
+    "Écrire ailleurs": r"[ée]crire(?:\s+ailleurs)?|[ée]criture|messages?|clavier",
+    "Internet": r"internet|web|navigateur",
+    "Système": r"syst[èe]me|ordinateur|pc|programmes?",
+    "Mémoire": r"m[ée]moire|souvenirs?",
+    "Modes et automatisations": r"modes?|automatisations?|t[âa]ches(?:\s+planifi[ée]es)?",
+}
+_HELP_FAMILY_RE = re.compile(
+    r"^(?:atlas[\s,]*)?(?:(?:ok|et|alors)[\s,]+)*(?:"
+    r"(?:(?:tu\s+(?:peux|sais)\s+faire\s+quoi)|(?:qu'est-ce\s+que\s+tu\s+(?:sais|peux)\s+faire)|"
+    r"(?:que\s+(?:sais|peux)-tu\s+faire))"
+    r"\s+(?:avec|sur|pour|en|côté|cote|niveau|dans)\s+"
+    r"|(?:(?:le\s+)?d[ée]tail|d[ée]taille(?:-moi)?)\s+(?:(?:de\s+)?(?:la\s+)?famille\s+)?"
+    r")(?:(?:le|la|les|l'|un|une|des|du|de\s+la)\s*)?"
+    r"(?P<word>" + "|".join(f"(?:{w})" for w in HELP_FAMILY_WORDS.values()) + r")\s*[?!.]*\s*$",
+    re.IGNORECASE,
+)
+
+
+def _help_family(raw: str) -> str | None:
+    m = _HELP_FAMILY_RE.match((raw or "").strip().lower().replace("’", "'"))
+    if not m:
+        return None
+    for family, words in HELP_FAMILY_WORDS.items():
+        if re.fullmatch(words, m.group("word"), re.IGNORECASE):
+            return family
+    return None
+
+
 # GT2 — une question sur un mode : « c'est quoi… », « il consiste à quoi… », « que fait… »,
 # « qu'est-ce qu'il y a dans… ». Un impératif en tête (« lance le mode… ») reste un ordre.
 _MODE_ORDER_RE = re.compile(r"^\s*(?:atlas[\s,]*)?(?:lance|active|démarre|demarre|mets|passe|run|start)\b",
@@ -669,6 +704,10 @@ class IntentClassifier:
         # GT1 : « toi fais le » renvoie à une action précédente, qu'Atlas ne retient pas.
         if _FOLLOWUP_RE.match(raw.strip().lower().replace("’", "'")):
             return IntentResult(category="help", verb="followup", target=None,
+                                confidence=0.95, is_complex=False, raw_input=raw)
+        family = _help_family(raw)
+        if family:
+            return IntentResult(category="help", verb="capabilities_family", target=family,
                                 confidence=0.95, is_complex=False, raw_input=raw)
         if _HELP_RE.match(raw.strip().lower().replace("’", "'")):
             return IntentResult(category="help", verb="capabilities", target=None,

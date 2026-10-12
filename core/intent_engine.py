@@ -310,6 +310,10 @@ TOOL_HANDLERS = {
     "window_maximize": lambda args: window_controller.window_maximize(
         title=args.get("title", ""),
     ),
+    # Dépôt + Ollama / C2 : le classifieur l'annonçait depuis longtemps, le moteur ne l'avait pas.
+    "window_restore": lambda args: window_controller.window_restore(
+        title=args.get("title", ""),
+    ),
     "window_list": lambda args: window_controller.window_list(),
     "window_snap": lambda args: window_controller.window_snap(
         title=args.get("title", ""),
@@ -393,6 +397,7 @@ TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "window_focus": ("Applications et fenêtres", "mettre une fenêtre au premier plan"),
     "window_minimize": ("Applications et fenêtres", "réduire une fenêtre"),
     "window_maximize": ("Applications et fenêtres", "agrandir une fenêtre"),
+    "window_restore": ("Applications et fenêtres", "restaurer une fenêtre à sa taille normale"),
     "window_snap": ("Applications et fenêtres", "ranger une fenêtre sur un côté"),
     "window_list": ("Applications et fenêtres", "lister les fenêtres"),
     "window_close": ("Applications et fenêtres", "fermer une fenêtre"),
@@ -434,25 +439,42 @@ def capability_tools() -> set[str]:
     return {t for t in exposed if t in TOOL_HANDLERS and t in TOOL_CAPABILITIES}
 
 
-def capabilities_reply() -> str:
-    """La réponse fixe à « tu peux faire quoi ? » (GT1)."""
-    tools = capability_tools()
-    lines = ["Voici ce que je sais faire :"]
-    for family in CAPABILITY_FAMILIES:
-        labels = []
-        for tool, (fam, label) in TOOL_CAPABILITIES.items():
-            if fam == family and tool in tools:
-                labels.append(label + (" *" if confirmation_reason(tool, interactive=True) else ""))
-        if labels:
-            lines.append(f"- {family} : {', '.join(labels)}.")
+def _family_labels(family: str, tools: set[str], mark: bool = True) -> list[str]:
+    labels = []
+    for tool, (fam, label) in TOOL_CAPABILITIES.items():
+        if fam == family and tool in tools:
+            labels.append(label + (" *" if mark and confirmation_reason(tool, interactive=True) else ""))
+    return labels
+
+
+def _usable_modes() -> list[str]:
     try:
         from core.workflow_engine import get_workflow_engine
 
-        modes = [wf.name for wf in get_workflow_engine()._workflows.values() if not wf.invalid_reason]
-        if modes:
-            lines.append(f"  Modes utilisables : {', '.join(modes)}.")
+        return [wf.name for wf in get_workflow_engine()._workflows.values() if not wf.invalid_reason]
     except Exception:
-        pass
+        return []
+
+
+def capabilities_reply(family: str | None = None) -> str:
+    """La réponse fixe à « tu peux faire quoi ? » (GT1), ou le détail d'une famille (C1)."""
+    tools = capability_tools()
+    if family:
+        labels = _family_labels(family, tools)
+        lines = [f"{family} : {', '.join(labels)}." if labels else f"{family} : rien pour l'instant."]
+        if family == "Modes et automatisations" and _usable_modes():
+            lines.append(f"Modes utilisables : {', '.join(_usable_modes())}.")
+        if any(label.endswith(" *") for label in labels):
+            lines.append("* demande votre confirmation à l'écran.")
+        return "\n".join(lines)
+    lines = ["Voici ce que je sais faire :"]
+    for fam in CAPABILITY_FAMILIES:
+        labels = _family_labels(fam, tools)
+        if labels:
+            lines.append(f"- {fam} : {', '.join(labels)}.")
+    modes = _usable_modes()
+    if modes:
+        lines.append(f"  Modes utilisables : {', '.join(modes)}.")
     try:
         import pathlib
 
@@ -463,6 +485,40 @@ def capabilities_reply() -> str:
         pass
     lines.append("* demande votre confirmation à l'écran. Ce que je ne sais pas encore faire, je vous le dis.")
     return "\n".join(lines)
+
+
+# C1 — la version écrite fait ~1 250 caractères : près d'une minute lue à voix haute. À la
+# voix, les familles seulement, depuis le MÊME registre, et l'offre du détail d'une famille
+# (que le classifieur sait reconnaître : « que sais-tu faire avec les fenêtres ? »).
+_FAMILY_EXAMPLE = {
+    "Applications et fenêtres": "avec les fenêtres",
+    "Écrire ailleurs": "pour écrire ailleurs",
+    "Internet": "sur internet",
+    "Système": "sur le système",
+    "Mémoire": "avec la mémoire",
+    "Modes et automatisations": "avec les modes",
+}
+_NUMBERS = {1: "une", 2: "deux", 3: "trois", 4: "quatre", 5: "cinq", 6: "six", 7: "sept", 8: "huit"}
+
+
+def capabilities_reply_voice(family: str | None = None) -> str:
+    """La version parlée : courte, sans astérisque ni liste."""
+    tools = capability_tools()
+    if family:
+        labels = _family_labels(family, tools, mark=False)
+        if not labels:
+            return f"Côté {family.lower()}, je ne sais rien faire pour l'instant."
+        sensible = any(confirmation_reason(t, interactive=True) for t, (fam, _) in TOOL_CAPABILITIES.items()
+                       if fam == family and t in tools)
+        return (f"Côté {family.lower()}, je sais {', '.join(labels)}."
+                + (" Certaines de ces actions demandent votre confirmation à l'écran." if sensible else ""))
+    families = [fam for fam in CAPABILITY_FAMILIES if _family_labels(fam, tools)]
+    count = _NUMBERS.get(len(families), str(len(families)))
+    text = f"Je sais agir dans {count} familles : {', '.join(f.lower() for f in families)}."
+    if families:
+        text += (f" Demandez-moi le détail d'une famille, par exemple : que sais-tu faire "
+                 f"{_FAMILY_EXAMPLE.get(families[0], families[0].lower())} ?")
+    return text + " Les gestes sensibles demandent votre confirmation à l'écran."
 
 
 # --------------------------------------------------------------------------- #
@@ -926,9 +982,12 @@ class ExecutionEngine:
                     "result": {"success": False, "message": message}}
 
         # GT1 : « tu peux faire quoi ? » — réponse fixe, construite depuis le registre.
+        # C1 : « spoken » est la version que la voix prononce ; l'écran garde « message ».
         if tool_name == "__capabilities__":
-            reply = capabilities_reply()
-            return {"status": "success", "message": reply, "result": {"success": True, "message": reply}}
+            family = params.get("family")
+            reply = capabilities_reply(family)
+            return {"status": "success", "message": reply, "spoken": capabilities_reply_voice(family),
+                    "result": {"success": True, "message": reply}}
 
         # GT1 : « toi fais le » — l'action précédente n'est pas retenue ; réponse fixe qui ne
         # nie pas qu'Atlas sait agir (le modèle disait « je ne peux pas effectuer d'action »).

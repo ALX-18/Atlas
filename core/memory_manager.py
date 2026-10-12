@@ -9,6 +9,7 @@ Gère deux types de mémoire :
 import hashlib
 import json
 import logging
+import os
 import time
 import uuid
 from datetime import datetime
@@ -85,6 +86,15 @@ class MemoryManager:
 
     def _connect(self):
         """Tente de se connecter à ChromaDB. Fail silencieux si indisponible."""
+        # Dépôt + Ollama / C3 : la vraie mémoire n'est branchée que pour Atlas lui-même
+        # (main.py pose ATLAS_MEMORY=real). Un essai lancé à part — un `python -c` qui importe
+        # le moteur — avait écrit dans atlas_errors (G-ter) : il trouve désormais la mémoire
+        # neutralisée, comme si ChromaDB était absent. Les scripts de maintenance
+        # (backup_memory, memory_cleanup…) ouvrent leur propre client et ne sont pas concernés.
+        if os.environ.get("ATLAS_MEMORY") != "real":
+            self._connected = False
+            logger.warning("Mémoire long terme neutralisée : processus hors d'Atlas (ATLAS_MEMORY≠real).")
+            return
         try:
             self._client = chromadb.HttpClient(
                 host=CHROMA_HOST,
