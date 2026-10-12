@@ -3,7 +3,7 @@
 **Destinataire :** CHAT6 (Claude Opus, Claude Code Windows)
 **Émetteur :** Superviseur technique Atlas
 **Date d'émission :** 12 octobre 2026
-**Ordre :** **après** la validation du rapport G-ter, **avant** la beta.
+**Ordre :** **après** la validation du rapport G-ter (validé le 12/10), **avant** la beta. Commencer par fusionner `sprint-g-ter` dans `main`.
 **Durée visée :** une journée
 
 ---
@@ -98,7 +98,33 @@ Le début du message (les consignes) est-il identique d'une requête à l'autre 
 
 ---
 
+## 3 bis. Partie C — Deux restes de G-ter, avant la beta
+
+### C1 — « Tu peux faire quoi ? » à la voix
+
+La réponse fixe fait environ 1 250 caractères, soit près d'une minute lue à voix haute. Ce sera la première question d'un testeur, et souvent à la voix. Ajouter une version courte pour la voix (les familles, en une ou deux phrases, et « demandez-moi le détail d'une famille »), construite depuis le **même** registre que la version écrite. Le test de cohérence couvre les deux versions.
+
+### C2 — `window_restore`
+
+Le classifieur annonce un outil que le moteur n'a pas : « restaure la fenêtre » aboutirait à « outil inconnu ». C'est encore le défaut récurrent du projet (une couche annonce ce qu'une autre n'applique pas). L'ajouter au moteur si c'est court et sûr (même règles que `window_focus` : fenêtre nommée, premier plan vérifié), sinon le retirer du classifieur. Dire lequel des deux a été fait, et pourquoi.
+
+### C3 — Traces de test dans la mémoire : règle permanente
+
+**Décision d'Alexis (12/10) :** tout ce que les tests ou les essais de CHAT6 écrivent dans la mémoire réelle est retiré **sans lui redemander**, toujours après une sauvegarde vérifiée, par `plan-ids` / `apply-ids --yes`, et listé dans le rapport du sprint. **Ce qu'écrivent les vraies sessions d'Alexis reste à lui** : on lui demande toujours avant d'y toucher.
+
+- Appliquer cette règle tout de suite à `err_7297b690157e` (annexe du rapport G-ter).
+- L'inscrire dans `docs/RAPPORT_RULES.md`.
+- Mieux encore : qu'un essai ne puisse plus écrire dans la vraie mémoire par oubli. Proposer un garde-fou, par exemple une mémoire neutralisée par défaut dans le banc d'essai.
+
+---
+
 ## 4. Critères de validation
+
+- [ ] `err_7297b690157e` retirée après sauvegarde vérifiée ; règle C3 inscrite dans `RAPPORT_RULES.md`
+
+- [ ] `sprint-g-ter` fusionnée dans `main`, suite verte (970 / 4)
+- [ ] C1 : version vocale courte, même registre, cohérence testée
+- [ ] C2 : `window_restore` existe dans le moteur ou n'est plus annoncé
 
 - [ ] Inventaire R1 complet, arbre et historique, secrets compris ; décisions d'Alexis consignées
 - [ ] Arbre nettoyé, `.gitignore` complété, suite verte
