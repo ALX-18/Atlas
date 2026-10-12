@@ -201,6 +201,7 @@ INTENT_CATEGORIES = {
             "schedule": "schedule_add",
             "trigger": "trigger_add",
             "workflow": "workflow_run",
+            "workflow_describe": "workflow_describe",   # GT2 : une question décrit, ne lance pas
             "workflow_create": "workflow_create",
             "workflow_list": "workflow_list",
             "schedule_list": "schedule_list",
@@ -351,6 +352,73 @@ _WINDOW_PREFIX = re.compile(
     re.IGNORECASE,
 )
 _QUOTED = re.compile(r'^\s*(?:«\s*(?P<a>.+?)\s*»|"(?P<b>.+?)"|“(?P<c>.+?)”)\s*(?P<after>.*)$', re.DOTALL)
+
+
+# GT1 — « tu peux faire quoi ? », « qu'est-ce que tu sais faire ? », « aide », « tes capacités »…
+_HELP_RE = re.compile(
+    r"^(?:atlas[\s,]*)?(?:(?:ah\s+)?(?:ok\s*)*(?:et\s+)?(?:donc\s+)?)?(?:"
+    r"(?:tu\s+(?:peux|sais)\s+faire\s+quoi)|(?:qu'est-ce\s+que\s+tu\s+(?:sais|peux)\s+faire)|"
+    r"(?:que\s+(?:sais|peux)-tu\s+faire)|(?:tu\s+sers\s+à\s+quoi)|(?:quelles?\s+sont\s+tes\s+capacités)|"
+    r"(?:tes\s+capacités)|(?:aide(?:-moi)?)|(?:à\s+l'aide)|(?:help)"
+    r")(?:\s+(?:d'autre|pour\s+moi|exactement))?\s*[?!.]*\s*$",
+    re.IGNORECASE,
+)
+
+
+# GT2 — une question sur un mode : « c'est quoi… », « il consiste à quoi… », « que fait… »,
+# « qu'est-ce qu'il y a dans… ». Un impératif en tête (« lance le mode… ») reste un ordre.
+_MODE_ORDER_RE = re.compile(r"^\s*(?:atlas[\s,]*)?(?:lance|active|démarre|demarre|mets|passe|run|start)\b",
+                            re.IGNORECASE)
+_MODE_QUESTION_RE = re.compile(
+    r"(?:c'est\s+quoi|qu'est-ce\s+que|qu'est-ce\s+qu'il\s+y\s+a|consiste\s+(?:à|en)\s+quoi|"
+    r"en\s+quoi\s+consiste|que\s+fait|ça\s+fait\s+quoi|ca\s+fait\s+quoi|à\s+quoi\s+sert|"
+    r"que\s+contient|explique|décris|decris|comment\s+(?:marche|fonctionne))",
+    re.IGNORECASE,
+)
+
+
+def _is_question_about_mode(raw: str) -> bool:
+    text = (raw or "").replace("’", "'").strip()
+    if _MODE_ORDER_RE.match(text):
+        return False
+    return bool(_MODE_QUESTION_RE.search(text)) or text.endswith("?")
+
+
+# GT3 — les formes du verbe d'action qui restaient en tête de la cible. Formes EXACTES (pas un
+# préfixe) : « lanceur » ou « fermette » ne sont pas des verbes.
+_ACTION_VERB_FORMS = (
+    "fermes?|fermez|fermer|fermé|fermée|fermons|referme|refermes?|refermez|"
+    "ouvres?|ouvrez|ouvrir|ouvert|rouvre|rouvres?|"
+    "lances?|lancez|lancer|démarres?|démarrez|démarrer|demarres?|demarrez|"
+    "réduis|réduisez|réduire|reduis|reduisez|reduire|minimises?|minimisez|"
+    "agrandis|agrandissez|agrandir|maximises?|maximisez|"
+    "mets|met|mettez|mettre|places?|placez|affiches?|affichez"
+)
+_ACTION_VERB_PREFIX = re.compile(
+    rf"^[\s,;:.!?«»\"'-]*(?:{_ACTION_VERB_FORMS})(?:[-\s]+(?:moi|toi|nous|vous|la|le|les|l'))?(?=[\s,;:.!?«»\"'-]|$)",
+    re.IGNORECASE,
+)
+
+
+def _clean_action_target(target):
+    """« fermes, steam. » → « steam » ; « -moi steam » → « steam »."""
+    if not target:
+        return target
+    text = target
+    for _ in range(2):
+        text = _ACTION_VERB_PREFIX.sub("", text)
+        text = re.sub(r"^[\s,;:.!?«»\"'-]*(?:moi|toi)\b", "", text, flags=re.IGNORECASE)
+    text = text.strip(" ,;:.!?«»\"'-")
+    return text or None
+
+
+# GT1 — « toi fais le », « fais-le », « vas-y fais-le », « tu peux le faire ? » (session d'Alexis)
+_FOLLOWUP_RE = re.compile(
+    r"^(?:atlas[\s,]*)?(?:(?:ok|bon|alors|vas-y|allez)[\s,]+)*(?:toi[\s,]+)?"
+    r"(?:fais[- ]le|tu\s+peux\s+le\s+faire|tu\s+le\s+fais|fais[- ]le\s+pour\s+moi)"
+    r"(?:[\s,]+toi)?(?:[\s,]+(?:alors|stp|s'il\s+te\s+pla[iî]t))?\s*[?!.]*\s*$",
+    re.IGNORECASE,
+)
 
 
 def _clean_window(window: str) -> str:
@@ -513,11 +581,13 @@ class IntentClassifier:
 
         # --- Automation fast-paths for stable workflow/schedule commands ---
         if any(k in normalized for k in ["mode gaming", "mode travail", "nettoie", "nettoyage", "demarrage du matin", "démarrage du matin"]):
+            # GT2 : « il consiste à quoi le mode gaming ? » proposait de LANCER le mode.
+            wf_verb = "workflow_describe" if _is_question_about_mode(raw) else "workflow"
             return IntentResult(
                 category="automation",
-                verb="workflow",
+                verb=wf_verb,
                 target=raw,
-                params=self._build_params("automation", "workflow", raw, raw),
+                params=self._build_params("automation", wf_verb, raw, raw),
                 confidence=0.98,
                 is_complex=False,
                 raw_input=raw,
@@ -595,6 +665,15 @@ class IntentClassifier:
                 raw_input=raw,
             )
 
+        # --- GT1 : « tu peux faire quoi ? » et ses variantes → réponse fixe ---
+        # GT1 : « toi fais le » renvoie à une action précédente, qu'Atlas ne retient pas.
+        if _FOLLOWUP_RE.match(raw.strip().lower().replace("’", "'")):
+            return IntentResult(category="help", verb="followup", target=None,
+                                confidence=0.95, is_complex=False, raw_input=raw)
+        if _HELP_RE.match(raw.strip().lower().replace("’", "'")):
+            return IntentResult(category="help", verb="capabilities", target=None,
+                                confidence=0.95, is_complex=False, raw_input=raw)
+
         # --- GB4 : écrire / envoyer dans une autre application ---
         # Sur la phrase D'ORIGINE : casse et ponctuation intactes. Avant, le texte venait de
         # la cible normalisée (minuscules, « dans discord » compris) ou d'une « citation »
@@ -651,6 +730,9 @@ class IntentClassifier:
                     if confidence > best_confidence:
                         best_confidence = confidence
                         target = self._extract_target(normalized, trigger, cat_name)
+                        if cat_name == "window_mgmt":
+                            # GT3 : « Fermes, Steam. » (transcription) donnait la cible « fermes, steam ».
+                            target = _clean_action_target(target)
                         best_match = IntentResult(
                             category=cat_name,
                             verb=verb,
@@ -667,6 +749,11 @@ class IntentClassifier:
                 and not self._is_redo_request(normalized):
             best_match = None
             best_confidence = 0.0
+
+        # GT2 : une question sur un mode le décrit, ne le lance pas.
+        if best_match and best_match.category == "automation" and best_match.verb == "workflow" \
+                and _is_question_about_mode(raw):
+            best_match.verb = "workflow_describe"
 
         # G4 : « souviens » sert aux deux sens. « Souviens-toi que… » est une consigne ;
         # « tu te souviens de… ? » est une question, donc un rappel — l'enregistrer
@@ -926,7 +1013,7 @@ class IntentClassifier:
                 params["actions"] = [{"action": "launch_app", "params": {"name": app}}]
             elif verb == "trigger" and target:
                 params["name"] = target
-            elif verb == "workflow":
+            elif verb in ("workflow", "workflow_describe"):
                 # Extract workflow ID from known modes
                 wf_map = {
                     "gaming": "mode_gaming", "jeu": "mode_gaming",

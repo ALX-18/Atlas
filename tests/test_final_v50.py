@@ -104,6 +104,10 @@ def test_04_idempotent_launch_skip(monkeypatch):
     resolved = _DummyResolved("launch_app", {"name": "notepad"})
 
     monkeypatch.setattr("tools.app_launcher._is_process_running", lambda _: True)
+    # G-ter / GT4 : l'application déjà lancée est ramenée au premier plan. Simulé ici, sinon le
+    # test agirait sur une vraie fenêtre de la machine.
+    monkeypatch.setattr("tools.app_launcher.bring_running_app",
+                        lambda name: {"success": True, "message": f"{name} était déjà lancé : je ramène sa fenêtre."})
 
     async def _execute_tool(*args, **kwargs):
         raise AssertionError("execute_tool should not run for idempotent action")

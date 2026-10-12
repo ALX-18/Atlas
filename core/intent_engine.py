@@ -163,6 +163,11 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
             args = {"name": exact, "pids": [m["pid"] for m in matches]}
             target = (f"{exact} ({len(matches)} processus : PID {pid_list})" if len(matches) > 1
                       else f"{exact} (PID {pid_list})")
+    elif tool_name == "workflow_run":
+        # GT2 : on confirme un mode en sachant ce qu'il fait — son nom et ses étapes.
+        wf = _workflows().get_workflow(args.get("workflow_id", ""))
+        if wf is not None:
+            target = f"{wf.name} : " + ", ".join(s.name for s in wf.steps)
     elif tool_name == "window_send_message":
         # GB4 : la fenêtre est résolue AVANT la confirmation. Le dialogue montre le texte exact
         # et la fenêtre exacte ; c'est dans celle-là que le message partira. Plusieurs
@@ -360,11 +365,104 @@ TOOL_HANDLERS = {
     "maintenance_cleanup_temp": lambda args: _run_maintenance_cleanup_temp(args),
     "maintenance_gc": lambda args: _run_maintenance_gc(args),
 
+    # --- Sprint G-ter / GT2 : décrire un mode depuis sa définition, sans le lancer --- #
+    "workflow_describe": lambda args: _run_workflow_describe(args),
+
     # --- Sprint G / G4 : retenir, rappeler, oublier --- #
     "memory_save": lambda args: _run_memory_save(args),
     "memory_recall": lambda args: _run_memory_recall(args),
     "memory_forget": lambda args: _run_memory_forget(args),
 }
+
+
+# --------------------------------------------------------------------------- #
+#  Sprint G-ter / GT1 — « tu peux faire quoi ? », construit depuis le registre
+#
+#  Pas de texte écrit à la main dans un coin : la réponse parcourt les outils que le moteur
+#  exécute réellement (TOOL_HANDLERS) ET qu'une demande peut atteindre (INTENT_CATEGORIES).
+#  Chaque outil exposé porte ici sa famille et un libellé lisible ; un test exige qu'aucun
+#  outil exposé n'en manque, et qu'aucun libellé ne désigne un outil absent du moteur.
+#  Les confirmations viennent de CONFIRMATION_POLICY, la seule source de vérité.
+# --------------------------------------------------------------------------- #
+
+CAPABILITY_FAMILIES = ("Applications et fenêtres", "Écrire ailleurs", "Internet", "Système",
+                       "Mémoire", "Modes et automatisations")
+
+TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
+    "launch_app": ("Applications et fenêtres", "ouvrir une application"),
+    "window_focus": ("Applications et fenêtres", "mettre une fenêtre au premier plan"),
+    "window_minimize": ("Applications et fenêtres", "réduire une fenêtre"),
+    "window_maximize": ("Applications et fenêtres", "agrandir une fenêtre"),
+    "window_snap": ("Applications et fenêtres", "ranger une fenêtre sur un côté"),
+    "window_list": ("Applications et fenêtres", "lister les fenêtres"),
+    "window_close": ("Applications et fenêtres", "fermer une fenêtre"),
+    "window_type": ("Écrire ailleurs", "écrire dans une application nommée"),
+    "window_send_message": ("Écrire ailleurs", "envoyer un message"),
+    "window_hotkey": ("Écrire ailleurs", "envoyer un raccourci clavier"),
+    "ui_click_element": ("Écrire ailleurs", "cliquer sur un bouton nommé"),
+    "window_click": ("Écrire ailleurs", "cliquer à un endroit précis"),
+    "browser_ext_scroll": ("Écrire ailleurs", "faire défiler une page"),
+    "web_search": ("Internet", "chercher sur internet"),
+    "read_url": ("Internet", "lire une page web"),
+    "browser_navigate": ("Internet", "ouvrir une adresse"),
+    "browser_new_tab": ("Internet", "ouvrir un nouvel onglet"),
+    "get_diagnostics": ("Système", "donner l'état de l'ordinateur"),
+    "list_processes": ("Système", "lister les programmes en cours"),
+    "kill_process": ("Système", "arrêter un programme"),
+    "system_config": ("Système", "changer certains réglages du système"),
+    "run_powershell": ("Système", "exécuter une commande PowerShell"),
+    "memory_save": ("Mémoire", "retenir ce que vous me dites"),
+    "memory_recall": ("Mémoire", "vous le rappeler"),
+    "memory_forget": ("Mémoire", "l'oublier"),
+    "redo_last_action": ("Mémoire", "refaire la dernière action"),
+    "workflow_run": ("Modes et automatisations", "lancer un mode"),
+    "workflow_describe": ("Modes et automatisations", "décrire un mode"),
+    "workflow_list": ("Modes et automatisations", "lister les modes"),
+    "workflow_create": ("Modes et automatisations", "créer un mode"),
+    "schedule_add": ("Modes et automatisations", "planifier une tâche"),
+    "schedule_list": ("Modes et automatisations", "lister les tâches planifiées"),
+    "schedule_run_now": ("Modes et automatisations", "lancer une tâche planifiée"),
+    "trigger_add": ("Modes et automatisations", "créer un déclencheur"),
+}
+
+
+def capability_tools() -> set[str]:
+    """Outils annoncés : exécutés par le moteur, atteignables par une demande, et libellés."""
+    from core.intent_classifier import INTENT_CATEGORIES
+
+    exposed = {t for cat in INTENT_CATEGORIES.values() for t in cat.get("tools", {}).values()}
+    return {t for t in exposed if t in TOOL_HANDLERS and t in TOOL_CAPABILITIES}
+
+
+def capabilities_reply() -> str:
+    """La réponse fixe à « tu peux faire quoi ? » (GT1)."""
+    tools = capability_tools()
+    lines = ["Voici ce que je sais faire :"]
+    for family in CAPABILITY_FAMILIES:
+        labels = []
+        for tool, (fam, label) in TOOL_CAPABILITIES.items():
+            if fam == family and tool in tools:
+                labels.append(label + (" *" if confirmation_reason(tool, interactive=True) else ""))
+        if labels:
+            lines.append(f"- {family} : {', '.join(labels)}.")
+    try:
+        from core.workflow_engine import get_workflow_engine
+
+        modes = [wf.name for wf in get_workflow_engine()._workflows.values() if not wf.invalid_reason]
+        if modes:
+            lines.append(f"  Modes utilisables : {', '.join(modes)}.")
+    except Exception:
+        pass
+    try:
+        import pathlib
+
+        with open(pathlib.Path(__file__).resolve().parent.parent / "config" / "settings.json", encoding="utf-8") as f:
+            if json.load(f).get("voice", {}).get("enabled"):
+                lines.append("- Voix : dites « Hey Atlas », prononcé à l'anglaise, puis votre demande.")
+    except Exception:
+        pass
+    lines.append("* demande votre confirmation à l'écran. Ce que je ne sais pas encore faire, je vous le dis.")
+    return "\n".join(lines)
 
 
 # --------------------------------------------------------------------------- #
@@ -706,6 +804,37 @@ def _run_memory_forget(args: dict) -> dict:
     return {"success": True, "message": f"C'est oublié : « {content} »."}
 
 
+def _workflows():
+    from core.workflow_engine import get_workflow_engine
+
+    engine = get_workflow_engine()
+    if not engine._workflows:
+        engine.load_workflows()
+    return engine
+
+
+def _run_workflow_describe(args: dict) -> dict:
+    """GT2 — un mode décrit depuis son fichier : nom, description, étapes. Sans le modèle."""
+    engine = _workflows()
+    wf_id = (args.get("workflow_id") or "").strip()
+    wf = engine.get_workflow(wf_id)
+    names = ", ".join(w.name for w in engine._workflows.values() if not w.invalid_reason) or "aucun"
+    if wf is None:
+        shown = re.sub(r"^(?:(?:active|lance|démarre)_)?(?:le_)?(?:mode_)?", "", wf_id).replace("_", " ").strip()
+        # Une réponse honnête, pas une panne : succès (sinon l'apprentissage par les erreurs écrirait).
+        return {"success": True,
+                "message": f"Je ne connais pas de mode « {shown or wf_id} ». Modes utilisables : {names}."}
+    steps = " ; ".join(f"{i}. {s.name}" for i, s in enumerate(wf.steps, start=1))
+    desc = f" : {wf.description.rstrip('.')}." if wf.description else "."
+    if wf.invalid_reason:
+        return {"success": True,
+                "message": f"« {wf.name} »{desc} Étapes : {steps}. Ce mode est désactivé ({wf.invalid_reason}) : "
+                           "je ne peux pas le lancer."}
+    return {"success": True,
+            "message": f"« {wf.name} »{desc} Étapes : {steps}. Je ne le lance pas : "
+                       f"dites « lance le {wf.name.lower()} » pour le lancer, avec confirmation."}
+
+
 def _run_maintenance_empty_bin(args: dict):
     from tools.system_config import empty_recycle_bin
     result = empty_recycle_bin()
@@ -795,6 +924,19 @@ class ExecutionEngine:
             message = params.get("message", "")
             return {"status": "conversation", "message": message,
                     "result": {"success": False, "message": message}}
+
+        # GT1 : « tu peux faire quoi ? » — réponse fixe, construite depuis le registre.
+        if tool_name == "__capabilities__":
+            reply = capabilities_reply()
+            return {"status": "success", "message": reply, "result": {"success": True, "message": reply}}
+
+        # GT1 : « toi fais le » — l'action précédente n'est pas retenue ; réponse fixe qui ne
+        # nie pas qu'Atlas sait agir (le modèle disait « je ne peux pas effectuer d'action »).
+        if tool_name == "__followup__":
+            reply = ("Je ne retiens pas l'action dont on parlait. Dites-la-moi directement, par exemple "
+                     "« mets Steam au premier plan » ou « ouvre Steam » : si je sais la faire, je la fais, "
+                     "sinon je vous le dis.")
+            return {"status": "success", "message": reply, "result": {"success": True, "message": reply}}
 
         # GB1 : une action qu'aucun outil ne sait faire. Réponse fixe — rien n'est exécuté,
         # rien n'est appris, rien n'est mémorisé.
@@ -1092,10 +1234,13 @@ class ExecutionEngine:
                     from tools.app_launcher import _is_process_running
 
                     if _is_process_running(name):
-                        return {
-                            "status": "success",
-                            "result": {"success": True, "message": f"Action déjà accomplie: '{name}' est déjà lancé."},
-                        }
+                        # GT4 : « déjà lancé » ne suffit pas — on ramène sa fenêtre, et le message
+                        # dit ce qui s'est réellement passé.
+                        from tools.app_launcher import bring_running_app
+
+                        brought = bring_running_app(name) or {
+                            "success": True, "message": f"Action déjà accomplie: '{name}' est déjà lancé."}
+                        return {"status": "success" if brought.get("success") else "error", "result": brought}
 
             if tool_name == "window_focus":
                 target = (params.get("title") or "").strip().lower()
