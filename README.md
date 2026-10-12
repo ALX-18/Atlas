@@ -37,6 +37,7 @@ py scripts\doctor.py --precheck          # ce PC peut-il faire tourner Atlas ?
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+mkdir logs                               # non versionné ; main.py y écrit dès son import
 docker compose up -d                     # ChromaDB + SearXNG (Ollama reste natif)
 ollama pull qwen2.5:7b
 python scripts\download_voice_models.py  # mot d'éveil et voix
