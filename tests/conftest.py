@@ -153,6 +153,9 @@ def pytest_configure(config):
     if port:
         os.environ["ATLAS_TEST_CHROMA_URL"] = f"http://127.0.0.1:{port}"
     _isolate_chroma(port)
+    # Dépôt + Ollama / C3 : hors de main.py, la mémoire est neutralisée. Ici, toute connexion
+    # va au serveur JETABLE (redirection ci-dessus) : on peut donc la brancher.
+    os.environ["ATLAS_MEMORY"] = "real"
     os.environ["ATLAS_TEST_ROOT"] = str(_isolate_data())
 
 

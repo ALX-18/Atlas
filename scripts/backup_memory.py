@@ -17,7 +17,7 @@ Garanties :
 - la vérification tourne dans un conteneur jetable (`atlas_memcheck_*`, autre port, même
   image par identifiant, `--pull never`) sur une COPIE de la sauvegarde, puis le supprime.
 
-Usage (depuis assistant-bureau/) :
+Usage (depuis la racine du dépôt) :
     python scripts/backup_memory.py backup  [--dest C:\\Users\\<vous>\\Atlas_backups\\memoire]
     python scripts/backup_memory.py verify  <dossier_de_sauvegarde> [--port 8101] [--samples 25]
     python scripts/backup_memory.py verify  <dossier> --target-url http://127.0.0.1:8011   # serveur déjà démarré

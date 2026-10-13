@@ -1,0 +1,43 @@
+# PROPOSITION — inactive tant qu'elle n'est pas copiée dans .github/workflows/ (décision d'Alexis).
+#
+# Lance la suite sur un runner Windows de GitHub, à chaque push et chaque pull request.
+# Sur le runner : ni Ollama, ni Docker, ni micro, ni carte NVIDIA. La suite démarre son propre
+# ChromaDB jetable (tests/conftest.py, via le paquet pip `chromadb`) : Docker n'est pas requis
+# pour cela. Les tests qui demandent SearXNG, le vrai ChromaDB, Ollama ou le modèle du mot
+# d'éveil sont ignorés par leurs propres `skipif`.
+#
+# Deux tests ÉCHOUENT au lieu d'être ignorés quand Ollama est absent (constaté le 12/10/2026,
+# Ollama et Docker fermés) ; ils sont désélectionnés ci-dessous, et signalés dans le rapport :
+#   - test_grounding_layer_order_steam_includes_heuristic : attend le modèle de vision
+#     minicpm-v installé dans Ollama ;
+#   - test_layer_timeout_aborts_slow_layer : interroge Ollama (2 s de délai par appel quand le
+#     port est fermé sous Windows), ce qui dépasse sa limite de 6 s.
+
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      ANONYMIZED_TELEMETRY: "False"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+      - name: Suite
+        run: >
+          python -m pytest tests/ -q
+          --deselect tests/test_sprint_kimi_understanding_v51.py::test_grounding_layer_order_steam_includes_heuristic
+          --deselect "tests/test_vision_parsers.py::TestGroundingTimeoutEnforced::test_layer_timeout_aborts_slow_layer"

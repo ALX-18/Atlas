@@ -734,6 +734,44 @@ def window_maximize(title: str) -> dict[str, Any]:
     return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
 
 
+def _restore_hwnd(hwnd) -> bool:
+    """Remet une fenêtre à sa taille normale (réduite ou agrandie → SW_RESTORE)."""
+    if not HAS_WIN32:
+        return False
+    try:
+        win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        return True
+    except Exception as e:
+        logger.debug("ShowWindow(SW_RESTORE) a échoué : %s", e)
+        return False
+
+
+def window_restore(title: str) -> dict[str, Any]:
+    """Restaure une fenêtre NOMMÉE à sa taille normale, puis vérifie qu'elle est au premier plan.
+
+    Dépôt + Ollama / C2 — mêmes règles que window_focus : un nom obligatoire, plusieurs
+    fenêtres possibles → on demande laquelle, et le succès n'est annoncé qu'une fois la
+    fenêtre réellement au premier plan.
+    """
+    title, error = check_window_title(title)
+    if error:
+        return _refused(error)
+    resolved, problem = resolve_app_window(title)
+    if resolved is None:
+        if problem and problem.startswith("plusieurs"):
+            return _refused(problem)
+        return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
+    if not _restore_hwnd(resolved["hwnd"]):
+        return {"success": False, "message": f"Impossible de restaurer la fenêtre '{resolved['title']}'."}
+    time.sleep(0.3)
+    _, refusal = _focus_and_verify(resolved["title"])
+    if refusal:
+        return {"success": False,
+                "message": f"Fenêtre '{resolved['title']}' restaurée, mais elle n'est pas passée au premier plan."}
+    return {"success": True, "message": f"Fenêtre '{resolved['title']}' restaurée et mise au premier plan.",
+            "title": resolved["title"]}
+
+
 def window_list() -> dict[str, Any]:
     """Liste toutes les fenêtres visibles."""
     if HAS_WIN32:

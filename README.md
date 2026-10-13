@@ -1,152 +1,125 @@
-# Atlas — Assistant Bureau Windows
+# Atlas — un assistant de bureau Windows, 100 % local
 
-Assistant local intelligent pour le contrôle de PC Windows.  
-Utilise Ollama (LLM local) + ChromaDB (mémoire RAG) + FastAPI.
+Atlas comprend des demandes en français, à l'écrit ou à la voix (« Hey Atlas »), et agit sur le PC : ouvrir une application, ranger une fenêtre, écrire dans une application nommée, chercher sur internet, retenir ce qu'on lui dit, lancer un mode préparé.
 
-## Prérequis
-
-- **Python 3.12+**
-- **Ollama** : [ollama.com](https://ollama.com) — installer puis `ollama pull mistral`
-- **Docker** : pour ChromaDB (mémoire long terme)
-- **Tesseract OCR** : voir section *Prérequis système* ci-dessous
+Ce qui le distingue :
+- **100 % local.** Le modèle de langue, la mémoire, la transcription et la voix tournent sur la machine. Aucun compte, aucun service distant n'est nécessaire, et la télémétrie des bibliothèques est coupée.
+- **Le moteur exécute, le modèle planifie.** Un classifieur à règles et un validateur déterministe décident de ce qui est exécuté. Le modèle de langue ne touche jamais au PC directement, et n'intervient dans aucune validation.
+- **Confirmation avant tout geste irréversible.** Arrêter un programme, envoyer un message, effacer un souvenir ou exécuter une commande PowerShell, entre autres, attend un clic de l'utilisateur dans la fenêtre d'Atlas.
+- **Une garde contre les fausses affirmations.** Si le modèle prétend avoir agi (« j'ai baissé le volume ») alors qu'aucune action n'a eu lieu, la réponse est bloquée. Ce qu'Atlas ne sait pas faire, il le dit : « Je ne sais pas encore faire ça. »
 
 ---
 
-## Prérequis système (obligatoires)
+## Pile technique (versions de référence)
 
-### Tesseract OCR
+| Rôle | Outil |
+|---|---|
+| Langage | Python 3.12, Windows 10/11 64 bits |
+| Serveur | FastAPI + Uvicorn, sur `127.0.0.1:8550` uniquement |
+| Modèle de langue | [Ollama](https://ollama.com) **0.40.2**, en natif, modèle `qwen2.5:7b` |
+| Mémoire long terme | ChromaDB 1.4.1 dans Docker (image épinglée par empreinte), embeddings `intfloat/multilingual-e5-base` |
+| Recherche web | SearXNG dans Docker (image épinglée), repli DuckDuckGo |
+| Mot d'éveil | openWakeWord, modèle « Hey Atlas » |
+| Transcription | faster-whisper (CTranslate2), modèle `base`, sur GPU NVIDIA si présent |
+| Synthèse vocale | Piper 1.4.1, voix `fr_FR-siwis-medium` ; repli sur la voix de Windows |
+| Automatisation Windows | pywinauto, pygetwindow, pywin32, pyautogui ; OCR Tesseract pour les clics sur un libellé |
 
-Atlas utilise Tesseract pour la reconnaissance de texte à l'écran (couche OCR du grounding stack — résolution des clics sémantiques type "clique sur Bibliothèque dans Steam").
+Le matériel compte : 32 Go de mémoire vive et une carte NVIDIA de 8 Go donnent une expérience fluide. `scripts/doctor.py --precheck` le dit en une ligne avant toute installation.
 
-**Installation Windows :**
-
-1. Télécharger l'installeur : https://github.com/UB-Mannheim/tesseract/wiki
-2. Pendant l'installation, **cocher "Additional language data" → French** (obligatoire pour matcher les libellés FR)
-3. Ajouter au PATH système : `C:\Program Files\Tesseract-OCR`
-4. Vérifier dans un **nouveau** terminal (PATH refresh) :
-   ```bash
-   tesseract --version
-   tesseract --list-langs   # doit lister 'fra' et 'eng'
-   ```
-
-**Sans Tesseract installé**, la couche OCR du grounding sera inutilisable. Atlas tombera sur la couche vision MiniCPM-V (lente : ~10s par appel), et la latence des commandes UI passera de ~5s à ~90s avec timeout global.
-
-**Symptôme typique** : commandes "clique sur X" qui prennent > 60s + entrées `data/atlas_actions.jsonl` avec `"grounding_layer": "global_timeout"` et `tesseract=unknown` dans `logs/atlas.log`. Voir `docs/runbook.md` pour le diagnostic.
+---
 
 ## Installation
 
-```bash
+La procédure complète, pas à pas, avec la pré-vérification de la machine : [`docs/beta/INSTALLATION_ALEXIS.md`](docs/beta/INSTALLATION_ALEXIS.md). En bref :
+
+```powershell
+py scripts\doctor.py --precheck          # ce PC peut-il faire tourner Atlas ?
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+mkdir logs                               # non versionné ; main.py y écrit dès son import
+docker compose up -d                     # ChromaDB + SearXNG (Ollama reste natif)
+ollama pull qwen2.5:7b
+python scripts\download_voice_models.py  # mot d'éveil et voix
+.\start_atlas_desktop.bat                # le serveur, puis la fenêtre Atlas
 ```
 
-## Lancement
+Le guide de l'utilisateur, ce qu'Atlas sait faire et ce qu'il ne sait pas encore : [`docs/beta/GUIDE_TESTEUR.md`](docs/beta/GUIDE_TESTEUR.md).
 
-### 1. Démarrer les services Docker (ChromaDB)
-
-```bash
-docker-compose up -d
-```
-
-### 2. Démarrer Ollama
-
-```bash
-ollama serve
-```
-
-### 3. Lancer Atlas
-
-```bash
-python main.py
-```
-
-### 4. Lancer Atlas Desktop (UI native)
-
-```bash
-python desktop/atlas_desktop.py
-```
-
-Ou via script Windows:
-
-```bash
-start_atlas_desktop.bat
-```
-
-L'interface web est accessible à : **http://127.0.0.1:8550**  
-(port fallback automatique si 8550 est occupé)
-
-## Tests
-
-### Vérifier l'intégration ChromaDB
-
-```bash
-python -m pytest tests/test_chroma_integration.py -v
-```
-
-Ce test vérifie :
-1. Connexion à ChromaDB (Docker doit tourner)
-2. Création d'une collection de test
-3. Insertion d'un document
-4. Recherche par similarité
-5. Nettoyage de la collection
-6. Réponse de `/api/v2/heartbeat`
-
-Doit passer en **< 5 secondes**.
+---
 
 ## Architecture
 
 ```
-cortana-killer-atlas/            # racine du dépôt (aplatie au sprint C)
-├── main.py              # Point d'entrée FastAPI (lifespan)
-├── api/
-│   ├── routes.py        # Endpoints REST + SSE streaming
-│   └── models.py        # Schémas Pydantic
-├── core/
-│   ├── ollama_client.py # Client Ollama (streaming + timeout)
-│   ├── intent_engine.py # Parsing tool-calls + exécution
-│   ├── context_monitor.py # Contexte système + habitudes (SQLite)
-│   ├── file_indexer.py  # Indexation passive des fichiers locaux (optionnel)
-│   ├── memory_manager.py  # RAG mémoire (ChromaDB)
-│   └── confirmation.py    # Système de confirmation 3 niveaux
-├── tools/
-│   ├── process_manager.py # Gestion processus
-│   ├── app_launcher.py    # Lancement applications
-│   ├── system_config.py   # Config système (PowerShell sécurisé)
-│   └── diagnostics.py     # Diagnostics CPU/RAM/GPU/Disques
-├── ui/                  # Interface web (HTML/CSS/JS)
-├── config/
-│   └── settings.json    # Configuration centralisée
-├── data/                # SQLite, audit logs, ChromaDB data
-├── tests/               # Tests d'intégration
-└── docker-compose.yml   # Ollama + ChromaDB
+demande (fenêtre Atlas, interface web, ou voix)
+   │
+   ▼
+core/intent_classifier.py   règles déterministes : catégorie, verbe, cible
+   │
+   ▼
+core/validator.py           déterministe : paramètres, cible, refus ; CONFIRMATION_POLICY
+   │                        (la seule source de vérité des actions à confirmer)
+   ▼
+core/intent_engine.py       ExecutionEngine → TOOL_HANDLERS (tools/*), vérification, reprise
+   │                        une demande composée passe d'abord par core/planner.py (le modèle propose
+   │                        un plan, chaque étape repasse par le validateur)
+   ▼
+réponse ── conversation pure : core/ollama_client.py, filtrée par la garde d'honnêteté
 ```
 
-## Sécurité
+| Dossier | Contenu |
+|---|---|
+| `main.py`, `api/` | serveur FastAPI, routes `/api/chat`, `/api/confirm`… ; refuse toute origine autre qu'Atlas |
+| `core/` | classifieur, validateur, moteur, planificateur, mémoire, voix, modes (`workflow_engine`), tâches planifiées, déclencheurs |
+| `core_conversational/` | socle conversationnel sans dépendance Windows : identité, client du modèle, embeddings |
+| `tools/` | les gestes : applications, fenêtres, clavier, navigateur, recherche web, processus, diagnostic |
+| `desktop/` | la fenêtre Atlas (dialogue de confirmation, indicateur d'écoute) |
+| `ui/` | l'interface web servie par Atlas sur `http://127.0.0.1:8550/` |
+| `atlas-extension/` | extension de navigateur reliée à Atlas par WebSocket (`127.0.0.1:9999`) |
+| `data/workflows/` | les modes, en YAML |
+| `scripts/` | pré-vérification, sauvegarde et restauration de la mémoire, nettoyage ciblé |
 
-Les commandes PowerShell sont filtrées par allowlist/denylist (voir `settings.json`).  
-Toutes les exécutions sont journalisées dans `data/audit_log.jsonl`.
+---
 
-## Nouvelles capacités v5.x (en cours)
+## Tests
 
-### Résolution intelligente des noms d'applications
-- Le lanceur d'apps tolère désormais les noms approximatifs:
-	- normalisation accents/tirets/espaces
-	- matching partiel
-	- fuzzy matching
-	- fallback via index local de fichiers (shortcuts `.lnk`, `.exe`, `.bat`, `.cmd`, `.url`)
-	- suggestions en cas d'échec
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/ -q
+```
 
-### Filesystem Assistant passif (optionnel)
-- Atlas peut indexer localement des fichiers en arrière-plan pour mieux résoudre les demandes ambiguës.
-- Configuration dans `config/settings.json` section `filesystem_assistant`.
-- Par défaut: `enabled=false` (opt-in).
+**1 004 tests** au 12/10/2026 : 1 000 passent, 4 sont ignorés (machine de développement, Ollama et Docker lancés), en 4 minutes environ.
 
-Endpoints API:
-- `GET /api/files/index/status`
-- `POST /api/files/index/rebuild`
-- `GET /api/files/search?query=<q>&limit=20`
+- Aucun test ne lit ni n'écrit la mémoire réelle : la suite démarre son propre ChromaDB jetable.
+- Aucun test n'agit sur une vraie fenêtre ni n'exécute de vraie commande : outils, fenêtres et processus sont simulés.
+- La plupart des tests qui demandent SearXNG, Ollama ou le modèle du mot d'éveil sont ignorés quand ces services sont absents. Deux tests de la couche de clic sur un libellé (« grounding ») échouent toutefois sans Ollama, au lieu d'être ignorés.
 
-### Reorganisation de fichiers (plan d'abord)
-- Plan/simulation (aucun move): `POST /api/files/organize/plan`
-- Application explicite (bloquee sans confirmation): `POST /api/files/organize/apply` avec `allow_apply=true`
-- Rollback d'une operation appliquee: `POST /api/files/organize/rollback` avec `operation_id`
-- Categories automatiques: documents, images, code, media, archives, spreadsheets, other
+---
+
+## Méthode
+
+Atlas avance par sprints courts, chacun cadré par un **brief** (`docs/briefs/`) et clos par un **rapport** (`docs/rapports/`), selon des règles fixes ([`docs/RAPPORT_RULES.md`](docs/RAPPORT_RULES.md)) :
+- **test rouge d'abord** : chaque défaut est reproduit par un test qui échoue, et sa sortie est gardée, avant d'être corrigé ;
+- **preuves** : commandes exactes, chiffres bruts, scénarios rejoués en réel sur le PC ;
+- **honnêteté** : ce qui ne marche pas, les erreurs du développeur comprises, est écrit dans le rapport.
+
+Un rapport représentatif : [`docs/rapports/RAPPORT_SPRINT_G_TER.md`](docs/rapports/RAPPORT_SPRINT_G_TER.md).
+
+---
+
+## Licence
+
+Tous droits réservés : le code est publié pour être lu, pas réutilisé. Voir [`LICENSE`](LICENSE).
+
+---
+
+## Ce qu'Atlas ne sait pas encore faire
+
+- Régler le son, la luminosité ou le Bluetooth, piloter la musique, envoyer un mail, commander quelque chose.
+- Donner l'heure de façon fiable.
+- Programmer un rappel (« rappelle-moi à 18 h »).
+- Apprendre de ses erreurs d'une session à l'autre.
+- Se souvenir de l'action dont on vient de parler : « fais-le » ne suffit pas.
+- Fermer à coup sûr certaines applications de Windows (la Calculatrice, par exemple).
+- Lancer les modes qui arrêteraient un programme ou videraient la corbeille : ils sont désactivés par sécurité.
+- Réagir vite à la voix : un cycle vocal complet prend aujourd'hui de 11 à 22 secondes.
+- Tourner ailleurs que sous Windows.

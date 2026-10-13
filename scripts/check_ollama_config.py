@@ -9,7 +9,6 @@ Interroge l'API Ollama locale pour rapporter :
 - État GPU (via nvidia-smi si disponible)
 
 Usage:
-    cd assistant-bureau
     python scripts/check_ollama_config.py
 """
 

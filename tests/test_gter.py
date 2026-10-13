@@ -85,7 +85,11 @@ def test_gt1_la_reponse_n_annonce_que_des_outils_reels_et_les_annonce_tous():
     annonces = ie.capability_tools()
     assert annonces <= set(ie.TOOL_HANDLERS), f"annoncés sans outil : {annonces - set(ie.TOOL_HANDLERS)}"
     assert reels <= annonces, f"outils réels absents de la réponse : {reels - annonces}"
-    assert "window_restore" not in annonces, "annoncé par le classifieur, mais absent du moteur"
+    # Dépôt + Ollama / C2 : window_restore était annoncé par le classifieur sans exister dans
+    # le moteur, donc tenu hors de la réponse. Il existe désormais : plus aucun outil exposé
+    # ne manque au moteur.
+    assert exposes <= set(ie.TOOL_HANDLERS), f"exposés sans outil : {exposes - set(ie.TOOL_HANDLERS)}"
+    assert "window_restore" in annonces
 
 
 def test_gt1_la_reponse_dit_ce_qui_demande_une_confirmation_et_reste_lisible():

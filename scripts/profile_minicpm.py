@@ -6,7 +6,6 @@ Capture un screenshot de la fenêtre Steam et envoie 5 fois la même requête
 de chaque appel pour distinguer "lenteur Ollama" de "lenteur Atlas".
 
 Usage:
-    cd assistant-bureau
     python scripts/profile_minicpm.py [--app "Steam"] [--element "Bibliothèque"] [--n 5]
 
 Sortie:
