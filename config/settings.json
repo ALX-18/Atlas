@@ -35,6 +35,8 @@
         "recall_top_k": 5,
         "habit_detection_threshold": 3,
         "embedding_model": "intfloat/multilingual-e5-base",
+        "embedding_backend": "sentence-transformers",
+        "embedding_onnx_dir": "models/embeddings/multilingual-e5-base",
         "retrieval_top_k": 3,
         "retrieval_min_score": 0.82,
         "conversations": {
@@ -122,7 +124,9 @@
     "grounding": {
         "vision_enabled": false,
         "vision_model": "minicpm-v:latest",
-        "_note": "Désactivé par défaut depuis Réunion Atlas #4. OCR Tesseract suffit pour 95%+ des cas. Réactiver si Tesseract ne trouve pas l'élément."
+        "_note": "Désactivé par défaut depuis Réunion Atlas #4. OCR Tesseract suffit pour 95%+ des cas. Réactiver si Tesseract ne trouve pas l'élément.",
+        "easyocr_idle_unload_s": 600,
+        "_note_easyocr_idle": "Sprint Performance / PF2 : EasyOCR (~460 Mo, ~10 s à charger) est libéré après 10 min sans usage. Les clics sur un libellé viennent par rafales ; 10 min couvre une rafale sans le recharger, comme le keep_alive du modèle de langue."
     },
     "voice": {
         "enabled": true,

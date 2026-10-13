@@ -1005,6 +1005,67 @@ async def _try_ocr(app_title: str, element_name: str) -> Optional[dict]:
 _EASYOCR_READER = None
 _EASYOCR_ATTEMPTED = False
 
+# Sprint Performance / PF2 — EasyOCR (≈ 460 Mo avec torch, ~10 s à charger) ne sert qu'aux
+# clics sur un libellé que Tesseract n'a pas trouvé. Il est chargé au premier usage, annoncé
+# (ce premier usage dépasse 2 s), puis libéré après EASYOCR_IDLE_UNLOAD_S d'inactivité.
+import threading as _threading  # noqa: E402
+
+try:
+    with open(os.path.join(os.path.dirname(__file__), "..", "config", "settings.json"), encoding="utf-8") as _f:
+        EASYOCR_IDLE_UNLOAD_S: float = float(json.load(_f).get("grounding", {}).get("easyocr_idle_unload_s", 600))
+except Exception:
+    EASYOCR_IDLE_UNLOAD_S = 600.0
+_EASYOCR_LOCK = _threading.Lock()
+_EASYOCR_TIMER = None
+_EASYOCR_LAST_USE = 0.0
+
+
+def _announce(message: str) -> None:
+    """Prévient l'utilisateur d'une attente : notification Windows, sans bloquer."""
+    logger.info("[EASYOCR] %s", message)
+    try:
+        from plyer import notification
+
+        _threading.Thread(target=lambda: notification.notify(title="Atlas", message=message, timeout=5),
+                          daemon=True).start()
+    except Exception:
+        pass
+
+
+def _release_easyocr() -> None:
+    """Libère le lecteur EasyOCR (rechargé au prochain usage)."""
+    global _EASYOCR_READER, _EASYOCR_ATTEMPTED, _EASYOCR_TIMER
+    with _EASYOCR_LOCK:
+        if _EASYOCR_TIMER is not None:
+            _EASYOCR_TIMER.cancel()
+            _EASYOCR_TIMER = None
+        had = _EASYOCR_READER is not None
+        _EASYOCR_READER = None
+        _EASYOCR_ATTEMPTED = False
+    if had:
+        import gc
+
+        gc.collect()
+        logger.info("[EASYOCR] Libéré après %.0f s d'inactivité.", EASYOCR_IDLE_UNLOAD_S)
+
+
+def _release_if_idle() -> None:
+    if time.monotonic() - _EASYOCR_LAST_USE >= EASYOCR_IDLE_UNLOAD_S - 0.05:
+        _release_easyocr()
+    else:
+        _arm_release_timer()
+
+
+def _arm_release_timer() -> None:
+    global _EASYOCR_TIMER
+    with _EASYOCR_LOCK:
+        if _EASYOCR_TIMER is not None:
+            _EASYOCR_TIMER.cancel()
+        delay = max(0.05, EASYOCR_IDLE_UNLOAD_S - (time.monotonic() - _EASYOCR_LAST_USE))
+        _EASYOCR_TIMER = _threading.Timer(delay, _release_if_idle)
+        _EASYOCR_TIMER.daemon = True
+        _EASYOCR_TIMER.start()
+
 
 def _get_easyocr_reader():
     """Charge le reader EasyOCR une seule fois (fr+en). None si indisponible."""
@@ -1023,9 +1084,23 @@ def _get_easyocr_reader():
     return _EASYOCR_READER
 
 
+async def _ensure_easyocr():
+    """Le lecteur, chargé hors de la boucle d'Atlas s'il ne l'est pas (annoncé), et la
+    minuterie d'inactivité réarmée à chaque usage."""
+    global _EASYOCR_LAST_USE
+    if _EASYOCR_READER is None and not _EASYOCR_ATTEMPTED:
+        _announce("Je prépare la lecture de l'écran… (première fois : une dizaine de secondes)")
+        await asyncio.to_thread(_get_easyocr_reader)
+    reader = _EASYOCR_READER
+    if reader is not None:
+        _EASYOCR_LAST_USE = time.monotonic()
+        _arm_release_timer()
+    return reader
+
+
 async def _try_easyocr(app_title: str, element_name: str) -> Optional[dict]:
     """Fallback OCR via EasyOCR (PyTorch) quand Tesseract échoue."""
-    reader = _get_easyocr_reader()
+    reader = await _ensure_easyocr()
     if reader is None:
         return None
     try:

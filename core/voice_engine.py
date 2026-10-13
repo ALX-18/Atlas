@@ -745,12 +745,15 @@ class VoiceEngine:
         from core.context_monitor import collect_context
         from core.intent_classifier import get_classifier
         from core.memory_manager import get_memory_manager
-        from core.ollama_client import generate_speech_response
+        from core.ollama_client import generate_speech_response, too_long_reply
         from core.planner import get_planner
         from core.validator import get_validator
         from core.intent_engine import get_execution_engine
         from core.world_state import get_world_state
 
+        refus = too_long_reply(text)
+        if refus:
+            return refus
         context = collect_context()
         context["user_input"] = text
 

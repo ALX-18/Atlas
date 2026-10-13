@@ -44,6 +44,47 @@ KEEP_ALIVE: str = _cfg.get("keep_alive", "10m")  # v5.3 — keep model warm in V
 NUM_CTX: int = int(_cfg.get("context_window", DEFAULT_NUM_CTX))
 
 
+# Sprint Performance / PF6 : la plus longue demande admise. Au-delà, elle est refusée poliment,
+# avant tout appel au modèle : une demande qui dépasserait le contexte ferait couper par Ollama
+# le DÉBUT du message, c'est-à-dire la consigne. Calcul : contexte − réponse − la consigne la
+# plus lourde (voix + 9 souvenirs longs, ~3 500 jetons estimés), à 3 caractères par jeton.
+SYSTEM_RESERVE_TOKENS = 3500
+MAX_REQUEST_CHARS: int = (NUM_CTX - 1024 - SYSTEM_RESERVE_TOKENS) * 3
+
+
+def too_long_reply(message: str) -> Optional[str]:
+    """Le refus, déterministe, si la demande est trop longue ; None sinon."""
+    n = len(message or "")
+    if n <= MAX_REQUEST_CHARS:
+        return None
+    return (f"Votre demande est trop longue pour moi : {n} caractères, je peux en lire {MAX_REQUEST_CHARS} "
+            "au plus. Raccourcissez-la, ou envoyez-la en plusieurs fois.")
+
+
+def prewarm() -> "asyncio.Task":
+    """Sprint Performance / PF5.2 : charge le modèle de langue (même num_ctx que toutes les
+    requêtes, sinon il serait rechargé) et les embeddings, EN ARRIÈRE-PLAN. Retourne la tâche."""
+    import asyncio
+
+    async def _run():
+        try:
+            async with httpx.AsyncClient(timeout=180.0) as client:
+                await client.post(f"{BASE_URL}/api/generate",
+                                  json={"model": MODEL, "keep_alive": KEEP_ALIVE, "options": ollama_options()})
+            logger.info("[OLLAMA] Modèle préchauffé (num_ctx=%d).", NUM_CTX)
+        except Exception as e:
+            logger.warning("[OLLAMA] Préchauffage du modèle impossible : %s", e)
+        try:
+            from core import embeddings as emb
+
+            await asyncio.to_thread(emb.embed_query, "préchauffage")
+            logger.info("[MÉMOIRE] Embeddings préchauffés.")
+        except Exception as e:
+            logger.warning("[MÉMOIRE] Préchauffage des embeddings impossible : %s", e)
+
+    return asyncio.get_running_loop().create_task(_run())
+
+
 def ollama_options(**extra) -> dict:
     """Les options envoyées à Ollama, num_ctx compris, pour toutes les requêtes."""
     return {"temperature": TEMPERATURE, "num_ctx": NUM_CTX, **extra}
@@ -77,12 +118,6 @@ TON TRAVAIL :
 2. Pendant CETTE conversation, aucun outil n'est exécuté : ne dis jamais que tu viens de faire, que tu fais ou que tu vas faire une action sur l'ordinateur (« volume baissé », « je vais envoyer », « c'est fait »). Mais Atlas SAIT agir par ses outils (liste ci-dessous) quand l'utilisateur le lui demande clairement. Ne dis donc JAMAIS « je ne peux pas effectuer d'action sur votre ordinateur » : c'est faux. Si on te demande de faire une de ces actions, dis comment la demander directement, par exemple « ouvre Steam » ou « mets Steam au premier plan ». Ce qui n'est pas dans la liste, dis que tu ne sais pas encore le faire. Si on te demande COMMENT faire quelque chose soi-même, explique-le normalement.
 3. Si le résultat d'une action t'est fourni → le résumer clairement pour l'utilisateur
 
-CONTEXTE DU PC :
-{world_state_summary}
-
-MÉMOIRE :
-{memories_section}
-
 CE QU'ATLAS SAIT FAIRE PAR SES OUTILS (G-ter : construit depuis le registre des outils, la seule source de vérité) :
 {capabilities_section}
 
@@ -91,10 +126,20 @@ RÈGLES :
 - Ne JAMAIS générer de JSON d'outil (le système s'en charge)
 - Si tu ne sais pas, dis-le honnêtement
 - Tu ne prétends jamais avoir agi : seul le système agit, et c'est lui qui en rend compte
+{extra_fixed}
+CONTEXTE DU PC :
+{world_state_summary}
+
+MÉMOIRE :
+{memories_section}
 """
+# Sprint Performance / PF5.1 : la partie FIXE d'abord (identité, rôle, capacités, règles, et la
+# consigne vocale pour la voix), puis ce qui change à chaque demande (contexte du PC, souvenirs).
+# Avant, le pourcentage de CPU arrivait au caractère ~2 086 : Ollama réévaluait tout le reste
+# à chaque requête (497 jetons sur 1 063, mesuré au sprint Dépôt + Ollama).
 
 
-def build_system_prompt(context: dict, memories: list[str] | None = None) -> str:
+def build_system_prompt(context: dict, memories: list[str] | None = None, extra_fixed: str = "") -> str:
     """Construit le system prompt avec le contexte système et les souvenirs injectés."""
     # Build world state summary from context
     parts = []
@@ -120,6 +165,7 @@ def build_system_prompt(context: dict, memories: list[str] | None = None) -> str
         capabilities_section = "- (liste indisponible)"
 
     return SYSTEM_PROMPT_TEMPLATE.format(
+        extra_fixed=extra_fixed.strip() + "\n" if extra_fixed.strip() else "",
         capabilities_section=capabilities_section,
         identity_section=SYSTEM_PROMPT_IDENTITY,
         world_state_summary=world_state_summary,
@@ -285,8 +331,8 @@ async def generate_speech_response(
     memories: Optional[list[str]] = None,
 ) -> str:
     """Generate a short spoken answer optimized for TTS."""
-    base_prompt = build_system_prompt(context, memories=memories)
-    voice_prompt = base_prompt + "\n\n" + VOICE_RESPONSE_SUFFIX
+    # PF5.1 : la consigne vocale dans la partie fixe, avant le contexte qui change.
+    voice_prompt = build_system_prompt(context, memories=memories, extra_fixed=VOICE_RESPONSE_SUFFIX)
 
     response = await chat_full(
         user_message=user_message,

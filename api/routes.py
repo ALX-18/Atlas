@@ -17,7 +17,7 @@ import httpx
 
 from api.models import ChatRequest, ConfirmationResponse, MemoryIngestRequest
 from core.context_monitor import collect_context
-from core.ollama_client import chat_stream, chat_full, OllamaStreamTimeout, STREAM_TIMEOUT
+from core.ollama_client import chat_stream, chat_full, OllamaStreamTimeout, STREAM_TIMEOUT, too_long_reply
 from core.intent_engine import process_ai_response, execute_confirmed, save_rejection, get_execution_engine
 from core.intent_classifier import get_classifier
 from core.validator import get_validator, honest_reply
@@ -87,6 +87,10 @@ async def chat_endpoint(req: ChatRequest):
     3. Si action simple → Validator → ExecutionEngine
     4. Si complexe → Planner → ExecutionEngine
     """
+    # PF6 : une demande trop longue est refusée avant tout (rien d'exécuté, rien de mémorisé).
+    refus = too_long_reply(req.message)
+    if refus:
+        return {"type": "text", "message": refus, "tool_results": []}
     context = collect_context()
     context["user_input"] = req.message
     ws = get_world_state()
@@ -250,6 +254,13 @@ async def chat_stream_endpoint(req: ChatRequest):
     - Conversation → stream LLM tokens via SSE
     - Action → thinking event + execute + result event
     """
+    refus = too_long_reply(req.message)
+    if refus:
+        async def refuse():
+            yield f"data: {json.dumps({'type': 'token', 'content': refus}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'result', 'content': {'type': 'text', 'message': refus, 'tool_results': []}}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(refuse(), media_type="text/event-stream")
     context = collect_context()
     context["user_input"] = req.message
     ws = get_world_state()

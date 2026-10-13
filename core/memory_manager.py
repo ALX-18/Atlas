@@ -33,7 +33,9 @@ def _load_memory_config() -> dict:
 _cfg = _load_memory_config()
 
 CHROMA_HOST: str = _cfg.get("chroma_host", "localhost")
-CHROMA_PORT: int = _cfg.get("chroma_port", 8001)
+# Sprint Performance / PF1 : ATLAS_CHROMA_PORT fait viser un ChromaDB jetable (copie de la
+# mémoire) pour mesurer Atlas en scénario sans écrire dans la mémoire réelle.
+CHROMA_PORT: int = int(os.environ.get("ATLAS_CHROMA_PORT") or _cfg.get("chroma_port", 8001))
 COLLECTION_NAME: str = _cfg.get("collection_name", "atlas_memory")
 
 # Catégories valides (mémoire legacy)
