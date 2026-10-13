@@ -86,7 +86,7 @@ réponse ── conversation pure : core/ollama_client.py, filtrée par la garde
 .\.venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-**1 004 tests** au 12/10/2026 : 1 000 passent, 4 sont ignorés (machine de développement, Ollama et Docker lancés), en 4 minutes environ.
+**1 031 tests** au 13/10/2026, en moins de 3 minutes : avec Ollama et Docker lancés, 1 027 passent et 4 sont ignorés ; Ollama arrêté, 1 024 passent et 7 sont ignorés.
 
 - Aucun test ne lit ni n'écrit la mémoire réelle : la suite démarre son propre ChromaDB jetable.
 - Aucun test n'agit sur une vraie fenêtre ni n'exécute de vraie commande : outils, fenêtres et processus sont simulés.
