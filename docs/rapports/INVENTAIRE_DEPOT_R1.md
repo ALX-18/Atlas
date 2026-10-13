@@ -52,7 +52,7 @@ Ce document ne cite que des fichiers et des **codes de motifs**. La liste exacte
 | 6 | comme proposé : `C:\Users\utilisateur` | R2, R3 |
 | 7 | réglé par la ligne 1 | — |
 | 8 | comme proposé : les deux citations remplacées | R2, R3 |
-| 9 | **réécrire** l'adresse d'école vers l'adresse `noreply` de GitHub | R3 (`--mailmap`) |
+| 9 | d'abord « réécrire » (12/10), puis **garder** (13/10 : « c'est pas bien grave ») | rien : pas de `--mailmap` |
 | 10, 11, 13, 14, 15 | garder | rien |
 | 12 | **garder** : ce sont des phrases d'exemple écrites dans un test, pas des habitudes détectées chez un testeur | rien |
 | 16 | **supprimer** les 12 branches distantes | avant la publication de R3, après la sauvegarde miroir |

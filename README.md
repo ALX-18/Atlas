@@ -106,6 +106,12 @@ Un rapport représentatif : [`docs/rapports/RAPPORT_SPRINT_G_TER.md`](docs/rappo
 
 ---
 
+## Licence
+
+Tous droits réservés : le code est publié pour être lu, pas réutilisé. Voir [`LICENSE`](LICENSE).
+
+---
+
 ## Ce qu'Atlas ne sait pas encore faire
 
 - Régler le son, la luminosité ou le Bluetooth, piloter la musique, envoyer un mail, commander quelque chose.
