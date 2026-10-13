@@ -332,7 +332,7 @@ après « import main »                            → ATLAS_MEMORY = real ; co
 
 ## 8. Checklist de validation
 
-- [ ] `err_7297b690157e` retirée — **non** : bloquée par la protection de ma session (§7.2) ; [x] règle C3 inscrite
+- [x] `err_7297b690157e` retirée — par Alexis le 13/10 (bloquée de mon côté par la protection de ma session, §7.2, §10) ; [x] règle C3 inscrite
 - [x] `sprint-g-ter` fusionnée dans `main` (PR #9), suite verte
 - [x] C1 : version vocale courte, même registre, cohérence testée
 - [x] C2 : `window_restore` existe dans le moteur
@@ -401,5 +401,5 @@ après « import main »                            → ATLAS_MEMORY = real ; co
 **Reste à faire, par Alexis :**
 - Passer `cortana-killer-atlas` en **public**, quand il le souhaite.
 - **Sur le Mac :** recloner `cortana-killer-atlas`. Ne **pas** faire de `pull` ni de `push` depuis l'ancienne copie : elle vise maintenant l'archive (redirection de GitHub) et contient l'ancien historique.
-- **`err_7297b690157e` :** la commande PowerShell exacte lui a été donnée (sa première tentative utilisait la syntaxe bash).
+- ~~`err_7297b690157e`~~ : **retirée par Alexis le 13/10**, avec la commande PowerShell donnée (sa première tentative utilisait la syntaxe bash). Constaté ensuite par `plan-ids`, qui ne touche à rien : « err_7297b690157e introuvable ».
 - La PR de ce sprint sur le nouveau dépôt, quand il la demande.
