@@ -5,10 +5,13 @@ Détection passive des habitudes avec persistance SQLite.
 """
 
 import asyncio
+import ctypes
 import json
 import logging
 import pathlib
 import sqlite3
+import sys
+import threading
 import time
 from datetime import datetime
 from typing import Any
@@ -99,8 +102,9 @@ def _get_gpu_usage() -> float:
     return -1.0  # -1 = indisponible
 
 
-def _get_top_processes(n: int = 20) -> list[dict]:
-    """Retourne les N processus les plus gourmands."""
+def _get_top_processes_psutil(n: int = 20) -> list[dict]:
+    """Repli quand l'instantané Windows est indisponible : ~1,5 s de calcul pour 400 processus
+    (psutil interroge chaque processus séparément). N'est appelé que par l'échantillonneur."""
     procs = []
     for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent"]):
         try:
@@ -131,6 +135,163 @@ def _get_network_active_processes() -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
+#  Pré-beta / PB3 — processus, CPU et GPU échantillonnés en arrière-plan
+#
+#  Avant : chaque demande attendait ~2 s dans collect_context — 1,5 s de CALCUL pour lister
+#  les processus (psutil reconstitue sous Windows une photo du système pour CHACUN des ~400
+#  processus), 0,3 s d'échantillonnage bloquant du CPU, 0,08 s pour nvidia-smi.
+#  Après :
+#    - un seul appel système (NtQuerySystemInformation) donne nom, mémoire et temps CPU de tous
+#      les processus en ~7 ms ; le CPU par processus vient de l'écart entre deux instantanés ;
+#    - un fil « daemon » (il ne peut pas survivre au processus) relève toutes les 2 s le CPU
+#      global et les processus, et toutes les 10 s le GPU ; main.py le démarre et l'arrête ;
+#    - une demande lit le dernier état (au plus 2 s d'âge, 10 s pour le GPU). La fenêtre active,
+#      la mémoire vive, les disques, l'audio et le réseau restent lus à l'instant de la demande.
+# --------------------------------------------------------------------------- #
+
+SAMPLE_INTERVAL_S = 2.0
+GPU_EVERY_N_SAMPLES = 5
+
+_sampler_lock = threading.Lock()
+_sampler_thread: threading.Thread | None = None
+_sampler_stop = threading.Event()
+_first_sample = threading.Event()
+_latest: dict[str, Any] = {}
+
+
+class _UNICODE_STRING(ctypes.Structure):
+    _fields_ = [("Length", ctypes.c_ushort), ("MaximumLength", ctypes.c_ushort), ("Buffer", ctypes.c_void_p)]
+
+
+class _SYSTEM_PROCESS_INFORMATION(ctypes.Structure):
+    _fields_ = [
+        ("NextEntryOffset", ctypes.c_ulong), ("NumberOfThreads", ctypes.c_ulong),
+        ("WorkingSetPrivateSize", ctypes.c_longlong), ("HardFaultCount", ctypes.c_ulong),
+        ("NumberOfThreadsHighWatermark", ctypes.c_ulong), ("CycleTime", ctypes.c_ulonglong),
+        ("CreateTime", ctypes.c_longlong), ("UserTime", ctypes.c_longlong), ("KernelTime", ctypes.c_longlong),
+        ("ImageName", _UNICODE_STRING), ("BasePriority", ctypes.c_long),
+        ("UniqueProcessId", ctypes.c_void_p), ("InheritedFromUniqueProcessId", ctypes.c_void_p),
+        ("HandleCount", ctypes.c_ulong), ("SessionId", ctypes.c_ulong), ("UniqueProcessKey", ctypes.c_void_p),
+        ("PeakVirtualSize", ctypes.c_size_t), ("VirtualSize", ctypes.c_size_t), ("PageFaultCount", ctypes.c_ulong),
+        ("PeakWorkingSetSize", ctypes.c_size_t), ("WorkingSetSize", ctypes.c_size_t),
+    ]
+
+
+def _process_snapshot() -> dict[int, dict] | None:
+    """{pid: {name, rss, cpu100ns}} de tous les processus, en un appel. None hors Windows ou en échec."""
+    if sys.platform != "win32":
+        return None
+    try:
+        ntdll = ctypes.WinDLL("ntdll")
+        size = ctypes.c_ulong(1 << 20)
+        for _ in range(8):
+            buf = ctypes.create_string_buffer(size.value)
+            status = ntdll.NtQuerySystemInformation(5, buf, size, ctypes.byref(size)) & 0xFFFFFFFF
+            if status == 0:
+                break
+            if status != 0xC0000004:              # STATUS_INFO_LENGTH_MISMATCH : agrandir
+                return None
+            size = ctypes.c_ulong(size.value + (1 << 16))
+        else:
+            return None
+        out: dict[int, dict] = {}
+        base, offset = ctypes.addressof(buf), 0
+        while True:
+            entry = _SYSTEM_PROCESS_INFORMATION.from_address(base + offset)
+            pid = entry.UniqueProcessId or 0
+            name = (ctypes.wstring_at(entry.ImageName.Buffer, entry.ImageName.Length // 2)
+                    if entry.ImageName.Buffer else "System Idle Process")
+            out[pid] = {"name": name, "rss": entry.WorkingSetSize, "cpu100ns": entry.UserTime + entry.KernelTime}
+            if not entry.NextEntryOffset:
+                break
+            offset += entry.NextEntryOffset
+        return out
+    except Exception as exc:
+        logger.debug("instantané des processus indisponible : %s", exc)
+        return None
+
+
+def _top_from_snapshots(prev: dict | None, prev_t: float, snap: dict, now: float, n: int) -> list[dict]:
+    """Même forme qu'avant : pid, name, cpu_percent (sur un cœur, comme psutil), memory_percent."""
+    total = psutil.virtual_memory().total or 1
+    elapsed_100ns = max(now - prev_t, 1e-3) * 1e7
+    procs = []
+    for pid, info in snap.items():
+        if pid == 0:                      # « System Idle Process » : pas un processus réel
+            continue
+        before = (prev or {}).get(pid)
+        cpu = 0.0
+        if before and before["name"] == info["name"]:
+            cpu = max(0.0, (info["cpu100ns"] - before["cpu100ns"]) / elapsed_100ns * 100)
+        procs.append({"pid": pid, "name": info["name"], "cpu_percent": round(cpu, 1),
+                      "memory_percent": round(info["rss"] / total * 100, 1)})
+    procs.sort(key=lambda x: x["cpu_percent"] + x["memory_percent"], reverse=True)
+    return procs[:n]
+
+
+def _sample_loop(interval: float) -> None:
+    prev, prev_t, count = _process_snapshot(), time.monotonic(), 0
+    psutil.cpu_percent(interval=None)     # amorce : la valeur suivante couvre l'intervalle
+    if _sampler_stop.wait(min(interval, 0.25)):
+        return
+    while not _sampler_stop.is_set():
+        try:
+            now = time.monotonic()
+            snap = _process_snapshot()
+            if snap is not None:
+                processes = _top_from_snapshots(prev, prev_t, snap, now, 20)
+                prev, prev_t = snap, now
+            else:
+                processes = _get_top_processes_psutil(20)
+            sample = {"running_processes": processes, "cpu_usage": psutil.cpu_percent(interval=None),
+                      "sampled_at": time.time()}
+            if count % GPU_EVERY_N_SAMPLES == 0 or "gpu_usage" not in _latest:
+                sample["gpu_usage"] = _get_gpu_usage()
+            _latest.update(sample)
+            _first_sample.set()
+            count += 1
+        except Exception as exc:
+            logger.debug("échantillonnage du contexte : %s", exc)
+        if _sampler_stop.wait(interval):
+            break
+
+
+def start_sampler(interval: float = SAMPLE_INTERVAL_S) -> None:
+    """Démarre l'échantillonneur (un seul fil, même si appelé plusieurs fois)."""
+    global _sampler_thread
+    with _sampler_lock:
+        if _sampler_thread is not None and _sampler_thread.is_alive():
+            return
+        _sampler_stop.clear()
+        _sampler_thread = threading.Thread(target=_sample_loop, args=(interval,),
+                                           name="atlas-context-sampler", daemon=True)
+        _sampler_thread.start()
+
+
+def stop_sampler(timeout: float = 3.0) -> None:
+    """Arrête l'échantillonneur et attend la fin du fil."""
+    global _sampler_thread
+    with _sampler_lock:
+        thread, _sampler_thread = _sampler_thread, None
+        _sampler_stop.set()
+    if thread is not None:
+        thread.join(timeout)
+    _first_sample.clear()
+    _latest.clear()
+
+
+def wait_first_sample(timeout: float = 1.0) -> bool:
+    return _first_sample.wait(timeout)
+
+
+def _get_top_processes(n: int = 20) -> list[dict]:
+    """Les N processus les plus gourmands : le dernier échantillon (au plus 2 s d'âge)."""
+    start_sampler()
+    wait_first_sample(1.0)
+    return list(_latest.get("running_processes", []))[:n]
+
+
+# --------------------------------------------------------------------------- #
 #  Public API
 # --------------------------------------------------------------------------- #
 
@@ -138,7 +299,12 @@ def collect_context() -> dict[str, Any]:
     """
     Collecte un snapshot complet du contexte système.
     Appelé avant chaque interaction avec l'IA.
+
+    PB3 : processus, CPU et GPU viennent du dernier échantillon (échantillonneur démarré ici
+    s'il ne l'est pas : la première demande attend au plus 1 s, les suivantes rien).
     """
+    start_sampler()
+    wait_first_sample(1.0)
     mem = psutil.virtual_memory()
     disk = {}
     for part in psutil.disk_partitions(all=False):
@@ -155,12 +321,12 @@ def collect_context() -> dict[str, Any]:
     ctx = {
         "timestamp": time.time(),
         "foreground_window": _get_foreground_window(),
-        "running_processes": _get_top_processes(20),
+        "running_processes": list(_latest.get("running_processes", [])),
         "audio_active_processes": _get_audio_active_processes(),
-        "cpu_usage": psutil.cpu_percent(interval=0.3),
+        "cpu_usage": _latest.get("cpu_usage", 0.0),
         "ram_usage": mem.percent,
         "ram_available_gb": round(mem.available / (1024**3), 1),
-        "gpu_usage": _get_gpu_usage(),
+        "gpu_usage": _latest.get("gpu_usage", -1.0),
         "disk_usage": disk,
         "network_active_processes": _get_network_active_processes(),
     }

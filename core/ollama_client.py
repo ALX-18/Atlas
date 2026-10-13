@@ -20,7 +20,7 @@ Réponds en 1-2 phrases maximum, langage naturel parlé, zéro markdown.
 # core_conversational (v6.0.1). SYSTEM_PROMPT_IDENTITY = identité Atlas de base.
 from core_conversational.identity import ATLAS_BASE_IDENTITY as SYSTEM_PROMPT_IDENTITY
 from core_conversational.llm_client import (
-    contains_non_latin_script, LANG_FALLBACK_MESSAGE,
+    contains_non_latin_script, LANG_FALLBACK_MESSAGE, DEFAULT_NUM_CTX, fit_messages,
 )
 
 # --------------------------------------------------------------------------- #
@@ -39,6 +39,27 @@ MODEL: str = _cfg["model"]
 TEMPERATURE: float = _cfg["temperature"]
 STREAM_TIMEOUT: int = _cfg.get("stream_timeout_seconds", 30)
 KEEP_ALIVE: str = _cfg.get("keep_alive", "10m")  # v5.3 — keep model warm in VRAM
+# Pré-beta / PB1 : la taille de contexte, une seule valeur pour TOUTES les requêtes au modèle.
+# Elle était déjà dans settings.json (context_window), mais rien ne la lisait.
+NUM_CTX: int = int(_cfg.get("context_window", DEFAULT_NUM_CTX))
+
+
+def ollama_options(**extra) -> dict:
+    """Les options envoyées à Ollama, num_ctx compris, pour toutes les requêtes."""
+    return {"temperature": TEMPERATURE, "num_ctx": NUM_CTX, **extra}
+
+
+def build_messages(system_prompt: str, user_message: str, history: Optional[list[dict]] = None) -> list[dict]:
+    """Consigne, historique, demande — l'historique raccourci si le contexte serait dépassé."""
+    messages = [{"role": "system", "content": system_prompt}]
+    if history:
+        messages.extend(history)
+    messages.append({"role": "user", "content": user_message})
+    messages, removed = fit_messages(messages, NUM_CTX)
+    if removed:
+        logger.warning("[OLLAMA] Contexte de %d jetons : %d message(s) d'historique les plus anciens retirés.",
+                       NUM_CTX, removed)
+    return messages
 
 
 # --------------------------------------------------------------------------- #
@@ -122,19 +143,12 @@ async def chat_stream(
     """
     system_prompt = build_system_prompt(context, memories=memories)
 
-    messages = [{"role": "system", "content": system_prompt}]
-    if history:
-        messages.extend(history)
-    messages.append({"role": "user", "content": user_message})
-
     payload = {
         "model": MODEL,
-        "messages": messages,
+        "messages": build_messages(system_prompt, user_message, history),
         "stream": True,
         "keep_alive": KEEP_ALIVE,
-        "options": {
-            "temperature": TEMPERATURE,
-        },
+        "options": ollama_options(),
     }
 
     url = f"{BASE_URL}/api/chat"
@@ -190,17 +204,12 @@ async def _chat_full_raw(
 ) -> str:
     """Génération non-streaming brute (sans garde linguistique)."""
     if system_prompt:
-        messages = [{"role": "system", "content": system_prompt}]
-        if history:
-            messages.extend(history)
-        messages.append({"role": "user", "content": user_message})
-
         payload = {
             "model": MODEL,
-            "messages": messages,
+            "messages": build_messages(system_prompt, user_message, history),
             "stream": True,
             "keep_alive": KEEP_ALIVE,
-            "options": {"temperature": TEMPERATURE},
+            "options": ollama_options(),
         }
         url = f"{BASE_URL}/api/chat"
         parts: list[str] = []

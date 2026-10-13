@@ -236,6 +236,18 @@ async def o2session(mem):
     return rows
 
 
+async def pb1(mem):
+    """Pré-beta / PB1 : le pire cas mesuré (web, 20 messages, mémoire) et une question courte."""
+    rows = []
+    for nom, fn in [("pb1 conversation fenêtre", lambda: _chat("quelle est la capitale de l'Italie ?")),
+                    ("pb1 web 20 messages + mémoire",
+                     lambda: _chat("que penses-tu de Discord et de Steam ?", HISTORIQUE_20))]:
+        before = len(CALLS)
+        await fn()
+        rows += _ligne(nom, before)
+    return rows
+
+
 def main(out_path, mode="o1"):
     import logging
 
@@ -245,6 +257,8 @@ def main(out_path, mode="o1"):
         rows = asyncio.run(o1(mem))
     elif mode == "o3":
         rows = asyncio.run(o3(mem))
+    elif mode == "pb1":
+        rows = asyncio.run(pb1(mem))
     elif mode == "o2session":
         rows = asyncio.run(o2session(mem))
     elif mode in ("o2chaud", "o2froid"):

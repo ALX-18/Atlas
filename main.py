@@ -31,6 +31,8 @@ from fastapi.responses import FileResponse
 #  Logging
 # --------------------------------------------------------------------------- #
 
+# Pré-beta / PB2 : logs\ n'est pas versionné ; sans lui, un clone neuf plantait ici.
+(pathlib.Path(__file__).parent / "logs").mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s — %(message)s",
@@ -259,7 +261,7 @@ async def execute_automation_action(action: dict) -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialise la détection des habitudes et la mémoire au démarrage."""
-    from core.context_monitor import start_new_session, collect_context
+    from core.context_monitor import start_new_session, collect_context, start_sampler, stop_sampler
     from core.memory_manager import get_memory_manager
     from tools.browser_bridge import get_bridge
     from core.world_state import get_world_state
@@ -280,6 +282,10 @@ async def lifespan(app: FastAPI):
         logger.error("⛔ %s", lock_msg)
         raise RuntimeError(lock_msg)
     logger.info("🔒 Mono-instance lock acquis")
+
+    # Pré-beta / PB3 : processus, CPU et GPU échantillonnés en arrière-plan ; une demande lit
+    # le dernier état au lieu d'attendre ~2 s. Arrêté au shutdown ci-dessous.
+    start_sampler()
 
     # v5.1 corrective — mitigate Python 3.12 + Proactor + Windows socket cleanup bug
     # AssertionError raised in asyncio.proactor_events._attach when a deferred IOCP
@@ -447,6 +453,10 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    try:
+        stop_sampler()
+    except Exception:
+        pass
     try:
         if voice_engine is not None:
             await voice_engine.stop()

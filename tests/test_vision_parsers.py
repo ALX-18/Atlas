@@ -11,6 +11,21 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
+
+
+def _ollama_absent() -> bool:
+    """Pré-beta / PB5 : sans Ollama, ce test dépend de lui — ignoré, pas en échec.
+    ATLAS_TEST_NO_OLLAMA=1 simule une machine sans Ollama (comme ATLAS_TEST_NO_CHROMA)."""
+    import os
+    import socket
+
+    if os.environ.get("ATLAS_TEST_NO_OLLAMA") == "1":
+        return True
+    try:
+        with socket.create_connection(("127.0.0.1", 11434), timeout=0.5):
+            return False
+    except OSError:
+        return True
 from tools import grounding
 from tools.grounding import (
     _parse_vision_json,
@@ -261,6 +276,7 @@ class TestGroundingTimeoutEnforced:
         coro_fn.__name__ = name
         return coro_fn
 
+    @pytest.mark.skipif(_ollama_absent(), reason="Ollama absent : chaque sonde du port fermé coûte 2 s sous Windows")
     @pytest.mark.asyncio
     async def test_layer_timeout_aborts_slow_layer(self, monkeypatch):
         """A layer that hangs longer than its timeout must be aborted as 'timeout'."""

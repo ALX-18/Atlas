@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from core.ollama_client import BASE_URL, MODEL, TEMPERATURE
+from core.ollama_client import BASE_URL, KEEP_ALIVE, MODEL, ollama_options
 
 logger = logging.getLogger("atlas.web_reader")
 
@@ -136,7 +136,9 @@ async def summarize_url(url: str, max_chars: int = READER_MAX_CHARS) -> dict[str
             {"role": "user", "content": "Fais un résumé clair en 5 points maximum."},
         ],
         "stream": False,
-        "options": {"temperature": TEMPERATURE},
+        "keep_alive": KEEP_ALIVE,
+        # PB1 : même num_ctx que les autres requêtes (une valeur différente recharge le modèle).
+        "options": ollama_options(),
     }
 
     try:

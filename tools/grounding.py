@@ -39,6 +39,14 @@ _VISION_TIMEOUT_MINICPM_S = 45.0
 _DEBUG_IMAGE_DIR = os.path.join("data", "debug")
 _OLLAMA_GENERATE_URL = "http://127.0.0.1:11434/api/generate"
 
+
+def _vision_payload(model: str, prompt: str, image_b64: str) -> dict:
+    """Requête au modèle de vision. Pré-beta / PB1 : num_ctx explicite, comme toute requête."""
+    from core.ollama_client import NUM_CTX
+
+    return {"model": model, "prompt": prompt, "images": [image_b64], "stream": False,
+            "options": {"num_ctx": NUM_CTX}}
+
 _SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
 
 
@@ -1212,18 +1220,15 @@ async def _try_vision(app_title: str, element_name: str) -> Optional[dict]:
                     prompt_hint = ""
                     if pass_name == "steam_nav":
                         prompt_hint = "Focus on the top-left navigation area of Steam where the Library tab usually appears. "
-                    payload_dict = {
-                        "model": model,
-                        "prompt": (
-                            f"Find the clickable UI label among these candidate texts: {labels_hint}. "
-                            f"{prompt_hint}"
-                            "Return strictly and only valid JSON with integer pixel coordinates relative to this screenshot: "
-                            "{\"x\": int, \"y\": int, \"found\": bool}. No markdown, no explanation."
-                            " Do NOT return arrays for x/y. No markdown, no explanation."
-                        ),
-                        "images": [image_b64],
-                        "stream": False,
-                    }
+                    payload_dict = _vision_payload(
+                        model,
+                        f"Find the clickable UI label among these candidate texts: {labels_hint}. "
+                        f"{prompt_hint}"
+                        "Return strictly and only valid JSON with integer pixel coordinates relative to this screenshot: "
+                        "{\"x\": int, \"y\": int, \"found\": bool}. No markdown, no explanation."
+                        " Do NOT return arrays for x/y. No markdown, no explanation.",
+                        image_b64,
+                    )
                     timings["prepare_ms"] = int((time.monotonic() - prepare_start) * 1000)
                     timings["image_b64_bytes"] = len(image_b64)
                     timings["payload_size_bytes"] = len(json.dumps(payload_dict))
