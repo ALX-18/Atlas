@@ -60,7 +60,11 @@ class _OnnxE5:
         self._tok = Tokenizer.from_file(str(d / "tokenizer.json"))
         self._tok.enable_truncation(max_length=512)
         self._tok.enable_padding(pad_id=1, pad_token="<pad>")
-        self._sess = ort.InferenceSession(str(d / "model.onnx"), providers=["CPUExecutionProvider"])
+        # Poids enregistrés à part (model_ext.onnx + .data) : ONNX Runtime les projette en mémoire,
+        # et seules les lignes utilisées de la table de vocabulaire (250 000 jetons, ~770 Mo)
+        # deviennent résidentes — 590 Mo au lieu de 1 324 (mesuré).
+        model = d / "model_ext.onnx" if (d / "model_ext.onnx").exists() else d / "model.onnx"
+        self._sess = ort.InferenceSession(str(model), providers=["CPUExecutionProvider"])
 
     def encode(self, texts, normalize_embeddings=True, show_progress_bar=False, batch_size=32):
         np = self._np

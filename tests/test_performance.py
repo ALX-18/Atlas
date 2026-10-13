@@ -47,27 +47,31 @@ def test_pf2_le_message_gpu_du_demarrage_n_importe_plus_torch():
 
 @pytest.fixture
 def easyocr_simule(monkeypatch):
-    """Un faux module easyocr dont le Reader se compte ; aucune vraie charge."""
+    """Un faux processus EasyOCR qui se compte ; aucune vraie charge."""
     import tools.grounding as g
 
-    crees, annonces = [], []
+    crees, annonces, arretes = [], [], []
 
-    class Reader:
-        def __init__(self, langs, verbose=False):
-            crees.append(langs)
+    class FauxProcessus:
+        def __init__(self):
+            crees.append(self)
 
         def readtext(self, img):
             return []
 
-    monkeypatch.setitem(sys.modules, "easyocr", SimpleNamespace(Reader=Reader))
+        def stop(self):
+            arretes.append(self)
+
+    monkeypatch.setattr(g, "_start_easyocr_worker", FauxProcessus)
     monkeypatch.setattr(g, "_announce", lambda msg: annonces.append(msg))
     g._release_easyocr()
-    yield g, crees, annonces
+    crees.clear(), arretes.clear()
+    yield g, crees, annonces, arretes
     g._release_easyocr()
 
 
 def test_pf2_easyocr_charge_au_premier_usage_et_annonce(easyocr_simule):
-    g, crees, annonces = easyocr_simule
+    g, crees, annonces, _ = easyocr_simule
     assert g._EASYOCR_READER is None and crees == []
     asyncio.run(g._ensure_easyocr())
     asyncio.run(g._ensure_easyocr())
@@ -76,14 +80,41 @@ def test_pf2_easyocr_charge_au_premier_usage_et_annonce(easyocr_simule):
 
 
 def test_pf2_easyocr_libere_apres_inactivite(easyocr_simule, monkeypatch):
-    g, crees, annonces = easyocr_simule
+    g, crees, annonces, arretes = easyocr_simule
     monkeypatch.setattr(g, "EASYOCR_IDLE_UNLOAD_S", 0.3)
     asyncio.run(g._ensure_easyocr())
     assert g._EASYOCR_READER is not None
     time.sleep(0.8)
     assert g._EASYOCR_READER is None, "toujours chargé après l'inactivité"
+    assert arretes == crees[:1], "le processus EasyOCR n'a pas été arrêté"
     asyncio.run(g._ensure_easyocr())
     assert len(crees) == 2 and len(annonces) == 2, "rechargé, et annoncé à nouveau"
+
+
+def test_pf2_le_vrai_processus_ocr_repond_puis_s_arrete(monkeypatch):
+    """Le vrai processus (lecteur factice) : aller-retour, puis arrêt réel."""
+    import numpy as np
+
+    from tools.ocr_worker import EasyOCRWorker
+
+    monkeypatch.setenv("ATLAS_OCR_WORKER_FAKE", "1")
+    w = EasyOCRWorker()
+    try:
+        res = w.readtext(np.zeros((20, 20, 3), dtype=np.uint8))
+        assert res and res[0][1] == "Fichier" and len(res[0][0]) == 4, res
+    finally:
+        w.stop()
+    assert not w.alive(), "le processus OCR survit à l'arrêt"
+
+
+def test_pf2_atlas_n_importe_ni_torch_ni_easyocr_pour_lire_l_ecran():
+    code = ("import os, sys, asyncio, numpy as np; os.environ['ATLAS_OCR_WORKER_FAKE'] = '1'; "
+            "import tools.grounding as g; g._announce = lambda m: None; "
+            "r = asyncio.run(g._ensure_easyocr()); r.readtext(np.zeros((8, 8, 3), dtype=np.uint8)); "
+            "g._release_easyocr(); print('torch' in sys.modules, 'easyocr' in sys.modules)")
+    env = {**os.environ, "ATLAS_MEMORY": "off", "PYTHONIOENCODING": "utf-8"}
+    r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, env=env, timeout=180)
+    assert r.stdout.strip().splitlines()[-1] == "False False", r.stdout[-300:] + r.stderr[-500:]
 
 
 def test_pf2_la_valeur_d_inactivite_vient_de_la_configuration():

@@ -1005,9 +1005,11 @@ async def _try_ocr(app_title: str, element_name: str) -> Optional[dict]:
 _EASYOCR_READER = None
 _EASYOCR_ATTEMPTED = False
 
-# Sprint Performance / PF2 — EasyOCR (≈ 460 Mo avec torch, ~10 s à charger) ne sert qu'aux
-# clics sur un libellé que Tesseract n'a pas trouvé. Il est chargé au premier usage, annoncé
-# (ce premier usage dépasse 2 s), puis libéré après EASYOCR_IDLE_UNLOAD_S d'inactivité.
+# Sprint Performance / PF2 — EasyOCR (≈ 470 Mo avec torch, ~10 s à charger) ne sert qu'aux
+# clics sur un libellé que Tesseract n'a pas trouvé. Il tourne dans un PROCESSUS À PART
+# (tools/ocr_worker.py) : lancé au premier usage, annoncé (ce premier usage dépasse 2 s), arrêté
+# après EASYOCR_IDLE_UNLOAD_S d'inactivité. Libéré dans le processus d'Atlas, il ne rendait
+# aucune mémoire (mesuré) ; l'arrêt du processus rend tout, et Atlas n'importe plus torch.
 import threading as _threading  # noqa: E402
 
 try:
@@ -1032,21 +1034,28 @@ def _announce(message: str) -> None:
         pass
 
 
+def _start_easyocr_worker():
+    """Lance le processus EasyOCR (point de remplacement pour les tests)."""
+    from tools.ocr_worker import EasyOCRWorker
+
+    return EasyOCRWorker()
+
+
 def _release_easyocr() -> None:
-    """Libère le lecteur EasyOCR (rechargé au prochain usage)."""
+    """Arrête le processus EasyOCR : sa mémoire revient au système (relancé au prochain usage)."""
     global _EASYOCR_READER, _EASYOCR_ATTEMPTED, _EASYOCR_TIMER
     with _EASYOCR_LOCK:
         if _EASYOCR_TIMER is not None:
             _EASYOCR_TIMER.cancel()
             _EASYOCR_TIMER = None
-        had = _EASYOCR_READER is not None
-        _EASYOCR_READER = None
+        reader, _EASYOCR_READER = _EASYOCR_READER, None
         _EASYOCR_ATTEMPTED = False
-    if had:
-        import gc
-
-        gc.collect()
-        logger.info("[EASYOCR] Libéré après %.0f s d'inactivité.", EASYOCR_IDLE_UNLOAD_S)
+    if reader is not None:
+        try:
+            reader.stop()
+        except Exception as e:
+            logger.debug("[EASYOCR] arrêt : %s", e)
+        logger.info("[EASYOCR] Processus arrêté (inactivité ou fin d'Atlas).")
 
 
 def _release_if_idle() -> None:
@@ -1074,10 +1083,8 @@ def _get_easyocr_reader():
         return _EASYOCR_READER
     _EASYOCR_ATTEMPTED = True
     try:
-        import easyocr
-        # GPU auto-détecté ; fr+en
-        _EASYOCR_READER = easyocr.Reader(["fr", "en"], verbose=False)
-        logger.info("[EASYOCR] Reader chargé (fr+en).")
+        _EASYOCR_READER = _start_easyocr_worker()
+        logger.info("[EASYOCR] Lecteur prêt (fr+en, processus à part).")
     except Exception as e:
         logger.warning("[EASYOCR] Indisponible (%s).", e)
         _EASYOCR_READER = None
@@ -1127,7 +1134,7 @@ async def _try_easyocr(app_title: str, element_name: str) -> Optional[dict]:
             if is_steam else {_normalize_text(element_name)}
         )
 
-        results = reader.readtext(np.array(screenshot))
+        results = await asyncio.to_thread(reader.readtext, np.array(screenshot))
         best = None
         best_ratio = 0.0
         detected = []

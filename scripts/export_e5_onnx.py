@@ -40,7 +40,7 @@ def main() -> int:
             input_names=["input_ids", "attention_mask"], output_names=["last_hidden_state"],
             dynamic_axes={"input_ids": {0: "batch", 1: "seq"}, "attention_mask": {0: "batch", 1: "seq"},
                           "last_hidden_state": {0: "batch", 1: "seq"}},
-            opset_version=17, do_constant_folding=True,
+            opset_version=17, do_constant_folding=True, dynamo=False,
         )
     shutil.copy2(src / "tokenizer.json", OUT / "tokenizer.json")
     print(f"exporté : {OUT / 'model.onnx'} ({(OUT / 'model.onnx').stat().st_size // (1024 * 1024)} Mo)")

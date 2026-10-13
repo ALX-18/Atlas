@@ -210,6 +210,60 @@ def mesure_composant(nom: str, code: str, timeout: float = 600) -> dict:
             p.kill()
 
 
+# Cumul : un seul processus charge les composants dans l'ordre d'Atlas ; chaque ligne est ce
+# que l'étape AJOUTE. Contrairement à la mesure isolée, rien n'est compté deux fois (Python,
+# numpy, onnxruntime, torch partagés) : la somme doit retomber sur Atlas complet au repos.
+_CUMUL = r"""
+import json, os, sys, time, psutil
+me = psutil.Process()
+variante, embeddings = sys.argv[1], sys.argv[2]
+def rss(): return me.memory_info().rss / 1048576
+prec = rss(); out = []
+def etape(nom):
+    global prec
+    time.sleep(1.0); r = rss(); out.append({"etape": nom, "ajout_mb": round(r - prec), "total_mb": round(r)}); prec = r
+etape("Python et outils de mesure")
+if variante == "avant":
+    import torch  # avant ce sprint : importé au démarrage (message GPU) et par ctranslate2
+    etape("torch (importé au démarrage)")
+import main
+etape("Atlas sans modèles (main : FastAPI, cœur, outils, client ChromaDB)")
+from core.voice_engine import ensure_cuda_libraries, _load_whisper
+ensure_cuda_libraries()
+from faster_whisper import WhisperModel
+w = _load_whisper(WhisperModel, "base", "cuda")
+etape("transcription faster-whisper base (GPU)")
+from piper import PiperVoice
+p = PiperVoice.load("data/voices/fr_FR-siwis-medium.onnx")
+etape("voix Piper")
+from openwakeword.model import Model
+m = Model(wakeword_models=["models/wakewords/hey_atlas.onnx"], inference_framework="onnx")
+etape("mot d'éveil openWakeWord")
+import core_conversational.memory_core as mc
+mc.set_embedding_backend(embeddings, "models/embeddings/multilingual-e5-base")
+mc.embed_query("test")
+etape(f"embeddings e5-base ({mc.embedding_backend()})")
+out.append({"etape": "— total au repos (sans EasyOCR) —", "total_mb": round(rss())})
+import easyocr
+r = easyocr.Reader(["fr", "en"], verbose=False)
+etape("EasyOCR (au premier clic sur un libellé non trouvé par Tesseract)")
+print(json.dumps({"torch_charge": "torch" in sys.modules, "lignes": out}, ensure_ascii=False))
+"""
+
+
+def mesure_cumul(variante: str, embeddings: str) -> dict:
+    env = {**os.environ, "ATLAS_MEMORY": "off", "PYTHONIOENCODING": "utf-8", "ANONYMIZED_TELEMETRY": "False"}
+    r = subprocess.run([PY, "-c", _CUMUL, variante, embeddings], cwd=ROOT, env=env, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace", timeout=900)
+    try:
+        res = json.loads(r.stdout.strip().splitlines()[-1])
+    except Exception:
+        return {"erreur": r.stderr[-800:]}
+    for ligne in res["lignes"]:
+        print(f"  {ligne}", flush=True)
+    return {"variante": variante, "embeddings": embeddings, **res}
+
+
 def mesure_composants() -> list[dict]:
     rows = []
     for nom, code in COMPOSANTS.items():
@@ -344,7 +398,9 @@ def mesure_atlas(copie: str, duree_melange_s: int = 600) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("quoi", choices=["machine", "composants", "atlas", "tout"])
+    ap.add_argument("quoi", choices=["machine", "composants", "cumul", "atlas", "tout"])
+    ap.add_argument("--variante", choices=["avant", "apres"], default="apres", help="cumul : torch au démarrage (avant)")
+    ap.add_argument("--embeddings", choices=["sentence-transformers", "onnx"], default="sentence-transformers")
     ap.add_argument("--copie", help="dossier data/ d'une sauvegarde (copié, jamais modifié)")
     ap.add_argument("--duree", type=int, default=600, help="durée de l'usage mêlé, en secondes")
     ap.add_argument("--out", help="fichier JSON de sortie")
@@ -355,6 +411,8 @@ def main(argv=None) -> int:
         print(json.dumps(out["machine"], ensure_ascii=False, indent=1))
     if a.quoi in ("composants", "tout"):
         out["composants"] = mesure_composants()
+    if a.quoi == "cumul":
+        out["cumul"] = mesure_cumul(a.variante, a.embeddings)
     if a.quoi in ("atlas", "tout"):
         if not a.copie:
             ap.error("--copie est obligatoire : Atlas n'est jamais mesuré sur la mémoire réelle")

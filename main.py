@@ -499,6 +499,12 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
     try:
+        from tools.grounding import _release_easyocr
+
+        _release_easyocr()
+    except Exception:
+        pass
+    try:
         if voice_engine is not None:
             await voice_engine.stop()
     except Exception:
