@@ -8,9 +8,8 @@ Agent: Claude Opus 5.5 (CHAT6, Claude Code Windows)
 
 ---
 
-> **Le dépôt peut-il redevenir public ? Pas encore.** L'arbre est propre, et l'historique réécrit l'est aussi : l'essai sur copie ne laisse **aucun** motif dans **aucun** des 94 commits. Il reste deux étapes, qui ne sont pas à moi :
-> 1. **le « oui » d'Alexis** pour publier la réécriture (`push --force`) ;
-> 2. **une étape côté GitHub.** Les 9 PR gardent sur GitHub des références (`refs/pull/N/head`) vers l'**ancien** historique. Un `push --force` ne peut pas les réécrire, et toutes atteignent les données retirées. Il faut un nouveau dépôt (recommandé, §9), ou une purge par le support GitHub.
+> **Le dépôt peut-il redevenir public ? Oui** (mis à jour le 13/10). Le nouveau dépôt `ALX-18/cortana-killer-atlas` contient l'historique réécrit, vérifié depuis GitHub : **0 motif dans ses 96 commits**, deux branches, aucune référence de PR. Il est **privé** : c'est à Alexis de le passer en public.
+> L'ancien dépôt, avec ses 9 PR et l'ancien historique, est renommé `cortana-killer-atlas-archive` et reste **privé pour toujours** (option A, décision d'Alexis du 13/10). Détail au §10.
 
 ---
 
@@ -340,7 +339,7 @@ après « import main »                            → ATLAS_MEMORY = real ; co
 - [x] Inventaire R1 complet, arbre et historique, secrets compris ; décisions d'Alexis consignées
 - [x] Arbre nettoyé, `.gitignore` complété, suite verte
 - [x] Sauvegarde miroir vérifiée avant toute réécriture ; essai sur copie ; aucun motif dans aucun commit
-- [ ] `push --force` — **en attente** du « oui » d'Alexis et de la décision sur les références de PR
+- [x] Publication après le « oui » d'Alexis (13/10, option A) : nouveau dépôt, pas de `push --force` sur l'ancien (§10)
 - [x] README vrai, phrase par phrase
 - [x] Dossiers anciens : utilisés ou non, prouvé
 - [x] Licence et tests GitHub : options présentées, rien activé
@@ -373,3 +372,34 @@ après « import main »                            → ATLAS_MEMORY = real ; co
 ### P2
 - Un `skipif` Ollama pour les deux tests de grounding ; `logs\` créé par `main.py` ; `health` qui distingue une mémoire « neutralisée ».
 - Classifieur : « résume tout ce qu'on s'est dit » ne devrait pas être une lecture web.
+
+---
+
+## 10. Suite du 13/10 — décisions d'Alexis et publication
+
+**Décisions, dans la conversation :**
+- **Adresse des commits :** finalement **gardée** (« c'est pas bien grave »). La réécriture se fait **sans `--mailmap`**, et le risque n° 3 du §7 disparaît.
+- **Licence :** **tous droits réservés**, dans `LICENSE` et dans une section du README.
+- **Tests automatiques sur GitHub :** **pas pour le moment**. La proposition reste inactive dans `docs/proposition_ci/`.
+- **Publication :** **option A** (« car y'a des données perso dedans »).
+
+**Ce qui a été fait, dans l'ordre :**
+1. **Vérification de départ :** `main` sur GitHub n'avait pas bougé depuis la sauvegarde (`5a9ef3e`). L'ancien dépôt était bien privé, sans PR ouverte.
+2. **Nouvelle sauvegarde :** `local_20261013_095616.bundle` (vérifié), en plus de celles du 12/10.
+3. **Réécriture d'une copie** limitée à `main` et `sprint-depot-ollama`, les 12 anciennes branches étant écartées. Mêmes commandes que l'essai, sans `--mailmap`. Contrôles :
+   - 96 commits, aucun motif dans les contenus, les chemins ou les messages ;
+   - arbre de `sprint-depot-ollama` identique au dépôt local (`9ccbb02`).
+4. **`gh repo rename` :** l'ancien dépôt devient `cortana-killer-atlas-archive`, **privé**, avec la description « ARCHIVE PRIVÉE — … contient des données personnelles. Ne jamais rendre public. ».
+5. **`gh repo create ALX-18/cortana-killer-atlas --private`,** puis poussée de `main` (`358c5c3`) et de `sprint-depot-ollama` (`0ead8e0`).
+6. **Vérification depuis GitHub :** clone miroir du nouveau dépôt. Deux références seulement, 96 commits, **0** fichier contenant un motif, dans aucun commit.
+7. **Ce PC :**
+   - la copie de travail est rebranchée sur le nouveau dépôt (`origin`), et `main` et `sprint-depot-ollama` sont recalées sur l'historique réécrit ;
+   - les 12 anciennes branches locales sont supprimées (elles sont dans la sauvegarde) ;
+   - l'arbre de travail n'a pas changé, et les fichiers non versionnés (`.venv`, modèles, voix, données) sont intacts ;
+   - les anciens objets restent dans le stockage interne de Git de ce PC, sans aucune référence qui y mène.
+
+**Reste à faire, par Alexis :**
+- Passer `cortana-killer-atlas` en **public**, quand il le souhaite.
+- **Sur le Mac :** recloner `cortana-killer-atlas`. Ne **pas** faire de `pull` ni de `push` depuis l'ancienne copie : elle vise maintenant l'archive (redirection de GitHub) et contient l'ancien historique.
+- **`err_7297b690157e` :** la commande PowerShell exacte lui a été donnée (sa première tentative utilisait la syntaxe bash).
+- La PR de ce sprint sur le nouveau dépôt, quand il la demande.
