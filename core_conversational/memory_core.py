@@ -22,6 +22,65 @@ _model_name: Optional[str] = None
 _load_attempted = False
 _load_lock = threading.Lock()
 
+# Sprint Performance / PF3 — moteur d'exécution des embeddings. « sentence-transformers »
+# (torch) par défaut ; « onnx » exécute le MÊME modèle, aux mêmes poids float32, avec ONNX
+# Runtime, sans importer torch. Choisi par Atlas (core/embeddings.py, depuis settings.json).
+_backend = "sentence-transformers"
+_onnx_dir: Optional[str] = None
+
+
+def set_embedding_backend(backend: str, onnx_dir: Optional[str] = None) -> None:
+    """À appeler avant le premier embedding. Un moteur ONNX introuvable retombe sur torch."""
+    global _backend, _onnx_dir
+    _backend = backend
+    _onnx_dir = onnx_dir
+
+
+def embedding_backend() -> str:
+    """Le moteur réellement chargé (ou qui le sera)."""
+    if _model is not None:
+        return "onnx" if isinstance(_model, _OnnxE5) else "sentence-transformers"
+    return _backend
+
+
+class _OnnxE5:
+    """e5 sur ONNX Runtime : mêmes étapes que sentence-transformers pour ce modèle —
+    tokenisation (512 jetons au plus), dernier état caché, moyenne sur les jetons réels,
+    normalisation L2."""
+
+    def __init__(self, folder: str):
+        import pathlib
+
+        import numpy as np
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
+
+        self._np = np
+        d = pathlib.Path(folder)
+        self._tok = Tokenizer.from_file(str(d / "tokenizer.json"))
+        self._tok.enable_truncation(max_length=512)
+        self._tok.enable_padding(pad_id=1, pad_token="<pad>")
+        # Poids enregistrés à part (model_ext.onnx + .data) : ONNX Runtime les projette en mémoire,
+        # et seules les lignes utilisées de la table de vocabulaire (250 000 jetons, ~770 Mo)
+        # deviennent résidentes — 590 Mo au lieu de 1 324 (mesuré).
+        model = d / "model_ext.onnx" if (d / "model_ext.onnx").exists() else d / "model.onnx"
+        self._sess = ort.InferenceSession(str(model), providers=["CPUExecutionProvider"])
+
+    def encode(self, texts, normalize_embeddings=True, show_progress_bar=False, batch_size=32):
+        np = self._np
+        out = []
+        for i in range(0, len(texts), batch_size):
+            encs = self._tok.encode_batch(list(texts[i:i + batch_size]))
+            ids = np.array([e.ids for e in encs], dtype=np.int64)
+            mask = np.array([e.attention_mask for e in encs], dtype=np.int64)
+            hidden = self._sess.run(None, {"input_ids": ids, "attention_mask": mask})[0]
+            m = mask[..., None].astype(hidden.dtype)
+            pooled = (hidden * m).sum(axis=1) / np.clip(m.sum(axis=1), 1e-9, None)
+            if normalize_embeddings:
+                pooled = pooled / np.clip(np.linalg.norm(pooled, axis=1, keepdims=True), 1e-12, None)
+            out.append(pooled)
+        return np.concatenate(out, axis=0)
+
 
 # --------------------------------------------------------------------------- #
 #  Embeddings e5 (préfixes query:/passage:)
@@ -35,6 +94,15 @@ def _load_model(model_name: str = DEFAULT_EMBED_MODEL):
         if _model is not None or _load_attempted:
             return _model
         _load_attempted = True
+        if _backend == "onnx" and _onnx_dir:
+            try:
+                logger.info("Chargement embedding '%s' (ONNX Runtime, sans torch)...", model_name)
+                _model = _OnnxE5(_onnx_dir)
+                _model_name = model_name
+                return _model
+            except Exception as e:
+                logger.warning("Embedding ONNX indisponible (%s) — repli sentence-transformers.", e)
+                _model = None
         try:
             from sentence_transformers import SentenceTransformer
             logger.info("Chargement embedding '%s'...", model_name)

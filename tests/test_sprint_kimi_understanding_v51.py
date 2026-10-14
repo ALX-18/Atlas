@@ -1,7 +1,23 @@
+import pytest
 import tools.grounding as grounding
 from core.intent_classifier import get_classifier
 from core.validator import get_validator
 from tools.app_launcher import get_app_type
+
+
+def _ollama_absent() -> bool:
+    """Pré-beta / PB5 : sans Ollama, ce test dépend de lui — ignoré, pas en échec.
+    ATLAS_TEST_NO_OLLAMA=1 simule une machine sans Ollama (comme ATLAS_TEST_NO_CHROMA)."""
+    import os
+    import socket
+
+    if os.environ.get("ATLAS_TEST_NO_OLLAMA") == "1":
+        return True
+    try:
+        with socket.create_connection(("127.0.0.1", 11434), timeout=0.5):
+            return False
+    except OSError:
+        return True
 
 
 def test_target_extraction_reduce_opera_gx():
@@ -31,6 +47,7 @@ def test_grounding_layer_order_electron_skips_uia():
     assert names[0] == "_try_cache"
 
 
+@pytest.mark.skipif(_ollama_absent(), reason="Ollama absent : ce test lit les modèles installés (minicpm-v)")
 def test_grounding_layer_order_steam_includes_heuristic():
     # v5.3: vision is OFF by default (Réunion #4). Explicitly test the
     # vision-enabled composition here to verify the layer ordering logic.

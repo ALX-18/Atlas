@@ -255,6 +255,47 @@ def check_easyocr_models() -> list[Check]:
                   "python -c \"import easyocr; easyocr.Reader(['fr','en'])\"")]
 
 
+# Pré-beta / PB4 — version de référence : Ollama s'est mis à jour seul en 0.40.3 (12/10/2026),
+# version avec laquelle les mesures du sprint Dépôt + Ollama ont été faites.
+OLLAMA_REFERENCE_VERSION = "0.40.3"
+_LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+def _ollama_listen_addresses(port: int = 11434) -> list[str]:
+    """Adresses sur lesquelles un processus écoute le port d'Ollama."""
+    try:
+        import psutil
+
+        return sorted({c.laddr.ip for c in psutil.net_connections(kind="inet")
+                       if c.status == psutil.CONN_LISTEN and c.laddr and c.laddr.port == port})
+    except Exception:
+        code, out = _run(["netstat", "-ano", "-p", "TCP"])
+        addrs = set()
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 4 and parts[3].upper().startswith("LISTEN") and parts[1].endswith(f":{port}"):
+                addrs.add(parts[1].rsplit(":", 1)[0].strip("[]"))
+        return sorted(addrs)
+
+
+def ollama_exposure_check(addresses: list[str]) -> Check:
+    """Ollama doit n'écouter que sur la machine : 0.0.0.0, « :: » ou une adresse du réseau
+    l'ouvrent à tout appareil du réseau local, sans mot de passe."""
+    exposed = [a for a in addresses if a not in _LOOPBACK]
+    return Check("Ollama", "Ollama n'écoute pas sur le réseau", not exposed, WARNING,
+                 f"écoute sur : {', '.join(addresses) or 'rien (Ollama arrêté ?)'}",
+                 "Dans l'application Ollama : Settings → désactiver « Expose Ollama to the network ». "
+                 "Si la variable d'environnement OLLAMA_HOST vaut 0.0.0.0, la retirer. "
+                 "Atlas n'a besoin que de 127.0.0.1:11434.")
+
+
+def ollama_version_check(version: str | None) -> Check:
+    return Check("Ollama", f"Version de référence ({OLLAMA_REFERENCE_VERSION})", version == OLLAMA_REFERENCE_VERSION,
+                 WARNING, f"version installée : {version or 'inconnue'} ; référence : {OLLAMA_REFERENCE_VERSION}",
+                 f"Atlas a été vérifié avec Ollama {OLLAMA_REFERENCE_VERSION}. Une autre version marche "
+                 "probablement, mais n'a pas été mesurée.")
+
+
 def check_ollama(settings: dict | None) -> list[Check]:
     cfg = (settings or {}).get("ollama", {})
     base = cfg.get("base_url", "http://127.0.0.1:11434").rstrip("/")
@@ -279,6 +320,15 @@ def check_ollama(settings: dict | None) -> list[Check]:
                             f"modèles locaux : {', '.join(sorted(models)) or 'aucun'}",
                             f"ollama pull {model}",
                             data={"models": models}))
+        version = None
+        ok_v, body_v = _http_get(f"{base}/api/version")
+        if ok_v:
+            try:
+                version = json.loads(body_v).get("version")
+            except Exception:
+                version = None
+        checks.append(ollama_version_check(version))
+    checks.append(ollama_exposure_check(_ollama_listen_addresses()))
     return checks
 
 

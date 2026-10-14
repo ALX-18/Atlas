@@ -21,6 +21,27 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 # Dépôt + Ollama / C3 : seul Atlas lui-même branche la vraie mémoire (core/memory_manager.py).
 os.environ.setdefault("ATLAS_MEMORY", "real")
 
+
+def _import_ctranslate2_without_torch() -> None:
+    """Sprint Performance / PF2 — ctranslate2 (le moteur de la transcription) importe torch
+    « au cas où » (ctranslate2/specs/model_spec.py, pour CONVERTIR des modèles) : ~200 Mo et
+    3,5 s, sans servir à transcrire (transcriptions identiques avec et sans, mesuré). On
+    l'importe ici, au chargement de main.py, quand un seul fil tourne, en lui cachant torch ;
+    torch reste importable ensuite pour qui en a vraiment besoin (EasyOCR, embeddings)."""
+    if "torch" in sys.modules or "ctranslate2" in sys.modules:
+        return
+    sys.modules["torch"] = None
+    try:
+        import ctranslate2  # noqa: F401
+    except Exception:
+        pass
+    finally:
+        if sys.modules.get("torch", 0) is None:
+            del sys.modules["torch"]
+
+
+_import_ctranslate2_without_torch()
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,6 +52,8 @@ from fastapi.responses import FileResponse
 #  Logging
 # --------------------------------------------------------------------------- #
 
+# Pré-beta / PB2 : logs\ n'est pas versionné ; sans lui, un clone neuf plantait ici.
+(pathlib.Path(__file__).parent / "logs").mkdir(exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(name)s] %(levelname)s — %(message)s",
@@ -113,6 +136,26 @@ def _voice_gpu_status(voice_cfg: dict, ct2_cuda_devices: int, torch_cuda: bool) 
     return "info", f"Atlas Voice : transcription sur GPU ({ct2_cuda_devices} périphérique(s) CUDA vu(s) par CTranslate2){extra}."
 
 
+def _torch_has_cuda_build() -> bool:
+    """torch est-il compilé pour CUDA ? Lu dans torch/version.py, SANS importer torch.
+
+    Sprint Performance / PF2 : importer torch (~200 Mo) au démarrage pour ce seul message
+    le chargeait même quand ni l'OCR ni les embeddings ne servent.
+    """
+    try:
+        import importlib.util
+        import re
+
+        spec = importlib.util.find_spec("torch")
+        if spec is None or not spec.submodule_search_locations:
+            return False
+        version = pathlib.Path(list(spec.submodule_search_locations)[0]) / "version.py"
+        m = re.search(r"^cuda\s*(?::[^=]*)?=\s*(.+)$", version.read_text(encoding="utf-8"), re.M)
+        return bool(m) and m.group(1).strip() not in ("None", "''", '""')
+    except Exception:
+        return False
+
+
 def _warn_if_voice_gpu_missing(voice_enabled: bool):
     """Annonce le GPU de la transcription d'après CTranslate2, qui la fait (GT5)."""
     if not voice_enabled:
@@ -123,13 +166,7 @@ def _warn_if_voice_gpu_missing(voice_enabled: bool):
         ct2 = ctranslate2.get_cuda_device_count()
     except Exception:
         ct2 = 0
-    try:
-        import torch
-
-        torch_cuda = bool(torch.cuda.is_available())
-    except Exception:
-        torch_cuda = False
-    level, message = _voice_gpu_status(CONFIG.get("voice", {}), ct2, torch_cuda)
+    level, message = _voice_gpu_status(CONFIG.get("voice", {}), ct2, _torch_has_cuda_build())
     (logger.warning if level == "warning" else logger.info)(message)
 
 
@@ -259,7 +296,7 @@ async def execute_automation_action(action: dict) -> dict:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialise la détection des habitudes et la mémoire au démarrage."""
-    from core.context_monitor import start_new_session, collect_context
+    from core.context_monitor import start_new_session, collect_context, start_sampler, stop_sampler
     from core.memory_manager import get_memory_manager
     from tools.browser_bridge import get_bridge
     from core.world_state import get_world_state
@@ -280,6 +317,16 @@ async def lifespan(app: FastAPI):
         logger.error("⛔ %s", lock_msg)
         raise RuntimeError(lock_msg)
     logger.info("🔒 Mono-instance lock acquis")
+
+    # Pré-beta / PB3 : processus, CPU et GPU échantillonnés en arrière-plan ; une demande lit
+    # le dernier état au lieu d'attendre ~2 s. Arrêté au shutdown ci-dessous.
+    start_sampler()
+
+    # Sprint Performance / PF5.2 : modèle de langue et embeddings chargés en arrière-plan ;
+    # le démarrage n'attend pas, la première demande ne paie plus ~30 s.
+    from core.ollama_client import prewarm
+
+    app.state.prewarm_task = prewarm()
 
     # v5.1 corrective — mitigate Python 3.12 + Proactor + Windows socket cleanup bug
     # AssertionError raised in asyncio.proactor_events._attach when a deferred IOCP
@@ -447,6 +494,16 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    try:
+        stop_sampler()
+    except Exception:
+        pass
+    try:
+        from tools.grounding import _release_easyocr
+
+        _release_easyocr()
+    except Exception:
+        pass
     try:
         if voice_engine is not None:
             await voice_engine.stop()

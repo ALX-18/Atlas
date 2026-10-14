@@ -239,9 +239,8 @@ Le fichier est versionné et fonctionne tel quel. Points à relire :
 
 ## 12. Dossiers runtime
 
-- [ ] ⚠ Créer `logs\`. Il n'est pas versionné (`.gitignore`), et `main.py` y ouvre `atlas.log` **à l'import** sans créer le dossier, ce qui fait planter un clone neuf avec `FileNotFoundError`.
+- [x] `logs\` : plus rien à faire. Il n'est pas versionné, mais `main.py` le crée lui-même depuis le sprint pré-beta (avant, un clone neuf plantait avec `FileNotFoundError`).
   ```powershell
-  mkdir logs -ErrorAction SilentlyContinue
   mkdir data -ErrorAction SilentlyContinue
   ```
 

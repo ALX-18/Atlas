@@ -16,7 +16,7 @@ Ce qui le distingue :
 |---|---|
 | Langage | Python 3.12, Windows 10/11 64 bits |
 | Serveur | FastAPI + Uvicorn, sur `127.0.0.1:8550` uniquement |
-| Modèle de langue | [Ollama](https://ollama.com) **0.40.2**, en natif, modèle `qwen2.5:7b` |
+| Modèle de langue | [Ollama](https://ollama.com) **0.40.3**, en natif, modèle `qwen2.5:7b`, contexte fixé à 8 192 jetons |
 | Mémoire long terme | ChromaDB 1.4.1 dans Docker (image épinglée par empreinte), embeddings `intfloat/multilingual-e5-base` |
 | Recherche web | SearXNG dans Docker (image épinglée), repli DuckDuckGo |
 | Mot d'éveil | openWakeWord, modèle « Hey Atlas » |
@@ -37,7 +37,6 @@ py scripts\doctor.py --precheck          # ce PC peut-il faire tourner Atlas ?
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-mkdir logs                               # non versionné ; main.py y écrit dès son import
 docker compose up -d                     # ChromaDB + SearXNG (Ollama reste natif)
 ollama pull qwen2.5:7b
 python scripts\download_voice_models.py  # mot d'éveil et voix
@@ -87,11 +86,11 @@ réponse ── conversation pure : core/ollama_client.py, filtrée par la garde
 .\.venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-**1 004 tests** au 12/10/2026 : 1 000 passent, 4 sont ignorés (machine de développement, Ollama et Docker lancés), en 4 minutes environ.
+**1 049 tests** au 13/10/2026, en moins de 3 minutes : avec Ollama et Docker lancés, 1 045 passent et 4 sont ignorés ; Ollama arrêté, 1 042 passent et 7 sont ignorés.
 
 - Aucun test ne lit ni n'écrit la mémoire réelle : la suite démarre son propre ChromaDB jetable.
 - Aucun test n'agit sur une vraie fenêtre ni n'exécute de vraie commande : outils, fenêtres et processus sont simulés.
-- La plupart des tests qui demandent SearXNG, Ollama ou le modèle du mot d'éveil sont ignorés quand ces services sont absents. Deux tests de la couche de clic sur un libellé (« grounding ») échouent toutefois sans Ollama, au lieu d'être ignorés.
+- Les tests qui demandent SearXNG, Ollama ou le modèle du mot d'éveil sont ignorés quand ces services sont absents (vérifié avec Ollama arrêté). `ATLAS_TEST_NO_OLLAMA=1` et `ATLAS_TEST_NO_CHROMA=1` simulent une machine sans eux.
 
 ---
 

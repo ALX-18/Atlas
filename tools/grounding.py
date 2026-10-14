@@ -39,6 +39,14 @@ _VISION_TIMEOUT_MINICPM_S = 45.0
 _DEBUG_IMAGE_DIR = os.path.join("data", "debug")
 _OLLAMA_GENERATE_URL = "http://127.0.0.1:11434/api/generate"
 
+
+def _vision_payload(model: str, prompt: str, image_b64: str) -> dict:
+    """Requête au modèle de vision. Pré-beta / PB1 : num_ctx explicite, comme toute requête."""
+    from core.ollama_client import NUM_CTX
+
+    return {"model": model, "prompt": prompt, "images": [image_b64], "stream": False,
+            "options": {"num_ctx": NUM_CTX}}
+
 _SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "..", "config", "settings.json")
 
 
@@ -997,6 +1005,76 @@ async def _try_ocr(app_title: str, element_name: str) -> Optional[dict]:
 _EASYOCR_READER = None
 _EASYOCR_ATTEMPTED = False
 
+# Sprint Performance / PF2 — EasyOCR (≈ 470 Mo avec torch, ~10 s à charger) ne sert qu'aux
+# clics sur un libellé que Tesseract n'a pas trouvé. Il tourne dans un PROCESSUS À PART
+# (tools/ocr_worker.py) : lancé au premier usage, annoncé (ce premier usage dépasse 2 s), arrêté
+# après EASYOCR_IDLE_UNLOAD_S d'inactivité. Libéré dans le processus d'Atlas, il ne rendait
+# aucune mémoire (mesuré) ; l'arrêt du processus rend tout, et Atlas n'importe plus torch.
+import threading as _threading  # noqa: E402
+
+try:
+    with open(os.path.join(os.path.dirname(__file__), "..", "config", "settings.json"), encoding="utf-8") as _f:
+        EASYOCR_IDLE_UNLOAD_S: float = float(json.load(_f).get("grounding", {}).get("easyocr_idle_unload_s", 600))
+except Exception:
+    EASYOCR_IDLE_UNLOAD_S = 600.0
+_EASYOCR_LOCK = _threading.Lock()
+_EASYOCR_TIMER = None
+_EASYOCR_LAST_USE = 0.0
+
+
+def _announce(message: str) -> None:
+    """Prévient l'utilisateur d'une attente : notification Windows, sans bloquer."""
+    logger.info("[EASYOCR] %s", message)
+    try:
+        from plyer import notification
+
+        _threading.Thread(target=lambda: notification.notify(title="Atlas", message=message, timeout=5),
+                          daemon=True).start()
+    except Exception:
+        pass
+
+
+def _start_easyocr_worker():
+    """Lance le processus EasyOCR (point de remplacement pour les tests)."""
+    from tools.ocr_worker import EasyOCRWorker
+
+    return EasyOCRWorker()
+
+
+def _release_easyocr() -> None:
+    """Arrête le processus EasyOCR : sa mémoire revient au système (relancé au prochain usage)."""
+    global _EASYOCR_READER, _EASYOCR_ATTEMPTED, _EASYOCR_TIMER
+    with _EASYOCR_LOCK:
+        if _EASYOCR_TIMER is not None:
+            _EASYOCR_TIMER.cancel()
+            _EASYOCR_TIMER = None
+        reader, _EASYOCR_READER = _EASYOCR_READER, None
+        _EASYOCR_ATTEMPTED = False
+    if reader is not None:
+        try:
+            reader.stop()
+        except Exception as e:
+            logger.debug("[EASYOCR] arrêt : %s", e)
+        logger.info("[EASYOCR] Processus arrêté (inactivité ou fin d'Atlas).")
+
+
+def _release_if_idle() -> None:
+    if time.monotonic() - _EASYOCR_LAST_USE >= EASYOCR_IDLE_UNLOAD_S - 0.05:
+        _release_easyocr()
+    else:
+        _arm_release_timer()
+
+
+def _arm_release_timer() -> None:
+    global _EASYOCR_TIMER
+    with _EASYOCR_LOCK:
+        if _EASYOCR_TIMER is not None:
+            _EASYOCR_TIMER.cancel()
+        delay = max(0.05, EASYOCR_IDLE_UNLOAD_S - (time.monotonic() - _EASYOCR_LAST_USE))
+        _EASYOCR_TIMER = _threading.Timer(delay, _release_if_idle)
+        _EASYOCR_TIMER.daemon = True
+        _EASYOCR_TIMER.start()
+
 
 def _get_easyocr_reader():
     """Charge le reader EasyOCR une seule fois (fr+en). None si indisponible."""
@@ -1005,19 +1083,31 @@ def _get_easyocr_reader():
         return _EASYOCR_READER
     _EASYOCR_ATTEMPTED = True
     try:
-        import easyocr
-        # GPU auto-détecté ; fr+en
-        _EASYOCR_READER = easyocr.Reader(["fr", "en"], verbose=False)
-        logger.info("[EASYOCR] Reader chargé (fr+en).")
+        _EASYOCR_READER = _start_easyocr_worker()
+        logger.info("[EASYOCR] Lecteur prêt (fr+en, processus à part).")
     except Exception as e:
         logger.warning("[EASYOCR] Indisponible (%s).", e)
         _EASYOCR_READER = None
     return _EASYOCR_READER
 
 
+async def _ensure_easyocr():
+    """Le lecteur, chargé hors de la boucle d'Atlas s'il ne l'est pas (annoncé), et la
+    minuterie d'inactivité réarmée à chaque usage."""
+    global _EASYOCR_LAST_USE
+    if _EASYOCR_READER is None and not _EASYOCR_ATTEMPTED:
+        _announce("Je prépare la lecture de l'écran… (première fois : une dizaine de secondes)")
+        await asyncio.to_thread(_get_easyocr_reader)
+    reader = _EASYOCR_READER
+    if reader is not None:
+        _EASYOCR_LAST_USE = time.monotonic()
+        _arm_release_timer()
+    return reader
+
+
 async def _try_easyocr(app_title: str, element_name: str) -> Optional[dict]:
     """Fallback OCR via EasyOCR (PyTorch) quand Tesseract échoue."""
-    reader = _get_easyocr_reader()
+    reader = await _ensure_easyocr()
     if reader is None:
         return None
     try:
@@ -1044,7 +1134,7 @@ async def _try_easyocr(app_title: str, element_name: str) -> Optional[dict]:
             if is_steam else {_normalize_text(element_name)}
         )
 
-        results = reader.readtext(np.array(screenshot))
+        results = await asyncio.to_thread(reader.readtext, np.array(screenshot))
         best = None
         best_ratio = 0.0
         detected = []
@@ -1212,18 +1302,15 @@ async def _try_vision(app_title: str, element_name: str) -> Optional[dict]:
                     prompt_hint = ""
                     if pass_name == "steam_nav":
                         prompt_hint = "Focus on the top-left navigation area of Steam where the Library tab usually appears. "
-                    payload_dict = {
-                        "model": model,
-                        "prompt": (
-                            f"Find the clickable UI label among these candidate texts: {labels_hint}. "
-                            f"{prompt_hint}"
-                            "Return strictly and only valid JSON with integer pixel coordinates relative to this screenshot: "
-                            "{\"x\": int, \"y\": int, \"found\": bool}. No markdown, no explanation."
-                            " Do NOT return arrays for x/y. No markdown, no explanation."
-                        ),
-                        "images": [image_b64],
-                        "stream": False,
-                    }
+                    payload_dict = _vision_payload(
+                        model,
+                        f"Find the clickable UI label among these candidate texts: {labels_hint}. "
+                        f"{prompt_hint}"
+                        "Return strictly and only valid JSON with integer pixel coordinates relative to this screenshot: "
+                        "{\"x\": int, \"y\": int, \"found\": bool}. No markdown, no explanation."
+                        " Do NOT return arrays for x/y. No markdown, no explanation.",
+                        image_b64,
+                    )
                     timings["prepare_ms"] = int((time.monotonic() - prepare_start) * 1000)
                     timings["image_b64_bytes"] = len(image_b64)
                     timings["payload_size_bytes"] = len(json.dumps(payload_dict))

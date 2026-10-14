@@ -55,7 +55,9 @@ Détail et vérification de chaque étape : `docs/install_checklist.md`, aux sec
    `requirements.txt` installe aussi cuBLAS et cuDNN (paquets pip `nvidia-*`). Depuis le sprint E, Atlas les déclare lui-même au démarrage : **pas besoin du CUDA Toolkit**, ni de toucher au PATH. Il fige aussi `piper-tts==1.4.1`, la version qui parle.
 4. **Tesseract 5.5**, avec la langue française et le PATH système (checklist §5).
 5. **Ollama** (checklist §7) :
-   **Version de référence : Ollama 0.40.2** (mise à jour par Alexis le 10/10/2026, validée par les tests du sprint G-bis sur le vrai modèle).
+   **Version de référence : Ollama 0.40.3** (mise à jour automatique du 12/10/2026 ; mesures du sprint Dépôt + Ollama faites avec elle). `doctor.py` compare la version installée à cette référence.
+   **Dans l'application Ollama, laisse « Expose Ollama to the network » désactivé** : Atlas n'a besoin que de `127.0.0.1`. `doctor.py` avertit si Ollama écoute sur le réseau.
+   La taille de contexte réglée dans l'application ne compte pas pour Atlas : il impose la sienne (8 192 jetons, `config\settings.json`, `ollama.context_window`).
    ```powershell
    ollama pull qwen2.5:7b
    ollama run qwen2.5:7b "Réponds juste : ok"
@@ -66,9 +68,8 @@ Détail et vérification de chaque étape : `docs/install_checklist.md`, aux sec
    docker volume create atlas_chromadb_data
    docker compose up -d
    ```
-7. **Dossiers et modèles voix** (checklist §11 et §12) :
+7. **Dossier `data` et modèles voix** (checklist §11 et §12 ; `logs\` est créé par Atlas lui-même depuis le sprint pré-beta) :
    ```powershell
-   mkdir logs -ErrorAction SilentlyContinue
    mkdir data -ErrorAction SilentlyContinue
    python scripts\download_voice_models.py
    ```
