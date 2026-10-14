@@ -23,7 +23,7 @@ chacune est suivie d'une correction.
 ## 0. Matériel et système
 
 - [ ] Windows 10/11 64 bits, compte utilisateur avec droits d'installation.
-- [ ] RAM ≥ 16 Go. Atlas + Ollama chargé occupent environ 6 à 7 Go en plus de ce qu'utilise déjà le bureau. ⚠ Vu sur le terrain : **Docker Desktop (VM WSL) ajoute ~8 Go**. Sur 24 Go, la chaîne complète a atteint 98 % de RAM (`RAPPORT_SPRINT_A.md`, annexe C.2). Envisager une limite `memory=` dans `%USERPROFILE%\.wslconfig` (arbitrage non tranché).
+- [ ] RAM ≥ 16 Go (12 Go juste). Atlas tout compris occupe environ 2 Go de RAM en plus de ce qu'utilise déjà le bureau (mesuré aux sprints Performance et Sans Docker). Le modèle de langue, lui, est sur la carte graphique.
 - [ ] GPU NVIDIA ≥ 8 Go conseillé (qwen2.5:7b). Sinon, voir la recommandation de `doctor.py`.
 - [ ] Pilote NVIDIA récent. Vérification :
   ```powershell
@@ -35,11 +35,7 @@ chacune est suivie d'une correction.
   Get-ItemPropertyValue HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem -Name LongPathsEnabled
   ```
   Si le résultat est `0` : l'activer depuis un PowerShell administrateur (`New-ItemProperty ... -Value 1 -Force`) puis redémarrer, **ou** placer le dépôt dans un chemin court (ex. `C:\Atlas`).
-- [ ] **(Seulement si Docker est utilisé) Virtualisation activée dans le BIOS** (Intel VT-x / AMD SVM). ⚠ Vu sur le terrain : désactivée sur ce poste. Docker Desktop affiche alors « Docker Desktop is unable to start » et WSL renvoie `HCS_E_HYPERV_NOT_INSTALLED`. Vérification :
-  ```powershell
-  (Get-CimInstance Win32_Processor).VirtualizationFirmwareEnabled
-  ```
-  Le résultat doit être `True`. ⚠ Vu sur le terrain : une fois l'hyperviseur actif (WSL2/Docker), cette propriété repasse à `False`. Vérifier alors `(Get-CimInstance Win32_ComputerSystem).HypervisorPresent`, qui doit valoir `True`. Sinon : redémarrer dans le BIOS et activer l'option. Sur de nombreuses cartes mères Intel, elle se trouve dans Advanced → CPU Configuration → Intel Virtualization Technology (emplacement variable selon le constructeur, non vérifié sur ce poste).
+- [ ] Plus de virtualisation ni de Docker à prévoir : depuis le sprint Sans Docker (14/10/2026), la mémoire est un dossier d'Atlas.
 
 ## 1. Git et récupération du dépôt
 
@@ -141,53 +137,28 @@ Le script `start_atlas_desktop.bat` attend le venv **à la racine du dépôt**, 
   ollama list                                   # qwen2.5:7b présent
   curl.exe -s http://127.0.0.1:11434/api/tags   # répond en JSON
   ```
-- [ ] ⚠ **Ne pas lancer le service `ollama` de `docker-compose.yml`** en plus de l'Ollama natif : les deux veulent le port 11434. Démarrer uniquement les services nommés (étape 8).
 
-## 8. ChromaDB (mémoire long terme)
+## 8. Mémoire long terme
 
-Atlas attend ChromaDB sur `localhost:8001` (`memory.chroma_port`). Sans lui, Atlas démarre en « mode dégradé » sans mémoire. Deux options :
+Depuis le sprint Sans Docker (14/10/2026), la mémoire est un **dossier** d'Atlas, ouvert par ChromaDB intégré (`chromadb==1.5.1`, installé par `requirements.txt`) : `data\chromadb`. Ni Docker, ni serveur, ni port.
 
-**Option A — Docker (voie documentée)**, qui exige l'étape 0 « virtualisation » :
-- [ ] Docker Desktop installé et démarré (`docker info` répond).
-- [ ] **Volume de la mémoire** (à créer une seule fois ; il est déclaré `external` et compose ne le crée ni ne le supprime jamais) :
-  ```powershell
-  docker volume create atlas_chromadb_data
-  ```
-- [ ] Depuis la racine du dépôt (projet compose `atlas`, image ChromaDB épinglée par digest) :
-  ```powershell
-  docker compose up -d
-  ```
-  Cette commande démarre `atlas_chromadb` et `atlas_searxng`. Le service `ollama` est derrière le profil `docker-ollama` et **ne démarre pas** : l'Ollama natif suffit (conflit de port 11434 constaté au sprint A).
-- [ ] Vérification de la persistance : `python scripts\doctor.py` doit afficher `[OK] ChromaDB persiste dans un volume` (`/data` monté sur `atlas_chromadb_data`). Depuis le sprint M-bis, `docker compose down` puis `up -d` conserve la mémoire (vérifié : 535/535 éléments identiques).
-- [ ] **Sauvegarde** avant toute opération Docker touchant ChromaDB (changement d'image, réinitialisation de Docker Desktop, migration) :
+- [ ] Rien à installer : le dossier est créé au premier démarrage d'Atlas.
+- [ ] Un seul Atlas à la fois sur ce dossier : un second refuse de démarrer et dit pourquoi (verrou `data\chromadb.lock`).
+- [ ] **Sauvegarde**, Atlas arrêté :
   ```powershell
   python scripts\backup_memory.py backup
   python scripts\backup_memory.py verify <dossier affiché par backup>
   ```
-  Destination par défaut : `%USERPROFILE%\Atlas_backups\memoire\`. Copier ensuite ce dossier sur un support externe : le volume vit dans le disque virtuel de WSL et **ne survit pas** à une réinitialisation de Docker Desktop.
-- [ ] ⚠ Postes installés avant le 17/09/2026 (ancien projet `assistant-bureau`, conteneurs `assistant_*`) : la mémoire vivait **dans** le conteneur `assistant_chromadb`. Ne lancer **aucune** commande `docker compose` avec l'ancien fichier, et suivre `docs/rapports/RAPPORT_SPRINT_M_BIS.md` pour migrer (sauvegarde, volume, vérification).
-
-**Option B — natif, sans Docker** (utilisée au sprint A, faute de virtualisation) :
-- [ ] Dans un terminal dédié, venv activé :
-  ```powershell
-  chroma run --path data\chromadb_native --host localhost --port 8001
-  ```
-  ⚠ Ne pas pointer `--path` sur `data\chromadb` s'il contient déjà une base créée par l'image Docker : la compatibilité de format entre versions n'a pas été vérifiée.
-
-- [ ] Vérification (A ou B) :
-  ```powershell
-  curl.exe -s http://localhost:8001/api/v2/heartbeat    # {"nanosecond heartbeat": ...}
-  ```
+  Destination par défaut : `%USERPROFILE%\Atlas_backups\memoire\`. Copier ensuite ce dossier sur un support externe. Restauration : `python scripts\backup_memory.py restore <dossier> --oui` (la base en place est mise de côté, jamais effacée).
+- [ ] ⚠ Postes qui avaient la mémoire dans Docker (avant le 14/10/2026) : sauvegarde Docker, puis `python scripts\migrer_memoire.py essai --sauvegarde <dossier>`, puis `vraie … --oui` ; le volume Docker n'est pas touché.
 
 ## 9. Recherche web
 
-- [ ] **SearXNG** (`localhost:8888`) : démarré par `docker compose up -d searxng` (option A ci-dessus). Vérification : `curl.exe -s http://localhost:8888/healthz`.
-- [ ] **Repli `ddgs`** : installé par `requirements.txt`, utilisé automatiquement si SearXNG ne répond pas. Vérification :
+- [ ] **DuckDuckGo** (`ddgs`, installé par `requirements.txt`). SearXNG est retiré depuis le sprint Sans Docker (0 résultat sur 15, ses moteurs suspendus). Si DuckDuckGo échoue, Atlas le dit. Vérification :
   ```powershell
   python -c "from ddgs import DDGS; print(len(list(DDGS().text('python', max_results=3))))"
   ```
   Le résultat doit être `3` (nécessite Internet).
-- [ ] Au moins l'un des deux doit fonctionner.
 
 ## 10. Configuration `config\settings.json`
 
@@ -195,8 +166,7 @@ Le fichier est versionné et fonctionne tel quel. Points à relire :
 
 - [ ] `ollama.model` = un modèle présent dans `ollama list`.
 - [ ] `ollama.base_url` = `http://127.0.0.1:11434`.
-- [ ] `memory.chroma_host` / `memory.chroma_port` = `localhost` / `8001`.
-- [ ] `web.searxng_url` = `http://localhost:8888`.
+- [ ] `memory.chroma_path` = `data/chromadb` ; `memory.embedding_backend` = `onnx`.
 - [ ] `server.port` = `8550` (doit être libre).
 - [ ] `voice.enabled` : `true` active micro, mot d'éveil et systray au démarrage. Mettre `false` si le poste n'a pas de micro.
 - [ ] `voice.stt_device` : `cuda` si GPU NVIDIA, sinon `cpu`.

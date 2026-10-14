@@ -72,6 +72,18 @@ GROUNDING_LAYER_TIMEOUT = {
     "steam_nav_heuristic": 1.0,  # 1s — calcul de coordonnées + clic
 }
 GROUNDING_TOTAL_TIMEOUT = 20.0  # cap absolu, toutes couches confondues
+# Sprint Sans Docker — régression du sprint Performance trouvée en réel : EasyOCR se charge
+# désormais hors de la boucle (processus à part, ~10 s), et le délai de 4 s de sa couche
+# l'interrompait ; le premier usage échouait toujours. Ce premier usage (annoncé) reçoit le
+# temps de chargement en plus.
+EASYOCR_FIRST_LOAD_S = 15.0
+
+
+def _layer_timeout(layer_name: str) -> float:
+    timeout = GROUNDING_LAYER_TIMEOUT.get(layer_name, 5.0)
+    if layer_name == "easyocr" and _EASYOCR_READER is None:
+        timeout += EASYOCR_FIRST_LOAD_S
+    return timeout
 
 def _coerce_int(value: Any) -> Optional[int]:
     """Coerce scalar/list-like numeric values to int when possible."""
@@ -1643,7 +1655,7 @@ async def find_and_click(
             })
             break
 
-        layer_timeout = GROUNDING_LAYER_TIMEOUT.get(layer_name, 5.0)
+        layer_timeout = _layer_timeout(layer_name)
         layer_start = time.monotonic()
         layer_result_kind = "failure"
         layer_error: Optional[str] = None

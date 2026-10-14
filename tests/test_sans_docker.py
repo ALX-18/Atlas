@@ -328,3 +328,20 @@ def test_sd3_memory_cleanup_sur_la_nouvelle_base(tmp_path):
     app = subprocess.run([sys.executable, "scripts/memory_cleanup.py", "apply-ids", "--ids", str(ids), "--path", str(base),
                           "--yes"], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", env={**os.environ, "PYTHONIOENCODING": "utf-8"})
     assert "12 → 11" in app.stdout, app.stdout + app.stderr[-500:]
+
+
+# --------------------------------------------------------------------------- #
+#  Régression du sprint Performance trouvée en réel : le premier usage d'EasyOCR échouait
+# --------------------------------------------------------------------------- #
+
+def test_regression_premier_usage_easyocr_a_le_temps_de_charger(monkeypatch):
+    """Depuis que le chargement d'EasyOCR (~10 s) tourne hors de la boucle, le délai de 4 s de sa
+    couche l'interrompait : le premier usage échouait toujours (vu en réel le 14/10)."""
+    import tools.grounding as g
+
+    monkeypatch.setattr(g, "_EASYOCR_READER", None)
+    monkeypatch.setattr(g, "_EASYOCR_ATTEMPTED", False)
+    assert g._layer_timeout("easyocr") >= g.GROUNDING_LAYER_TIMEOUT["easyocr"] + 10
+    monkeypatch.setattr(g, "_EASYOCR_READER", object())
+    assert g._layer_timeout("easyocr") == g.GROUNDING_LAYER_TIMEOUT["easyocr"]
+    assert g._layer_timeout("ocr") == g.GROUNDING_LAYER_TIMEOUT["ocr"]
