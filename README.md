@@ -17,8 +17,8 @@ Ce qui le distingue :
 | Langage | Python 3.12, Windows 10/11 64 bits |
 | Serveur | FastAPI + Uvicorn, sur `127.0.0.1:8550` uniquement |
 | Modèle de langue | [Ollama](https://ollama.com) **0.40.3**, en natif, modèle `qwen2.5:7b`, contexte fixé à 8 192 jetons |
-| Mémoire long terme | ChromaDB 1.4.1 dans Docker (image épinglée par empreinte), embeddings `intfloat/multilingual-e5-base` |
-| Recherche web | SearXNG dans Docker (image épinglée), repli DuckDuckGo |
+| Mémoire long terme | ChromaDB 1.5.1 **intégré** (un dossier, `data/chromadb` ; pas de Docker), embeddings `intfloat/multilingual-e5-base` en ONNX (export officiel, ONNX Runtime) |
+| Recherche web | DuckDuckGo (`ddgs`) ; un échec est dit |
 | Mot d'éveil | openWakeWord, modèle « Hey Atlas » |
 | Transcription | faster-whisper (CTranslate2), modèle `base`, sur GPU NVIDIA si présent |
 | Synthèse vocale | Piper 1.4.1, voix `fr_FR-siwis-medium` ; repli sur la voix de Windows |
@@ -37,9 +37,8 @@ py scripts\doctor.py --precheck          # ce PC peut-il faire tourner Atlas ?
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-docker compose up -d                     # ChromaDB + SearXNG (Ollama reste natif)
 ollama pull qwen2.5:7b
-python scripts\download_voice_models.py  # mot d'éveil et voix
+python scripts\download_voice_models.py  # mot d'éveil, voix et modèle de la mémoire
 .\start_atlas_desktop.bat                # le serveur, puis la fenêtre Atlas
 ```
 
@@ -86,11 +85,11 @@ réponse ── conversation pure : core/ollama_client.py, filtrée par la garde
 .\.venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-**1 049 tests** au 13/10/2026, en moins de 3 minutes : avec Ollama et Docker lancés, 1 045 passent et 4 sont ignorés ; Ollama arrêté, 1 042 passent et 7 sont ignorés.
+**1 021 tests** au 14/10/2026, en moins de 3 minutes, sans Docker : avec Ollama lancé, 1 017 passent et 4 sont ignorés ; Ollama arrêté, 1 014 passent et 7 sont ignorés.
 
-- Aucun test ne lit ni n'écrit la mémoire réelle : la suite démarre son propre ChromaDB jetable.
+- Aucun test ne lit ni n'écrit la mémoire réelle : la suite ouvre une mémoire jetable (dossier temporaire), et l'ouverture de `data/chromadb` lui est interdite.
 - Aucun test n'agit sur une vraie fenêtre ni n'exécute de vraie commande : outils, fenêtres et processus sont simulés.
-- Les tests qui demandent SearXNG, Ollama ou le modèle du mot d'éveil sont ignorés quand ces services sont absents (vérifié avec Ollama arrêté). `ATLAS_TEST_NO_OLLAMA=1` et `ATLAS_TEST_NO_CHROMA=1` simulent une machine sans eux.
+- Les tests qui demandent Ollama ou le modèle du mot d'éveil sont ignorés quand ces services sont absents (vérifié avec Ollama arrêté). `ATLAS_TEST_NO_OLLAMA=1` et `ATLAS_TEST_NO_CHROMA=1` simulent une machine sans eux.
 
 ---
 

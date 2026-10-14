@@ -90,7 +90,7 @@ class LLMClient:
         base_url: str = "http://127.0.0.1:11434",
         model: str = "qwen2.5:7b",
         temperature: float = 0.7,
-        keep_alive: str = "10m",
+        keep_alive: str = "5m",
         timeout: float = 120.0,
         num_ctx: int = DEFAULT_NUM_CTX,
     ):

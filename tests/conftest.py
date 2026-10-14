@@ -1,23 +1,22 @@
 """
-Configuration commune de la suite (sprint B-minimal, BM5).
+Configuration commune de la suite (sprint B-minimal, BM5 ; sprint Sans Docker, SD2).
 
 Règle : aucun test ne lit ni n'écrit la mémoire ou les données réelles d'Atlas.
 
-- ChromaDB : un serveur jetable (`chroma run`, dossier temporaire, port libre) démarre AVANT la
-  collecte (certains modules de test sondent ChromaDB à l'import). Toute connexion
-  `chromadb.HttpClient`, quel que soit l'hôte ou le port demandé, est redirigée vers ce serveur.
-  S'il ne démarre pas, la redirection vise un port fermé : les tests « live » sont ignorés,
-  jamais exécutés contre la production (localhost:8001).
+- Mémoire : depuis la sortie de Docker, ChromaDB est intégré (un DOSSIER). La suite reçoit un
+  dossier jetable (ATLAS_CHROMA_PATH), créé avant la collecte. Deux gardes :
+    * chromadb.PersistentClient refuse d'ouvrir la vraie base (data/chromadb du projet) ;
+    * chromadb.HttpClient lève une erreur : plus aucun ChromaDB réseau n'existe.
 - data/ : les chemins de données des modules sont redirigés vers un projet temporaire, qui
   contient une copie des 4 workflows modèles versionnés et de config/settings.json.
 - api/routes.py calcule le chemin de data/ à partir de son propre __file__ (défaut produit,
   à centraliser en B-complet) : le module `pathlib` qu'il voit est remplacé par une copie
   dont Path(routes.__file__) pointe dans le projet temporaire.
 
-Variable d'entrée : ATLAS_TEST_NO_CHROMA=1 simule une machine sans ChromaDB (aucun serveur jetable).
+Variable d'entrée : ATLAS_TEST_NO_CHROMA=1 simule une machine dont la mémoire est en panne.
 
 Variables exposées aux tests :
-- ATLAS_TEST_CHROMA_URL : URL du serveur jetable (absente s'il n'a pas démarré)
+- ATLAS_TEST_CHROMA_PATH : dossier de la mémoire jetable (absent si ATLAS_TEST_NO_CHROMA=1)
 - ATLAS_TEST_ROOT : racine du projet temporaire
 """
 
@@ -26,76 +25,50 @@ from __future__ import annotations
 import os
 import pathlib
 import shutil
-import socket
 import subprocess
 import sys
 import tempfile
 import time
 import types
-import urllib.request
 
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
+REAL_CHROMA = (PROJECT_ROOT / "data" / "chromadb").resolve()
 TEMPLATE_WORKFLOWS = ("demarrage_matin.yaml", "mode_gaming.yaml", "mode_travail.yaml", "nettoyage_systeme.yaml")
 
 _state: dict = {"proc": None, "dirs": []}
 
 
-def _free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def _start_test_chroma() -> int | None:
-    if os.environ.get("ATLAS_TEST_NO_CHROMA") == "1":  # simule une machine sans ChromaDB
-        return None
-    try:
-        import chromadb.cli.cli  # noqa: F401
-    except Exception:
-        return None
-    workdir = pathlib.Path(tempfile.mkdtemp(prefix="atlas_tests_chroma_"))
-    _state["dirs"].append(workdir)
-    data = workdir / "data"
-    port = _free_port()
-    log = open(workdir / "chroma.log", "w", encoding="utf-8")
-    _state["log"] = log
-    # CLI lancée dans l'interpréteur courant : un seul processus à arrêter (le lanceur chroma.exe
-    # de Windows crée un processus enfant qui survit à terminate() et verrouille les fichiers).
-    launcher = "import sys; from chromadb.cli.cli import app; sys.argv[0] = 'chroma'; app()"
-    _state["proc"] = subprocess.Popen(
-        [sys.executable, "-c", launcher, "run", "--path", str(data), "--host", "127.0.0.1", "--port", str(port)],
-        stdout=log, stderr=subprocess.STDOUT,
-        env={**os.environ, "ANONYMIZED_TELEMETRY": "FALSE"},
-    )
-    deadline = time.monotonic() + 40
-    while time.monotonic() < deadline:
-        if _state["proc"].poll() is not None:
-            return None
-        try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/v2/heartbeat", timeout=1):
-                return port
-        except Exception:
-            time.sleep(0.3)
-    return None
-
-
-def _isolate_chroma(port: int | None) -> None:
+def _isolate_chroma() -> pathlib.Path:
     import chromadb
 
-    target = port if port else _free_port()  # port libre non écouté = connexion refusée
-    os.environ["ATLAS_TEST_CHROMA_TARGET_PORT"] = str(target)
-    def isolated_http_client(*args, **kwargs):
-        # Ignore l'hôte et le port demandés : seul le serveur jetable est joignable.
-        kwargs.pop("host", None)
-        kwargs.pop("port", None)
-        return isolated_http_client.original(*args[2:], host="127.0.0.1", port=target, **kwargs)
+    workdir = pathlib.Path(tempfile.mkdtemp(prefix="atlas_tests_chroma_"))
+    _state["dirs"].append(workdir)
+    if os.environ.get("ATLAS_TEST_NO_CHROMA") == "1":
+        (workdir / "fichier").write_text("pas un dossier")
+        path = workdir / "fichier" / "chromadb"          # ouverture impossible : mémoire en panne
+    else:
+        path = workdir / "chromadb"
+        os.environ["ATLAS_TEST_CHROMA_PATH"] = str(path)
+    os.environ["ATLAS_CHROMA_PATH"] = str(path)
 
-    isolated_http_client.original = chromadb.HttpClient
-    chromadb.HttpClient = isolated_http_client
+    real_persistent = chromadb.PersistentClient
+
+    def guarded_persistent(path=None, *args, **kwargs):
+        if path is not None and pathlib.Path(str(path)).resolve() == REAL_CHROMA:
+            raise RuntimeError("tests : la vraie mémoire (data/chromadb) est interdite")
+        return real_persistent(path, *args, **kwargs) if path is not None else real_persistent(*args, **kwargs)
+
+    def no_http(*args, **kwargs):
+        raise RuntimeError("tests : aucun ChromaDB réseau depuis la sortie de Docker")
+
+    guarded_persistent.original = real_persistent
+    chromadb.PersistentClient = guarded_persistent
+    chromadb.HttpClient = no_http
 
     import core.memory_manager as mm
-    mm.CHROMA_HOST, mm.CHROMA_PORT = "127.0.0.1", target
+    mm.CHROMA_PATH = str(path)
     mm._instance = None  # un singleton déjà créé pointerait encore vers l'ancienne cible
+    return path
 
 
 def _isolate_data() -> pathlib.Path:
@@ -149,31 +122,19 @@ def _isolate_data() -> pathlib.Path:
 
 def pytest_configure(config):
     sys.path.insert(0, str(PROJECT_ROOT))
-    port = _start_test_chroma()
-    if port:
-        os.environ["ATLAS_TEST_CHROMA_URL"] = f"http://127.0.0.1:{port}"
-    _isolate_chroma(port)
-    # Dépôt + Ollama / C3 : hors de main.py, la mémoire est neutralisée. Ici, toute connexion
-    # va au serveur JETABLE (redirection ci-dessus) : on peut donc la brancher.
+    _isolate_chroma()
+    # Dépôt + Ollama / C3 : hors de main.py, la mémoire est neutralisée. Ici, la mémoire est
+    # un dossier JETABLE (ci-dessus) : on peut donc la brancher.
     os.environ["ATLAS_MEMORY"] = "real"
     os.environ["ATLAS_TEST_ROOT"] = str(_isolate_data())
 
 
 def pytest_report_header(config):
-    url = os.environ.get("ATLAS_TEST_CHROMA_URL", "indisponible — tests ChromaDB ignorés")
-    return [f"atlas: ChromaDB de test = {url}", f"atlas: données de test = {os.environ.get('ATLAS_TEST_ROOT')}"]
+    chemin = os.environ.get("ATLAS_TEST_CHROMA_PATH", "en panne (ATLAS_TEST_NO_CHROMA=1)")
+    return [f"atlas: mémoire de test = {chemin}", f"atlas: données de test = {os.environ.get('ATLAS_TEST_ROOT')}"]
 
 
 def pytest_unconfigure(config):
-    proc = _state.get("proc")
-    if proc and proc.poll() is None:
-        proc.terminate()
-        try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-    if _state.get("log"):
-        _state["log"].close()
     for d in _state["dirs"]:
         for _ in range(10):  # Windows libère les fichiers SQLite/HNSW avec un léger délai
             shutil.rmtree(d, ignore_errors=True)

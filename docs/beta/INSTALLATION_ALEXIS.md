@@ -25,14 +25,15 @@ Elle répond en une ligne à la question : ce PC peut-il faire tourner Atlas ? E
 
 Ce que mesure le verdict, et d'où viennent les seuils :
 
-- **mémoire vive :** ✅ à partir de 32 Go. Sur ton PC de 24 Go, la chaîne complète a atteint 98 % (sprint A) ;
-- **carte graphique :** ✅ avec une NVIDIA de 8 Go (pic mesuré 6,7 Go) ;
+- **mémoire vive :** ✅ à partir de 16 Go, ⚠️ « juste » à 12 Go, ❌ en dessous. Atlas tout compris occupe environ 2 Go de RAM (sprints Performance et Sans Docker) ;
+- **carte graphique :** ✅ avec une NVIDIA de 8 Go, ⚠️ « juste » à 6 Go (Atlas y occupe 5,1 Go) ;
 - **sans NVIDIA :** environ 5 s pour comprendre chaque phrase au lieu de 0,3 s ;
-- **virtualisation dans le BIOS :** sans elle, pas de Docker, donc pas de mémoire ;
-- **disque :** au moins 25 Go libres (environ 17 Go installés, mesurés sur ton PC) ;
+- **disque :** au moins 20 Go libres (environ 14 Go installés) ;
 - **système :** Windows 10 ou 11, 64 bits.
 
-> Exemple réel : ton PC donne **⚠️**, à cause des 24 Go de mémoire vive.
+Plus de virtualisation ni de Docker : la mémoire est un dossier d'Atlas (sprint Sans Docker, 14/10/2026).
+
+> Exemple réel : ton PC (24 Go, RTX 5060 de 8 Go) donne **✅**.
 
 ---
 
@@ -41,7 +42,7 @@ Ce que mesure le verdict, et d'où viennent les seuils :
 Détail et vérification de chaque étape : `docs/install_checklist.md`, aux sections indiquées.
 
 1. **Chemin court :** clone le dépôt dans `C:\Atlas`. Avec un chemin long, `pip install torch` échoue si les chemins longs ne sont pas activés (checklist §0).
-2. **Virtualisation :** active-la dans le BIOS si la pré-vérification l'a signalée (checklist §0).
+2. **Ni virtualisation ni Docker :** rien à activer dans le BIOS, rien à installer pour la mémoire.
 3. **Python 3.12 et venv à la racine** (checklist §2 et §3) :
    ```powershell
    cd C:\Atlas
@@ -63,16 +64,13 @@ Détail et vérification de chaque étape : `docs/install_checklist.md`, aux sec
    ollama run qwen2.5:7b "Réponds juste : ok"
    ```
    La seconde commande doit répondre. Si la carte graphique est plus petite que 8 Go, prends le modèle que recommande `doctor.py`, et reporte-le dans `config\settings.json` (`ollama.model`).
-6. **Docker et mémoire** (checklist §8, option A) :
-   ```powershell
-   docker volume create atlas_chromadb_data
-   docker compose up -d
-   ```
+6. **Mémoire** (checklist §8) : rien à installer. C'est le dossier `C:\Atlas\data\chromadb`, créé au premier démarrage. Sa sauvegarde, Atlas arrêté : `python scripts\backup_memory.py backup`, puis `verify`.
 7. **Dossier `data` et modèles voix** (checklist §11 et §12 ; `logs\` est créé par Atlas lui-même depuis le sprint pré-beta) :
    ```powershell
    mkdir data -ErrorAction SilentlyContinue
    python scripts\download_voice_models.py
    ```
+   Ce script télécharge aussi le modèle de la mémoire : l'export ONNX officiel d'`intfloat/multilingual-e5-base` (~1,06 Go), qu'il prépare lui-même. Aucun export à faire à la main.
    Sans carte NVIDIA : `voice.stt_device` = `cpu` dans `config\settings.json`.
    **Premier lancement : Internet obligatoire.** Atlas télécharge alors son modèle de transcription (environ 145 Mo, `Systran/faster-whisper-base`). Ensuite, il le charge depuis le disque et **ne se connecte plus à rien au démarrage** (sprint G-bis, mesuré).
 8. **Diagnostic complet :** `python scripts\doctor.py`. Le verdict est en tête. Une ligne « Installation incomplète » nomme ce qui manque.
@@ -92,30 +90,22 @@ Détail et vérification de chaque étape : `docs/install_checklist.md`, aux sec
 - **Plusieurs Python sur le PC :** `python` peut pointer vers une autre version (vu : 3.14). Crée toujours le venv avec `py -3.12`, jamais avec `python` (sprint A).
 - **Venv au mauvais endroit :** `start_atlas_desktop.bat` attend `.venv` à côté de `main.py`.
 - **Chemins longs :** `pip install torch` échoue avec `OSError ... torch\include` si `LongPathsEnabled=0` et que le chemin est long. Le chemin `C:\Atlas` l'évite (sprint A).
-- **Virtualisation désactivée :** Docker Desktop affiche « unable to start » (sprint A).
 - **Mise à jour automatique d'Ollama :** le 05/10, la mise à jour vers 0.35.0 a laissé une installation incomplète, et chaque réponse échouait sur « llama-server binary not found ». Atlas répondait alors « Le modèle local est indisponible pour le moment ». Remède : réinstaller Ollama. Après toute mise à jour d'Ollama, refais `ollama run qwen2.5:7b "Réponds juste : ok"`.
-- **Un seul Ollama :** ne lance pas le service `ollama` de `docker-compose.yml` en plus de l'Ollama installé. Les deux veulent le port 11434 (sprint A).
-- **Première réponse lente :** environ 1 min 30 après le démarrage, le temps de charger le modèle (mesuré : 88 s). Ensuite 3 à 4 s. Préviens-en le proche.
-- **Mémoire vive à 24 Go :** la chaîne complète remplit la RAM à 98 % avec Docker (sprint A). Conseille de fermer les jeux pendant qu'Atlas tourne.
+- **Première réponse :** Atlas précharge le modèle et la mémoire au démarrage. Mesuré au sprint Sans Docker : l'API répond en 11 à 14 s ; une demande posée aussitôt prend environ 5 s, une demande posée 20 s plus tard environ 1,5 s, les suivantes moins d'une seconde.
+- **Un seul Atlas à la fois :** un second refuse de démarrer (« la mémoire est déjà ouverte par un autre processus »). C'est voulu : deux Atlas sur la même mémoire l'abîmeraient.
 
 ---
 
 ## 4. Tout désinstaller proprement **(non exécuté)**
 
-> ⚠ **Uniquement sur le PC d'un proche.** Sur ton PC, ces commandes Docker détruiraient ta propre mémoire d'Atlas : `atlas_chromadb` et le volume `atlas_chromadb_data` sont protégés. Ne les lance jamais chez toi.
+> ⚠ **Uniquement sur le PC d'un proche.** Sur ton PC, supprimer `C:\Atlas` effacerait ta propre mémoire d'Atlas (`data\chromadb`). Ton ancien volume Docker `atlas_chromadb_data` est gardé comme repli : sa suppression est une décision à part.
 >
 > Si le proche veut garder une trace de ce qu'Atlas a retenu, fais d'abord une sauvegarde : `python scripts\backup_memory.py backup`, puis `verify`.
 
 1. **Arrêter Atlas :** icône près de l'horloge → « Quitter », puis fermer la fenêtre Atlas et la fenêtre « Atlas API ».
-2. **Docker**, depuis `C:\Atlas` :
-   ```powershell
-   docker compose down
-   docker volume rm atlas_chromadb_data
-   docker image ls
-   ```
-   La deuxième commande **efface définitivement** ce qu'Atlas a retenu sur ce PC. Dans la liste affichée par la troisième, supprime les images `chromadb/chroma` et `searxng/searxng` avec `docker image rm <IMAGE ID>`. L'image ChromaDB est épinglée par empreinte : elle peut n'avoir aucun nom de version. Désinstalle ensuite Docker Desktop : Paramètres → Applications.
+2. **La mémoire** est dans `C:\Atlas\data\chromadb` : elle part avec l'étape 5. **C'est définitif** : sauvegarde d'abord si le proche veut la garder. (Pas de Docker à désinstaller depuis le sprint Sans Docker.)
 3. **Ollama :** désinstalle-le (Paramètres → Applications), puis supprime `%USERPROFILE%\.ollama`, qui contient les modèles (environ 4,4 Go pour qwen2.5:7b).
 4. **Tesseract :** désinstalle-le, puis retire `C:\Program Files\Tesseract-OCR` du PATH système.
-5. **Atlas :** supprime `C:\Atlas` (le venv est dedans) et le raccourci du bureau.
+5. **Atlas :** supprime `C:\Atlas` (le venv, la mémoire et le modèle de la mémoire, `models\`, sont dedans) et le raccourci du bureau.
 6. **Caches :** supprime `%USERPROFILE%\.cache\huggingface` (modèles e5 et whisper), `%USERPROFILE%\.EasyOCR`, `%LOCALAPPDATA%\ms-playwright` et, s'il existe, `%USERPROFILE%\Atlas_backups`.
 7. **Python 3.12 :** désinstalle-le seulement s'il a été installé pour Atlas.

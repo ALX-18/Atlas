@@ -73,12 +73,13 @@ def load(client, name):
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", default="docs/rapports/INVENTAIRE_MEMOIRE_D.md")
-    parser.add_argument("--host", default="localhost")
-    parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--path", default=None, help="dossier de la mémoire (défaut : data/chromadb)")
     args = parser.parse_args()
 
-    client = chromadb.HttpClient(host=args.host, port=args.port)
-    client.heartbeat()
+    # Sans Docker : la base est un dossier ; verrou de la mémoire pris (refus si Atlas tourne).
+    from core.memory_manager import DEFAULT_CHROMA_PATH, open_client
+
+    client = open_client(args.path or DEFAULT_CHROMA_PATH)
     lines = ["# Inventaire de la mémoire — sprint D",
              "",
              "Produit par `scripts/memory_inventory.py`. **Aucune suppression n'a été faite.**",

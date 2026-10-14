@@ -19,30 +19,24 @@ def _test_root() -> pathlib.Path:
     return pathlib.Path(root)
 
 
-def test_chromadb_client_never_targets_production(monkeypatch):
+def test_chromadb_client_never_targets_production(tmp_path):
+    """Sans Docker : la vraie base est un dossier (data/chromadb) ; aucun test ne peut l'ouvrir,
+    et plus aucun ChromaDB réseau n'existe."""
     import chromadb
+    import pytest
 
-    captured = {}
-
-    class FakeHttpClient:
-        def __init__(self, *args, **kwargs):
-            captured.update(kwargs)
-
-    # On remplace le client d'origine appelé par la redirection, pas la redirection elle-même.
-    assert hasattr(chromadb.HttpClient, "original"), "redirection ChromaDB absente (tests/conftest.py)"
-    monkeypatch.setattr(chromadb.HttpClient, "original", FakeHttpClient)
-    chromadb.HttpClient(host="localhost", port=PROD_CHROMA_PORT)
-    chromadb.HttpClient("localhost", PROD_CHROMA_PORT)
-    assert captured["host"] == "127.0.0.1"
-    assert captured["port"] != PROD_CHROMA_PORT
-    assert str(captured["port"]) == os.environ["ATLAS_TEST_CHROMA_TARGET_PORT"]
+    with pytest.raises(RuntimeError):
+        chromadb.PersistentClient(path=str(REAL_DATA / "chromadb"))
+    with pytest.raises(RuntimeError):
+        chromadb.HttpClient(host="localhost", port=PROD_CHROMA_PORT)
+    chromadb.PersistentClient(path=str(tmp_path / "jetable"))        # un dossier jetable, oui
 
 
 def test_memory_manager_targets_test_port():
     import core.memory_manager as mm
 
-    assert mm.CHROMA_PORT != PROD_CHROMA_PORT
-    assert str(mm.CHROMA_PORT) == os.environ["ATLAS_TEST_CHROMA_TARGET_PORT"]
+    assert pathlib.Path(mm.CHROMA_PATH).resolve() != (REAL_DATA / "chromadb").resolve()
+    assert mm.CHROMA_PATH == os.environ["ATLAS_CHROMA_PATH"]
 
 
 def test_module_data_paths_are_temporary():

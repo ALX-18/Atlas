@@ -1,29 +1,25 @@
 """
 Test d'intégration ChromaDB — Sprint v1.2
 
-Cible : le serveur ChromaDB JETABLE démarré par tests/conftest.py (jamais la production).
-Ignoré proprement si ce serveur n'a pas pu démarrer.
+Cible : une base ChromaDB intégrée JETABLE (dossier temporaire ; jamais la production).
+Sprint Sans Docker : plus de serveur, la base est un dossier.
 Lancer avec :
     python -m pytest tests/test_chroma_integration.py -v
 """
 
-import os
+import pathlib
+import tempfile
 import time
 import uuid
-from urllib.parse import urlparse
 
 import chromadb
-import httpx
 import pytest
 
 # --------------------------------------------------------------------------- #
 #  Config — doit correspondre à settings.json
 # --------------------------------------------------------------------------- #
 
-TEST_CHROMA_URL = os.environ.get("ATLAS_TEST_CHROMA_URL")
-pytestmark = pytest.mark.skipif(not TEST_CHROMA_URL, reason="ChromaDB de test non démarré (voir tests/conftest.py)")
-CHROMA_HOST = urlparse(TEST_CHROMA_URL).hostname if TEST_CHROMA_URL else "127.0.0.1"
-CHROMA_PORT = urlparse(TEST_CHROMA_URL).port if TEST_CHROMA_URL else 0
+BASE = pathlib.Path(tempfile.mkdtemp(prefix="atlas_test_integration_")) / "chromadb"
 TEST_COLLECTION = f"atlas_test_{uuid.uuid4().hex[:8]}"
 
 
@@ -33,8 +29,8 @@ TEST_COLLECTION = f"atlas_test_{uuid.uuid4().hex[:8]}"
 
 @pytest.fixture(scope="module")
 def chroma_client():
-    """Connexion ChromaDB réutilisée pour tout le module."""
-    client = chromadb.HttpClient(host=CHROMA_HOST, port=CHROMA_PORT)
+    """Base intégrée jetable, réutilisée pour tout le module."""
+    client = chromadb.PersistentClient(path=str(BASE))
     yield client
 
 
@@ -50,10 +46,10 @@ class TestChromaIntegration:
         hb = chroma_client.heartbeat()
         assert hb is not None
 
-    def test_02_heartbeat_http(self):
-        """L'endpoint HTTP /api/v2/heartbeat répond 200."""
-        r = httpx.get(f"http://{CHROMA_HOST}:{CHROMA_PORT}/api/v2/heartbeat", timeout=5)
-        assert r.status_code == 200
+    def test_02_la_base_est_un_dossier(self, chroma_client):
+        """Sans serveur : la base vit dans un fichier SQLite du dossier."""
+        chroma_client.get_or_create_collection(name=TEST_COLLECTION)
+        assert (BASE / "chroma.sqlite3").exists()
 
     def test_03_create_collection(self, chroma_client):
         """Créer une collection de test."""

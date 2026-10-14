@@ -4,7 +4,7 @@
         "model": "qwen2.5:7b",
         "_previous_model": "qwen2.5:14b",
         "_migration_reason": "VRAM RTX 3050 8GB — Réunion Atlas #4 du 29/04/2026",
-        "keep_alive": "10m",
+        "keep_alive": "5m",
         "temperature": 0.7,
         "context_window": 8192,
         "stream_timeout_seconds": 90
@@ -28,14 +28,13 @@
         "game_executables_keywords": ["game", "steam", "epic", "battle.net", "riot", "valorant", "helldivers", "gog"]
     },
     "memory": {
-        "chroma_host": "localhost",
-        "chroma_port": 8001,
+        "chroma_path": "data/chromadb",
         "collection_name": "atlas_memory_e5",
     "collection_name_previous": "atlas_memory",
         "recall_top_k": 5,
         "habit_detection_threshold": 3,
         "embedding_model": "intfloat/multilingual-e5-base",
-        "embedding_backend": "sentence-transformers",
+        "embedding_backend": "onnx",
         "embedding_onnx_dir": "models/embeddings/multilingual-e5-base",
         "retrieval_top_k": 3,
         "retrieval_min_score": 0.82,
@@ -51,9 +50,7 @@
         }
     },
     "web": {
-        "searxng_url": "http://localhost:8888",
         "search_timeout_seconds": 8,
-        "searxng_timeout_seconds": 3,
         "ddgs_timeout_seconds": 5,
         "search_log_failures": true,
         "reader_max_chars": 8000,
@@ -126,7 +123,7 @@
         "vision_model": "minicpm-v:latest",
         "_note": "Désactivé par défaut depuis Réunion Atlas #4. OCR Tesseract suffit pour 95%+ des cas. Réactiver si Tesseract ne trouve pas l'élément.",
         "easyocr_idle_unload_s": 600,
-        "_note_easyocr_idle": "Sprint Performance / PF2 : EasyOCR (~460 Mo, ~10 s à charger) est libéré après 10 min sans usage. Les clics sur un libellé viennent par rafales ; 10 min couvre une rafale sans le recharger, comme le keep_alive du modèle de langue."
+        "_note_easyocr_idle": "Sprint Performance / PF2 : EasyOCR (~460 Mo, ~10 s à charger) est libéré après 10 min sans usage. Les clics sur un libellé viennent par rafales ; 10 min couvre une rafale sans le recharger."
     },
     "voice": {
         "enabled": true,

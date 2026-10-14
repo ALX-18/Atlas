@@ -307,8 +307,7 @@ def check_ollama(settings: dict | None) -> list[Check]:
     ok, body = _http_get(f"{base}/api/tags")
     checks.append(Check("Ollama", f"Serveur joignable ({base})", ok, CRITICAL,
                         "répond" if ok else body,
-                        "Lancer Ollama (icône systray) ou 'ollama serve'. "
-                        "Ne PAS lancer le service ollama de docker-compose en même temps (conflit port 11434)."))
+                        "Lancer Ollama (icône systray) ou 'ollama serve'."))
     models: dict[str, int] = {}
     if ok:
         try:
@@ -337,72 +336,26 @@ def body_full(url: str, timeout: float = 5.0) -> str:
         return resp.read().decode("utf-8", "replace")
 
 
-def check_memory_and_web(settings: dict | None) -> list[Check]:
+def check_memory(settings: dict | None) -> list[Check]:
+    """Sans Docker (SD4) : la mémoire est un dossier ; on vérifie où il est et la place libre."""
     mem = (settings or {}).get("memory", {})
-    host, port = mem.get("chroma_host", "localhost"), mem.get("chroma_port", 8001)
-    ok, body = _http_get(f"http://{host}:{port}/api/v2/heartbeat")
-    checks = [Check("Mémoire", f"ChromaDB joignable ({host}:{port})", ok, WARNING,
-                    "répond" if ok else f"{body} — Atlas démarre en mode dégradé (sans mémoire)",
-                    "docker compose up -d chromadb searxng  (nécessite la virtualisation BIOS + WSL2) "
-                    f"ou en natif : chroma run --path data/chromadb --port {port}")]
-    web = (settings or {}).get("web", {})
-    url = web.get("searxng_url", "http://localhost:8888").rstrip("/")
-    ok_sx, body_sx = _http_get(f"{url}/healthz")
+    folder = ROOT / mem.get("chroma_path", "data/chromadb")
+    exists = (folder / "chroma.sqlite3").exists()
+    checks = [Check("Mémoire", "Dossier de la mémoire", True, INFO,
+                    f"{folder} — {'présent' if exists else 'absent : créé au premier démarrage d’Atlas'}")]
+    probe = folder if folder.exists() else folder.parent
+    try:
+        free = shutil.disk_usage(probe).free / 1024 ** 3
+    except OSError:
+        free = 0.0
+    checks.append(Check("Mémoire", "Place libre pour la mémoire (2 Go au moins)", free >= 2.0, WARNING,
+                        f"{free:.1f} Go libres sur le disque de {probe}",
+                        "Libérer de la place : la mémoire grandit à chaque échange, et sa sauvegarde "
+                        "en fait une copie complète."))
     ddgs_ok = _pkg_version("ddgs") is not None
-    checks.append(Check("Web", f"SearXNG joignable ({url})", ok_sx,
-                        WARNING if ddgs_ok else CRITICAL,
-                        "répond" if ok_sx else f"{body_sx} — repli ddgs {'disponible' if ddgs_ok else 'ABSENT'}",
-                        "docker compose up -d searxng (nécessite Docker) ; sinon le repli ddgs est utilisé"))
-    return checks
-
-
-def check_virtualization() -> list[Check]:
-    if os.name != "nt":
-        return []
-    state, detail = _virtualization_state()
-    enabled = bool(state)
-    docker = shutil.which("docker")
-    checks = [Check("Docker", "Virtualisation activée dans le BIOS", enabled, WARNING, detail,
-                    "Activer Intel VT-x / AMD-V (SVM) dans le BIOS, puis redémarrer. "
-                    "Sans cela, WSL2 et Docker Desktop ne démarrent pas (HCS_E_HYPERV_NOT_INSTALLED).")]
-    checks.append(Check("Docker", "CLI docker installée", docker is not None, INFO, docker or "absente",
-                        "Installer Docker Desktop (optionnel si ChromaDB tourne en natif)"))
-    if docker:
-        code, out = _run([docker, "info", "--format", "{{.ServerVersion}}"], timeout=15)
-        running = code == 0 and out.strip() and "error" not in out.lower()
-        checks.append(Check("Docker", "Moteur Docker démarré", bool(running), INFO,
-                            out.strip()[:200] or "pas de réponse",
-                            "Démarrer Docker Desktop"))
-        if running:
-            checks += check_docker_services(docker)
-    return checks
-
-
-def check_docker_services(docker: str) -> list[Check]:
-    checks = []
-    code, out = _run([docker, "ps", "--format", "{{.Names}}"], timeout=15)
-    names = set(out.split()) if code == 0 else set()
-    # Le service ollama de docker-compose.yml écoute sur [::]:11434 : un client qui résout
-    # « localhost » en IPv6 parle alors à ce conteneur et non à l'Ollama natif (constaté).
-    for ollama in ("atlas_ollama", "assistant_ollama"):
-        if ollama in names and shutil.which("ollama"):
-            checks.append(Check("Docker", "Pas de second Ollama (conteneur) sur le port 11434", False, WARNING,
-                                f"conteneur {ollama} actif en plus de l'Ollama natif",
-                                f"docker stop {ollama} ; le service est derrière le profil docker-ollama (docker compose up -d suffit)"))
-    chroma = next((c for c in ("atlas_chromadb", "assistant_chromadb") if c in names), None)
-    if chroma:
-        # L'image persiste dans persist_path (/data) : ce chemin doit être un volume ou un montage,
-        # sinon la mémoire vit dans la couche du conteneur et disparaît avec lui (risque L21).
-        code, out = _run([docker, "exec", chroma, "sh", "-c", "grep -h persist_path /config.yaml 2>/dev/null"], timeout=15)
-        persist = next((l.split(":", 1)[1].strip().strip('"') for l in out.splitlines() if "persist_path" in l), "")
-        code, mounts = _run([docker, "inspect", chroma, "--format",
-                             "{{range .Mounts}}{{.Destination}}={{.Type}}:{{.Name}}{{.Source}};{{end}}"], timeout=15)
-        mounted = dict(m.split("=", 1) for m in mounts.strip().split(";") if "=" in m)
-        mounted_ok = bool(persist) and persist in mounted
-        checks.append(Check("Mémoire", "ChromaDB persiste dans un volume", mounted_ok, CRITICAL,
-                            f"{chroma} : persist_path={persist or '?'} ; montages={mounted or 'aucun'}",
-                            f"NE PAS supprimer {chroma} (la mémoire est dans sa couche). Sauvegarder d'abord : "
-                            "python scripts/backup_memory.py backup, puis monter un volume sur persist_path."))
+    checks.append(Check("Web", "Recherche web (DuckDuckGo)", ddgs_ok, WARNING,
+                        "paquet ddgs présent" if ddgs_ok else "paquet ddgs absent",
+                        "pip install -r requirements.txt"))
     return checks
 
 
@@ -620,11 +573,13 @@ def check_voice(settings: dict | None) -> list[Check]:
 #  (--precheck) doit tourner sur le PC d'un proche avant toute installation,
 #  avec un Python nu (testé avec `python -S`, sans site-packages).
 #
-#  Seuils fondés sur les mesures, justifiées dans RAPPORT_SPRINT_G.md :
-#    - VRAM : pic 6 674 Mio, chaîne complète (qwen2.5:7b + transcription GPU, sprint E) ;
-#    - RAM  : pic 18,7 Go sans Docker, 23,4 Go avec, sur 24 Go (98 %, sprint A, L23) ;
-#    - disque : ~17 Go installés (venv 3,6 ; Ollama 2,8 ; qwen2.5:7b 4,4 ; e5 1,1 ;
-#      whisper 0,1 ; Docker Desktop 3,9 ; images ChromaDB + SearXNG 1,2 — sprint G) ;
+#  Seuils fondés sur les mesures (RAPPORT_SPRINT_PERFORMANCE.md, sprint Sans Docker) :
+#    - RAM : Atlas tout compris ≈ 2,1 Go sans Docker (Atlas 1,3 ; Ollama 0,8), plus Windows et
+#      un usage ordinaire (5 à 8 Go) → 16 Go pour la même qualité, 12 Go juste ;
+#    - VRAM : 5,1 Go (qwen2.5:7b à num_ctx 8 192 : 4,9 ; transcription 0,2) + l'affichage
+#      → 8 Go confortables, 6 Go juste ;
+#    - disque : ~14 Go installés (venv 3,6 ; Ollama 2,8 ; qwen2.5:7b 4,4 ; e5 ONNX 2,1 ;
+#      whisper 0,1), plus installeurs et caches pendant l'installation ;
 #    - sans NVIDIA : transcription ~5 s par phrase au lieu de 0,3 s.
 # --------------------------------------------------------------------------- #
 
@@ -632,11 +587,11 @@ VERDICT_OK = "✅ Atlas tournera bien"
 VERDICT_DEGRADED = "⚠️ Atlas tournera, en mode dégradé"
 VERDICT_KO = "❌ Atlas ne tournera pas correctement"
 
-RAM_COMFORT_GIB = 31.0     # machines de 32 Go : marge au-dessus du pic de 23,4 Go
-RAM_TIGHT_GIB = 23.0       # 24 Go : mesuré plein à 98 % avec Docker
-RAM_MIN_GIB = 15.0         # 16 Go : au-dessous du pic sans Docker (18,7) — pagination
-VRAM_COMFORT_MIB = 7_500   # cartes 8 Go : pic mesuré 6 674 Mio
-DISK_MIN_GIB = 25.0        # ~17 Go installés + installeurs et caches pendant l'installation
+RAM_COMFORT_GIB = 15.0     # 16 Go (Windows en affiche ~15,8) : même qualité, mesurée
+RAM_MIN_GIB = 11.0         # 12 Go : juste ; au-dessous, Windows et Atlas ne tiennent pas ensemble
+VRAM_COMFORT_MIB = 7_500   # cartes 8 Go : 5,1 Go pour Atlas, marge pour l'affichage
+VRAM_TIGHT_MIB = 5_500     # cartes 6 Go : juste (5,1 Go + l'affichage)
+DISK_MIN_GIB = 20.0        # ~14 Go installés + installeurs et caches pendant l'installation
 
 
 def _ram_gib() -> float:
@@ -658,23 +613,6 @@ def _ram_gib() -> float:
     status.dwLength = ctypes.sizeof(_MemStatus)
     ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
     return status.ullTotalPhys / 1024 ** 3
-
-
-def _virtualization_state() -> tuple[bool | None, str]:
-    """True / False, ou None si la question n'a pas pu être posée."""
-    if os.name != "nt":
-        return None, "hors Windows"
-    # VirtualizationFirmwareEnabled vaut False dès qu'un hyperviseur tourne (WSL2/Docker) :
-    # on accepte aussi HypervisorPresent=True (constaté au sprint A).
-    code, out = _run(["powershell", "-NoProfile", "-Command",
-                      "'{0};{1}' -f (Get-CimInstance Win32_Processor | Select-Object -First 1).VirtualizationFirmwareEnabled,"
-                      "(Get-CimInstance Win32_ComputerSystem).HypervisorPresent"],
-                     timeout=15)
-    firmware, _, hypervisor = out.strip().partition(";")
-    detail = f"VirtualizationFirmwareEnabled={firmware or '?'} HypervisorPresent={hypervisor or '?'}"
-    if code != 0 or not (firmware or hypervisor):
-        return None, detail
-    return "true" in (firmware.lower(), hypervisor.lower()), detail
 
 
 def collect_machine() -> dict:
@@ -699,7 +637,6 @@ def collect_machine() -> dict:
                 gpu_name, vram = name.strip(), int(float(total.strip()))
             except ValueError:
                 pass
-    virtualization, _ = _virtualization_state()
     # Atlas s'installe dans le profil de l'utilisateur : c'est ce disque qui compte, pas
     # celui d'où le script est lancé (une clé USB, par exemple).
     disk = shutil.disk_usage(Path.home().anchor or str(Path.home()))
@@ -710,7 +647,6 @@ def collect_machine() -> dict:
         "ram_gib": round(_ram_gib(), 1),
         "gpu_name": gpu_name,
         "vram_mib": vram,
-        "virtualization": virtualization,
         "disk_free_gib": round(disk.free / 1024 ** 3, 1),
     }
 
@@ -728,42 +664,33 @@ def machine_verdict(m: dict) -> tuple[str, list[str]]:
     disk = float(m.get("disk_free_gib") or 0)
     if disk < DISK_MIN_GIB:
         ko.append(f"Pas assez de place sur le disque : {disk:.0f} Go libres, il en faut au moins "
-                  f"{DISK_MIN_GIB:.0f} (Atlas occupe environ 17 Go une fois installé).")
+                  f"{DISK_MIN_GIB:.0f} (Atlas occupe environ 14 Go une fois installé).")
 
     ram = float(m.get("ram_gib") or 0)
     if ram < RAM_MIN_GIB:
-        ko.append(f"Pas assez de mémoire vive : {ram:.0f} Go, il en faut au moins 16.")
-    elif ram < RAM_TIGHT_GIB:
-        degraded.append(f"Mémoire vive juste ({ram:.0f} Go) : l'ordinateur ralentira pendant qu'Atlas "
-                        "travaille. Fermer le navigateur et les jeux aide.")
+        ko.append(f"Pas assez de mémoire vive : {ram:.0f} Go, il en faut au moins 12 (16 pour être à l'aise).")
     elif ram < RAM_COMFORT_GIB:
-        degraded.append(f"Mémoire vive un peu juste ({ram:.0f} Go) : elle a été mesurée pleine à 98 % sur "
-                        "un ordinateur de 24 Go quand tout Atlas tourne. Éviter de garder un jeu ouvert "
-                        "en même temps.")
+        degraded.append(f"Mémoire vive juste ({ram:.0f} Go) : l'ordinateur ralentira pendant qu'Atlas "
+                        "travaille si d'autres programmes lourds sont ouverts (navigateur chargé, jeu).")
 
     vram = m.get("vram_mib")
     if not m.get("gpu_name") or not vram:
         degraded.append("Pas de carte graphique NVIDIA (ou pilote absent) : Atlas mettra environ "
                         "5 secondes à comprendre chaque phrase dite à voix haute, au lieu d'un tiers "
                         "de seconde, et ses réponses seront plus lentes.")
+    elif vram < VRAM_TIGHT_MIB:
+        degraded.append(f"Carte graphique trop petite pour le modèle d'Atlas ({m['gpu_name']}, "
+                        f"{vram / 1024:.0f} Go) : il faudra choisir un modèle plus petit à l'installation, "
+                        "sinon Atlas répondra lentement.")
     elif vram < VRAM_COMFORT_MIB:
-        degraded.append(f"Carte graphique un peu juste ({m['gpu_name']}, {vram / 1024:.0f} Go de "
-                        "mémoire) : il faudra choisir un modèle plus petit à l'installation, sinon "
-                        "Atlas répondra lentement.")
-
-    if m.get("virtualization") is False:
-        degraded.append("La virtualisation n'est pas activée dans le BIOS : Docker ne pourra pas "
-                        "démarrer, donc pas de mémoire à long terme (« retiens que… ») ni de "
-                        "recherche web locale. Elle s'active dans le BIOS (Intel VT-x ou AMD-V).")
-    elif m.get("virtualization") is None:
-        degraded.append("Impossible de vérifier si la virtualisation est activée (nécessaire pour "
-                        "Docker et la mémoire d'Atlas) : à contrôler dans le BIOS.")
+        degraded.append(f"Carte graphique juste ({m['gpu_name']}, {vram / 1024:.0f} Go) : le modèle tient, "
+                        "mais avec peu de marge ; fermer les jeux pendant qu'Atlas sert.")
 
     if ko:
         return VERDICT_KO, ko + degraded
     if degraded:
         return VERDICT_DEGRADED, degraded
-    return VERDICT_OK, ["Mémoire vive, carte graphique, disque et virtualisation suffisent."]
+    return VERDICT_OK, ["Mémoire vive, carte graphique et disque suffisent."]
 
 
 def render_verdict(verdict: str, reasons: list[str], m: dict) -> None:
@@ -772,7 +699,7 @@ def render_verdict(verdict: str, reasons: list[str], m: dict) -> None:
         print(f"  - {r}")
     gpu = f"{m['gpu_name']} ({m['vram_mib']} Mio)" if m.get("gpu_name") else "aucune carte NVIDIA détectée"
     print(f"  (Windows {m.get('windows_release')} — {m.get('ram_gib')} Go de mémoire vive — {gpu} — "
-          f"{m.get('disk_free_gib')} Go libres — virtualisation : {m.get('virtualization')})")
+          f"{m.get('disk_free_gib')} Go libres)")
 
 
 # --------------------------------------------------------------------------- #
@@ -843,9 +770,8 @@ def main(argv: list[str] | None = None) -> int:
     checks += check_easyocr_models()
     ollama_checks = check_ollama(settings)
     checks += ollama_checks
-    checks += check_memory_and_web(settings)
+    checks += check_memory(settings)
     checks += check_playwright()
-    checks += check_virtualization()
     gpu_checks, gpu = detect_gpu()
     checks += gpu_checks
     models = next((c.data.get("models", {}) for c in ollama_checks if c.data.get("models")), {})

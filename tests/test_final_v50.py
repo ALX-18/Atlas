@@ -160,7 +160,8 @@ def test_06_api_health_returns_all_services(monkeypatch):
     import api.routes as routes
 
     monkeypatch.setattr(routes.httpx, "AsyncClient", _DummyAsyncClient)
-    monkeypatch.setattr(routes, "get_memory_manager", lambda: SimpleNamespace(is_connected=lambda: True))
+    monkeypatch.setattr(routes, "get_memory_manager", lambda: SimpleNamespace(
+        is_connected=lambda: True, status=lambda: {"etat": "ok", "detail": "dossier de test"}))
 
     class _Voice:
         _running = False
@@ -169,7 +170,7 @@ def test_06_api_health_returns_all_services(monkeypatch):
 
     payload = asyncio.run(routes.api_health())
     assert "services" in payload
-    assert set(payload["services"].keys()) == {"ollama", "chromadb", "searxng", "voice"}
+    assert set(payload["services"].keys()) == {"ollama", "memoire", "voice"}     # sans Docker ni SearXNG
 
 
 def test_07_api_errors_recent_returns_last_n_actionable(monkeypatch):
@@ -225,7 +226,6 @@ def test_08_web_search_fallback_to_ddgs(monkeypatch):
     async def _log(*args, **kwargs):
         logs.append((args, kwargs))
 
-    monkeypatch.setattr(ws, "_search_searxng", _searx_fail)
     monkeypatch.setattr(ws, "_search_duckduckgo", _ddgs_ok)
     monkeypatch.setattr(ws, "_log_search_fallback", _log)
     monkeypatch.setattr("core.memory_manager.get_memory_manager", lambda: SimpleNamespace(save=lambda **_: None))
@@ -233,7 +233,7 @@ def test_08_web_search_fallback_to_ddgs(monkeypatch):
     results = asyncio.run(ws.search("meteo paris", 3))
     assert len(results) == 1
     assert results[0]["source"] == "duckduckgo"
-    assert len(logs) >= 1
+    assert logs == [], "une recherche réussie n'est pas un repli"
 
 
 def test_09_web_search_total_degraded_message(monkeypatch):
@@ -245,13 +245,12 @@ def test_09_web_search_total_degraded_message(monkeypatch):
     async def _ddgs_fail(*args, **kwargs):
         raise RuntimeError("ddgs down")
 
-    monkeypatch.setattr(ws, "_search_searxng", _searx_fail)
     monkeypatch.setattr(ws, "_search_duckduckgo", _ddgs_fail)
     monkeypatch.setattr("core.memory_manager.get_memory_manager", lambda: SimpleNamespace(save=lambda **_: None))
 
     results = asyncio.run(ws.search("python", 2))
     assert len(results) == 1
-    assert "La recherche est indisponible" in results[0]["snippet"]
+    assert "La recherche sur internet a échoué" in results[0]["snippet"]
 
 
 def test_10_workflow_criteria_success(monkeypatch):

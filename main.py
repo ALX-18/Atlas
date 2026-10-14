@@ -367,7 +367,13 @@ async def lifespan(app: FastAPI):
 
     start_new_session()
     mem = get_memory_manager()
-    logger.info("🧠 Mémoire : %s", "connectée" if mem.is_connected() else "ChromaDB indisponible — mode dégradé")
+    etat_memoire = mem.status()
+    # Sans Docker / SD2 : jamais deux Atlas sur la même base. Si elle est tenue par un autre
+    # processus, Atlas refuse de démarrer et dit pourquoi (au lieu de tourner sans mémoire).
+    if etat_memoire["etat"] == "verrouillee":
+        logger.error("⛔ Démarrage refusé : %s", etat_memoire["detail"])
+        raise RuntimeError(f"Démarrage refusé : {etat_memoire['detail']}")
+    logger.info("🧠 Mémoire : %s (%s)", etat_memoire["etat"], etat_memoire["detail"])
 
     # Instantiate v2.3 components
     ws = get_world_state()

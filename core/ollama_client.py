@@ -38,7 +38,7 @@ BASE_URL: str = _cfg["base_url"]
 MODEL: str = _cfg["model"]
 TEMPERATURE: float = _cfg["temperature"]
 STREAM_TIMEOUT: int = _cfg.get("stream_timeout_seconds", 30)
-KEEP_ALIVE: str = _cfg.get("keep_alive", "10m")  # v5.3 — keep model warm in VRAM
+KEEP_ALIVE: str = _cfg.get("keep_alive", "5m")  # v5.3 — keep model warm in VRAM
 # Pré-beta / PB1 : la taille de contexte, une seule valeur pour TOUTES les requêtes au modèle.
 # Elle était déjà dans settings.json (context_window), mais rien ne la lisait.
 NUM_CTX: int = int(_cfg.get("context_window", DEFAULT_NUM_CTX))

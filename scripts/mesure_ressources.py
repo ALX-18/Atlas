@@ -6,7 +6,7 @@ processus jetables, et lance Atlas contre une COPIE de la mémoire (jamais la vr
 
     python scripts/mesure_ressources.py machine     # machine, Ollama, Docker / WSL, hors Atlas
     python scripts/mesure_ressources.py composants  # chaque composant seul, dans son processus
-    python scripts/mesure_ressources.py atlas --copie <dossier data/ d'une sauvegarde>
+    python scripts/mesure_ressources.py atlas --copie <dossier de la mémoire ou data/ d'une sauvegarde>
     python scripts/mesure_ressources.py tout --copie <...> --out mesure.json
 
 RSS = mémoire vive réellement occupée par le processus (« working set »). « Privée » = ce que
@@ -152,8 +152,8 @@ COMPOSANTS: dict[str, str] = {
     "openWakeWord (Hey Atlas)":
         "from openwakeword.model import Model; m = Model(wakeword_models=['models/wakewords/hey_atlas.onnx'], "
         "inference_framework='onnx')",
-    "client ChromaDB (HTTP)":
-        "import chromadb; c = chromadb.HttpClient(host='localhost', port=8001); c.heartbeat()",
+    "ChromaDB intégré (base jetable vide)":
+        "import chromadb, tempfile; c = chromadb.PersistentClient(path=tempfile.mkdtemp()); c.heartbeat()",
 }
 
 # Tesseract est un programme à part, lancé à chaque lecture : on mesure son pic.
@@ -311,21 +311,14 @@ def _wait_http(url, timeout=180) -> bool:
 
 
 def mesure_atlas(copie: str, duree_melange_s: int = 600) -> dict:
-    """Lance un ChromaDB jetable sur une COPIE de la mémoire, puis Atlas contre lui."""
+    """Atlas lancé sur une COPIE de la mémoire (ChromaDB intégré, ATLAS_CHROMA_PATH)."""
     work = pathlib.Path(tempfile.mkdtemp(prefix="atlas_mesure_"))
-    shutil.copytree(copie, work / "data")
-    port = 8101
-    chroma = subprocess.Popen([PY, "-c", "import sys; from chromadb.cli.cli import app; sys.argv[0] = 'chroma'; app()",
-                               "run", "--path", str(work / "data"), "--host", "127.0.0.1", "--port", str(port)],
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                              env={**os.environ, "ANONYMIZED_TELEMETRY": "FALSE"})
+    shutil.copytree(copie, work / "chromadb")
     res: dict = {"copie": str(copie), "scenarios": []}
     atlas = None
     try:
-        if not _wait_http(f"http://127.0.0.1:{port}/api/v2/heartbeat", 60):
-            res["erreur"] = "ChromaDB jetable injoignable"
-            return res
-        env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PORT": str(port), "PYTHONIOENCODING": "utf-8"}
+        env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PATH": str(work / "chromadb"),
+               "PYTHONIOENCODING": "utf-8"}
         t0 = time.perf_counter()
         atlas = subprocess.Popen([PY, "main.py"], cwd=ROOT, env=env, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL)
@@ -388,11 +381,6 @@ def mesure_atlas(copie: str, duree_melange_s: int = 600) -> dict:
                 atlas.wait(20)
             except Exception:
                 atlas.kill()
-        chroma.terminate()
-        try:
-            chroma.wait(20)
-        except Exception:
-            chroma.kill()
         shutil.rmtree(work, ignore_errors=True)
 
 

@@ -11,7 +11,7 @@ Atlas est un assistant pour Windows. Vous lui parlez à voix haute ou vous lui �
 **Il tourne sur votre ordinateur.** Ce que vous lui dites, ce qu'il vous répond et ce qu'il retient restent chez vous : rien n'est envoyé à une entreprise pour être analysé. Il y a deux exceptions, pour être complet :
 
 - **la recherche sur internet**, quand vous la demandez : votre recherche part alors sur internet, comme dans un navigateur ;
-- **deux logiciels installés avec Atlas** (Ollama et Docker) vérifient eux-mêmes leurs mises à jour, comme le font la plupart des logiciels.
+- **un logiciel installé avec Atlas** (Ollama) vérifie lui-même ses mises à jour, comme le font la plupart des logiciels.
 
 Au démarrage, Atlas lui-même ne se connecte à rien sur internet. Son module de reconnaissance de la voix n'est téléchargé qu'une fois, au tout premier lancement, quand Alexis l'installe.
 

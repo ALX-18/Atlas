@@ -10,6 +10,8 @@ import hashlib
 import json
 import logging
 import os
+import pathlib
+import sys
 import time
 import uuid
 from datetime import datetime
@@ -32,10 +34,12 @@ def _load_memory_config() -> dict:
 
 _cfg = _load_memory_config()
 
-CHROMA_HOST: str = _cfg.get("chroma_host", "localhost")
-# Sprint Performance / PF1 : ATLAS_CHROMA_PORT fait viser un ChromaDB jetable (copie de la
-# mémoire) pour mesurer Atlas en scénario sans écrire dans la mémoire réelle.
-CHROMA_PORT: int = int(os.environ.get("ATLAS_CHROMA_PORT") or _cfg.get("chroma_port", 8001))
+# Sprint Sans Docker / SD2 : la mémoire est un DOSSIER ouvert par ChromaDB intégré
+# (PersistentClient), sans serveur ni réseau. ATLAS_CHROMA_PATH le déplace (tests jetables,
+# mesures sur une copie).
+_ROOT = pathlib.Path(__file__).resolve().parent.parent
+DEFAULT_CHROMA_PATH: str = str(_ROOT / _cfg.get("chroma_path", "data/chromadb"))
+CHROMA_PATH: str = os.environ.get("ATLAS_CHROMA_PATH") or DEFAULT_CHROMA_PATH
 COLLECTION_NAME: str = _cfg.get("collection_name", "atlas_memory")
 
 # Catégories valides (mémoire legacy)
@@ -57,6 +61,74 @@ RETRIEVAL_MIN_SCORE: float = float(_cfg.get("retrieval_min_score", 0.5))
 CONVERSATIONS_MAX: int = int(_cfg.get("conversations", {}).get("max_entries", 10000))
 
 
+# --------------------------------------------------------------------------- #
+#  SD2 — un seul processus sur la base
+#
+#  Deux processus ChromaDB intégrés sur le même dossier se corrompent l'un l'autre. Un verrou
+#  du système d'exploitation est pris à l'ouverture, sur <dossier>.lock, et gardé toute la vie
+#  du processus : il est rendu automatiquement à sa fin, même brutale. Le fichier contient le
+#  numéro du processus qui tient la base, pour le dire.
+# --------------------------------------------------------------------------- #
+
+_LOCK_OFFSET = 1 << 20          # octet verrouillé loin du contenu : le numéro reste lisible
+_LOCKS: dict[str, Any] = {}
+_CLIENTS: dict[str, Any] = {}
+
+
+def acquire_memory_lock(path: str) -> tuple[bool, str]:
+    """(pris ?, explication). Idempotent dans un même processus."""
+    key = str(pathlib.Path(path).resolve())
+    if key in _LOCKS:
+        return True, ""
+    lock_path = pathlib.Path(key + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(lock_path, "a+b")
+    try:
+        if sys.platform == "win32":
+            import msvcrt
+
+            fh.seek(_LOCK_OFFSET)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        try:
+            fh.seek(0)
+            holder = fh.read(64).decode("ascii", "ignore").strip() or "?"
+        except Exception:
+            holder = "?"
+        fh.close()
+        return False, (f"la mémoire ({key}) est déjà ouverte par un autre processus (n° {holder}) : "
+                       "un autre Atlas, ou un script de sauvegarde ou de nettoyage, tourne déjà")
+    fh.seek(0)
+    fh.truncate()
+    fh.write(str(os.getpid()).encode("ascii"))
+    fh.flush()
+    _LOCKS[key] = fh
+    return True, ""
+
+
+def open_client(path: str):
+    """Le client ChromaDB intégré de ce dossier — un seul par processus, verrou pris."""
+    key = str(pathlib.Path(path).resolve())
+    if key in _CLIENTS:
+        return _CLIENTS[key]
+    ok, why = acquire_memory_lock(key)
+    if not ok:
+        raise MemoryLockedError(why)
+    from chromadb.config import Settings
+
+    _CLIENTS[key] = chromadb.PersistentClient(path=key, settings=Settings(anonymized_telemetry=False,
+                                                                          allow_reset=False))
+    return _CLIENTS[key]
+
+
+class MemoryLockedError(RuntimeError):
+    """La base est tenue par un autre processus."""
+
+
 def _content_hash(category: str, content: str) -> str:
     """Empreinte d'un souvenir (D5). Même texte + même catégorie = même souvenir."""
     return hashlib.sha1(f"{category}\x00{content}".encode("utf-8")).hexdigest()[:16]
@@ -75,8 +147,9 @@ class MemoryManager:
         # -- Court terme (session) --
         self._short_term: list[dict] = []
 
-        # -- Long terme (ChromaDB) --
-        self._client: Optional[chromadb.HttpClient] = None
+        # -- Long terme (ChromaDB intégré) --
+        self._client = None
+        self._status: dict[str, str] = {"etat": "en_panne", "detail": "pas encore ouverte"}
         self._collection = None
         self._partitions: dict[str, Any] = {}   # F4 — collections partitionnées
         self._connected = False
@@ -95,15 +168,11 @@ class MemoryManager:
         # (backup_memory, memory_cleanup…) ouvrent leur propre client et ne sont pas concernés.
         if os.environ.get("ATLAS_MEMORY") != "real":
             self._connected = False
+            self._status = {"etat": "neutralisee", "detail": "processus hors d'Atlas (ATLAS_MEMORY≠real)"}
             logger.warning("Mémoire long terme neutralisée : processus hors d'Atlas (ATLAS_MEMORY≠real).")
             return
         try:
-            self._client = chromadb.HttpClient(
-                host=CHROMA_HOST,
-                port=CHROMA_PORT,
-            )
-            # Test de connexion
-            self._client.heartbeat()
+            self._client = open_client(CHROMA_PATH)
             self._collection = self._client.get_or_create_collection(
                 name=COLLECTION_NAME,
                 metadata={"hnsw:space": "cosine"},
@@ -116,16 +185,26 @@ class MemoryManager:
                     metadata={"hnsw:space": "cosine"},
                 )
             self._connected = True
+            self._status = {"etat": "ok", "detail": CHROMA_PATH}
             logger.info(
-                "ChromaDB connecté — %s:%d — collection '%s' + %d partitions",
-                CHROMA_HOST, CHROMA_PORT, COLLECTION_NAME, len(self._partitions),
+                "Mémoire ouverte — %s — collection '%s' + %d partitions",
+                CHROMA_PATH, COLLECTION_NAME, len(self._partitions),
             )
+        except MemoryLockedError as e:
+            self._connected = False
+            self._status = {"etat": "verrouillee", "detail": str(e)}
+            logger.error("Mémoire long terme indisponible : %s", e)
         except Exception as e:
             self._connected = False
-            logger.warning("ChromaDB indisponible (%s). Mémoire long terme désactivée.", e)
+            self._status = {"etat": "en_panne", "detail": f"{type(e).__name__}: {e}"}
+            logger.warning("Mémoire indisponible (%s). Mémoire long terme désactivée.", e)
 
     def is_connected(self) -> bool:
         return self._connected
+
+    def status(self) -> dict[str, str]:
+        """SD2 : « ok », « neutralisee », « verrouillee » ou « en_panne », sans les confondre."""
+        return dict(self._status)
 
     def reconnect(self):
         """Retente la connexion à ChromaDB."""
