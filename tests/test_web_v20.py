@@ -21,27 +21,6 @@ from core.intent_engine import (
 #  Tests v2.0 (1-6)
 # ===================================================================
 
-def _searxng_up() -> bool:
-    try:
-        return httpx.get("http://127.0.0.1:8888/", timeout=2.0).status_code in (200, 302, 403)
-    except Exception:
-        return False
-
-
-@pytest.mark.anyio
-@pytest.mark.skipif(not _searxng_up(), reason="SearXNG non démarré (docker compose up -d)")
-async def test_01_searxng_heartbeat_under_3s():
-    start = time.perf_counter()
-    async with httpx.AsyncClient(timeout=3.0) as client:
-        resp = await client.get(
-            "http://127.0.0.1:8888/",
-            headers={"User-Agent": "Atlas/2.1-test"},
-        )
-    elapsed = time.perf_counter() - start
-    assert resp.status_code in (200, 302, 403)
-    assert elapsed < 3.0
-
-
 @pytest.mark.anyio
 async def test_02_web_search_returns_results():
     results = await web_search.search("météo Paris", max_results=5)
@@ -52,20 +31,15 @@ async def test_02_web_search_returns_results():
 
 
 @pytest.mark.anyio
-async def test_03_fallback_duckduckgo_when_searxng_down(monkeypatch):
-    async def fake_searxng(*args, **kwargs):
-        raise RuntimeError("SearXNG down")
+async def test_03_duckduckgo_en_panne_l_echec_est_dit(monkeypatch):
+    """Sprint Sans Docker : DuckDuckGo directement ; s'il échoue, le résultat le dit."""
+    def ddg_down(*args, **kwargs):
+        raise RuntimeError("DuckDuckGo down")
 
-    monkeypatch.setattr(web_search, "_search_searxng", fake_searxng)
+    monkeypatch.setattr(web_search, "_search_duckduckgo_sync", ddg_down)
     results = await web_search.search("python fastapi", max_results=3)
-    assert len(results) >= 1
-    # SearXNG is forced down, so source should be duckduckgo_fallback or fallback_link
-    assert all(
-        r.get("source") in ("duckduckgo", "duckduckgo_fallback", "fallback_link")
-        for r in results
-    ), f"Unexpected source: {[r.get('source') for r in results]}"
-    # Must NOT be searxng
-    assert all(r.get("source") != "searxng" for r in results)
+    assert len(results) == 1 and results[0]["source"] == "fallback_link"
+    assert "a échoué" in results[0]["snippet"]
 
 
 @pytest.mark.anyio
@@ -103,26 +77,15 @@ async def test_06_browser_open_and_get_current_url():
 # ===================================================================
 
 @pytest.mark.anyio
-async def test_07_searxng_403_fallback_ddg_triggered(monkeypatch):
-    """SearXNG 403 → fallback DDG déclenché automatiquement, source taggée."""
+async def test_07_resultats_duckduckgo_tagges(monkeypatch):
+    """Les résultats DuckDuckGo portent leur source et leur fiabilité."""
+    def ddg_ok(query, max_results):
+        return [{"title": "t", "url": "https://exemple.org", "snippet": "s", "source": "duckduckgo"}]
 
-    async def fake_searxng_403(query, max_results):
-        # Simulate a 403 response
-        raise httpx.HTTPStatusError(
-            "SearXNG returned 403",
-            request=httpx.Request("GET", "http://localhost:8888/search"),
-            response=httpx.Response(403),
-        )
-
-    monkeypatch.setattr(web_search, "_search_searxng", fake_searxng_403)
-    results = await web_search.search("test query 403", max_results=3)
-
-    assert len(results) >= 1
-    for r in results:
-        assert r.get("source") in ("duckduckgo", "duckduckgo_fallback"), \
-            f"Expected duckduckgo source but got {r.get('source')}"
-        assert r.get("source_reliability") == "medium"
-        assert "fallback_note" in r
+    monkeypatch.setattr(web_search, "_search_duckduckgo_sync", ddg_ok)
+    results = await web_search.search("test query", max_results=3)
+    assert len(results) == 1
+    assert results[0]["source"] == "duckduckgo" and results[0]["source_reliability"] == "medium"
 
 
 @pytest.mark.anyio

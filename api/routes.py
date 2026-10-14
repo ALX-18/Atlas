@@ -506,7 +506,7 @@ async def get_recent_logs(limit: int = 50):
         raise HTTPException(status_code=500, detail=f"Failed to read logs: {e}")
 
 
-_PROBE_CACHE: dict = {"ts": 0.0, "ollama": False, "searxng": False}
+_PROBE_CACHE: dict = {"ts": 0.0, "ollama": False}
 _PROBE_TTL = 10.0
 
 
@@ -559,33 +559,22 @@ async def api_health():
     with open(settings_path, encoding="utf-8") as f:
         cfg = json.load(f)
 
-    web_cfg = cfg.get("web", {})
     mem = get_memory_manager()
 
-    # Sprint E : sondes mises en cache 10 s. Sans cela, un rafraîchissement régulier de
-    # l'interface déclenchait un appel à Ollama et à SearXNG toutes les deux secondes.
+    # Sprint E : sonde mise en cache 10 s. Sans cela, un rafraîchissement régulier de
+    # l'interface déclenchait un appel à Ollama toutes les deux secondes.
     now = time.monotonic()
     if now - _PROBE_CACHE["ts"] < _PROBE_TTL:
         ollama_ok = _PROBE_CACHE["ollama"]
-        searxng_ok = _PROBE_CACHE["searxng"]
     else:
         ollama_ok = False
-        searxng_ok = False
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 ollama_resp = await client.get("http://127.0.0.1:11434/api/tags")
                 ollama_ok = ollama_resp.status_code == 200
         except Exception:
             ollama_ok = False
-
-        try:
-            searx_url = web_cfg.get("searxng_url", "http://localhost:8888")
-            async with httpx.AsyncClient(timeout=2.0) as client:
-                sx_resp = await client.get(f"{searx_url}/search", params={"q": "atlas health", "format": "json"})
-                searxng_ok = sx_resp.status_code == 200
-        except Exception:
-            searxng_ok = False
-        _PROBE_CACHE.update({"ts": now, "ollama": ollama_ok, "searxng": searxng_ok})
+        _PROBE_CACHE.update({"ts": now, "ollama": ollama_ok})
 
     # E4 / C04 : décrire ce que la voix sait FAIRE, pas la simple existence du composant.
     # Avant, /api/health annonçait « running: true » alors que le mot d'éveil ne pouvait pas
@@ -637,13 +626,15 @@ async def api_health():
     grounding_cfg = cfg.get("grounding", {})
     vision_enabled = bool(grounding_cfg.get("vision_enabled", True))
 
+    # Sans Docker / SD2 : la mémoire dit son état, sans confondre « neutralisée » (processus
+    # hors d'Atlas), « verrouillée » (un autre processus la tient) et « en panne ».
+    etat_memoire = mem.status()
     services = {
         "ollama": {"ok": ollama_ok},
-        "chromadb": {"ok": mem.is_connected()},
-        "searxng": {"ok": searxng_ok},
+        "memoire": {"ok": etat_memoire["etat"] == "ok", **etat_memoire},
         "voice": voice_status,
     }
-    global_ok = all([services["ollama"]["ok"], services["chromadb"]["ok"], services["searxng"]["ok"]])
+    global_ok = all([services["ollama"]["ok"], services["memoire"]["ok"]])
 
     return {
         "status": "ok" if global_ok else "degraded",

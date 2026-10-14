@@ -37,7 +37,7 @@ class TestQwen7bMigration:
 
     def test_keep_alive_present(self):
         cfg = _load_settings()
-        assert cfg["ollama"].get("keep_alive") == "10m"
+        assert cfg["ollama"].get("keep_alive") == "5m"      # sprint Sans Docker : 5 min (VRAM libérée pour un jeu)
 
     def test_grounding_section_vision_disabled(self):
         cfg = _load_settings()

@@ -38,10 +38,11 @@ def log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def client(host: str, port: int):
-    c = chromadb.HttpClient(host=host, port=port)
-    c.heartbeat()
-    return c
+def client(path: str | None):
+    """Sans Docker : la base est un dossier ; verrou de la mémoire pris (refus si Atlas tourne)."""
+    from core.memory_manager import DEFAULT_CHROMA_PATH, open_client
+
+    return open_client(path or DEFAULT_CHROMA_PATH)
 
 
 def read_all(coll) -> dict:
@@ -55,7 +56,7 @@ def read_all(coll) -> dict:
 
 
 def cmd_plan(args) -> int:
-    c = client(args.host, args.port)
+    c = client(args.path)
     src = read_all(c.get_collection(args.source))
     texts = src["documents"]
     uniques = len(set(texts))
@@ -71,7 +72,7 @@ def cmd_plan(args) -> int:
 
 
 def cmd_run(args) -> int:
-    c = client(args.host, args.port)
+    c = client(args.path)
     src_coll = c.get_collection(args.source)
     src = read_all(src_coll)
     total = len(src["ids"])
@@ -118,7 +119,7 @@ def cmd_run(args) -> int:
 
 
 def cmd_verify(args) -> int:
-    c = client(args.host, args.port)
+    c = client(args.path)
     src = read_all(c.get_collection(args.source))
     tgt_coll = c.get_collection(args.target)
     tgt = read_all(tgt_coll)
@@ -182,8 +183,7 @@ def main() -> int:
     parser.add_argument("command", choices=["plan", "run", "verify"])
     parser.add_argument("--source", default=SOURCE_DEFAULT)
     parser.add_argument("--target", default=TARGET_DEFAULT)
-    parser.add_argument("--host", default="localhost")
-    parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--path", default=None, help="dossier de la mémoire (défaut : data/chromadb)")
     parser.add_argument("--force", action="store_true", help="compléter une cible non vide")
     parser.add_argument("--report", help="fichier JSON de rapport (verify)")
     args = parser.parse_args()

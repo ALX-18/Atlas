@@ -23,13 +23,14 @@ sys.path.insert(0, str(ROOT))
 #  PF1 — mesurer Atlas complet sur une COPIE de la mémoire
 # --------------------------------------------------------------------------- #
 
-def test_pf1_atlas_peut_viser_un_chromadb_jetable():
-    """ATLAS_CHROMA_PORT fait viser à Atlas un autre ChromaDB que la mémoire réelle (8001) :
-    les mesures en scénario n'écrivent ainsi que dans une copie."""
-    code = ("import core.memory_manager as mm; print(mm.CHROMA_HOST, mm.CHROMA_PORT)")
-    env = {**os.environ, "ATLAS_CHROMA_PORT": "8101", "ATLAS_MEMORY": "off"}
+def test_pf1_atlas_peut_viser_un_chromadb_jetable(tmp_path):
+    """ATLAS_CHROMA_PATH fait viser à Atlas une autre base que la mémoire réelle : les mesures en
+    scénario n'écrivent ainsi que dans une copie. (Sprint Sans Docker : ATLAS_CHROMA_PORT, qui
+    visait un serveur, est remplacé par un chemin.)"""
+    code = ("import core.memory_manager as mm; print(mm.CHROMA_PATH)")
+    env = {**os.environ, "ATLAS_CHROMA_PATH": str(tmp_path / "copie"), "ATLAS_MEMORY": "off"}
     r = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True, env=env, timeout=120)
-    assert r.stdout.strip().splitlines()[-1] == "localhost 8101", r.stdout + r.stderr[-500:]
+    assert r.stdout.strip().splitlines()[-1] == str(tmp_path / "copie"), r.stdout + r.stderr[-500:]
 
 
 # --------------------------------------------------------------------------- #

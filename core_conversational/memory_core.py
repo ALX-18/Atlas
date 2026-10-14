@@ -142,13 +142,11 @@ def embed_query(text: str) -> Optional[list[float]]:
 class ConversationalMemory:
     """
     Mémoire vectorielle partitionnée (conversations / documents / errors).
-    Cross-platform : ChromaDB HttpClient + embeddings e5.
+    Cross-platform : ChromaDB intégré (un dossier, sans serveur) + embeddings e5.
     """
 
-    def __init__(self, host: str = "localhost", port: int = 8001,
-                 partitions: Optional[dict] = None):
-        self.host = host
-        self.port = port
+    def __init__(self, path: str = "data/chromadb", partitions: Optional[dict] = None):
+        self.path = path
         self._partitions_cfg = partitions or {
             "conversations": "atlas_conversations",
             "documents": "atlas_documents",
@@ -162,8 +160,10 @@ class ConversationalMemory:
     def connect(self):
         try:
             import chromadb
-            self._client = chromadb.HttpClient(host=self.host, port=self.port)
-            self._client.heartbeat()
+            from chromadb.config import Settings
+
+            # Sans Docker : un dossier. Un seul processus à la fois sur ce dossier.
+            self._client = chromadb.PersistentClient(path=self.path, settings=Settings(anonymized_telemetry=False))
             self._colls = {
                 key: self._client.get_or_create_collection(name=name, metadata={"hnsw:space": "cosine"})
                 for key, name in self._partitions_cfg.items()

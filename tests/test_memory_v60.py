@@ -27,13 +27,10 @@ from core.error_learning import (
 # --------------------------------------------------------------------------- #
 
 def _chroma_up() -> bool:
-    try:
-        import chromadb
-        c = chromadb.HttpClient()  # redirigé vers le serveur jetable par tests/conftest.py
-        c.heartbeat()
-        return True
-    except Exception:
-        return False
+    """Sans Docker : la mémoire de test est un dossier jetable posé par tests/conftest.py."""
+    import os
+
+    return bool(os.environ.get("ATLAS_TEST_CHROMA_PATH"))
 
 
 CHROMA = _chroma_up()

@@ -49,12 +49,13 @@ def test_g5_machine_confortable():
 
 
 @pytest.mark.parametrize("changes,niveau,mot", [
-    ({"ram_gib": 23.9}, DEGRADE, "mémoire vive"),            # la machine d'Alexis : 98 % mesurés
-    ({"ram_gib": 15.8}, DEGRADE, "mémoire vive"),            # 16 Go : le système paginera
+    ({"ram_gib": 23.9}, BIEN, "mémoire vive"),               # sprint Sans Docker : 16 Go suffisent
+    ({"ram_gib": 15.8}, BIEN, "mémoire vive"),               # 16 Go (Windows en affiche ~15,8)
+    ({"ram_gib": 11.9}, DEGRADE, "mémoire vive"),            # 12 Go : juste
     ({"ram_gib": 7.9}, NON, "mémoire vive"),
     ({"gpu_name": None, "vram_mib": None}, DEGRADE, "5 secondes"),
     ({"gpu_name": "NVIDIA GeForce GTX 1650", "vram_mib": 4096}, DEGRADE, "carte graphique"),
-    ({"virtualization": False}, DEGRADE, "Docker"),
+    ({"gpu_name": "NVIDIA GeForce RTX 3060", "vram_mib": 6144}, DEGRADE, "carte graphique"),   # 6 Go : juste
     ({"disk_free_gib": 12.0}, NON, "disque"),
     ({"arch64": False}, NON, "64 bits"),
     ({"windows": False}, NON, "Windows"),

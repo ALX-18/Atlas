@@ -145,13 +145,19 @@ def main() -> int:
     parser.add_argument("command", choices=["plan", "apply", "plan-ids", "apply-ids"])
     parser.add_argument("--ids", help="GB7 : JSON {collection: {identifiant: début du texte attendu}}")
     parser.add_argument("--yes", action="store_true", help="confirmation explicite requise pour apply")
-    parser.add_argument("--host", default="localhost")
-    parser.add_argument("--port", type=int, default=8001)
+    parser.add_argument("--path", default=None, help="dossier de la mémoire (défaut : data/chromadb)")
     parser.add_argument("--report", help="fichier JSON listant les identifiants supprimés")
     args = parser.parse_args()
 
-    client = chromadb.HttpClient(host=args.host, port=args.port)
-    client.heartbeat()
+    # Sans Docker / SD3 : la base est un dossier ; le verrou de la mémoire est pris (refus si
+    # Atlas ou un autre script la tient).
+    from core.memory_manager import DEFAULT_CHROMA_PATH, MemoryLockedError, open_client
+
+    try:
+        client = open_client(args.path or DEFAULT_CHROMA_PATH)
+    except MemoryLockedError as e:
+        print(f"Refus : {e}. Arrêter Atlas d'abord.")
+        return 1
 
     if args.command in ("plan-ids", "apply-ids"):
         if not args.ids:

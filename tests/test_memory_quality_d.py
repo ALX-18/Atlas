@@ -23,12 +23,10 @@ from core import embeddings as emb
 
 
 def _chroma_up() -> bool:
-    try:
-        import chromadb
-        chromadb.HttpClient().heartbeat()
-        return True
-    except Exception:
-        return False
+    """Sans Docker : la mémoire de test est un dossier jetable posé par tests/conftest.py."""
+    import os
+
+    return bool(os.environ.get("ATLAS_TEST_CHROMA_PATH"))
 
 
 live = pytest.mark.skipif(not _chroma_up(), reason="ChromaDB de test non disponible")
