@@ -81,42 +81,40 @@ LOCK_FILE = pathlib.Path(__file__).parent / "data" / "atlas.lock"
 _INSTANCE_LOCK_FH = None
 
 
-def _check_tesseract() -> dict:
-    """
-    Probe Tesseract OCR availability at startup (v5.3 AXE 4).
-    Returns {ok, version?, langs?, warning?, error?}.
-    """
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["tesseract", "--version"],
-            capture_output=True, text=True, timeout=3.0,
-        )
-        if result.returncode != 0:
-            return {"ok": False, "error": f"exit_code={result.returncode}"}
-        version_line = (result.stdout or "").strip().split("\n")[0]
+def _verifier_memoire(mem) -> None:
+    """Sprint Check-up / CK2 : une mémoire en panne ou tenue ailleurs est une bascule vécue
+    (Atlas ne retient plus rien). « neutralisee » ne concerne que les processus hors d'Atlas."""
+    etat = mem.status()
+    if etat.get("etat") in ("en_panne", "verrouillee"):
+        from core_conversational.degradations import signaler
 
-        # Probe installed languages — 'fra' is required for French UI labels.
-        langs: list[str] = []
+        signaler("memoire", f"{etat['etat']} : {etat.get('detail', '')}")
+
+
+def _notifier(message: str) -> None:
+    """Notification Windows, sans bloquer le démarrage."""
+    import threading
+
+    def _go():
         try:
-            langs_result = subprocess.run(
-                ["tesseract", "--list-langs"],
-                capture_output=True, text=True, timeout=3.0,
-            )
-            if langs_result.returncode == 0:
-                lines = (langs_result.stdout or "").strip().split("\n")
-                langs = [l.strip() for l in lines[1:] if l.strip()]  # skip header line
-        except Exception:
-            pass
+            from plyer import notification
 
-        if langs and "fra" not in langs:
-            return {"ok": True, "version": version_line, "langs": langs,
-                    "warning": "Langue 'fra' absente — matching FR dégradé"}
-        return {"ok": True, "version": version_line, "langs": langs}
-    except FileNotFoundError:
-        return {"ok": False, "error": "not_found"}
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
+            notification.notify(title="Atlas", message=message[:250], timeout=8)
+        except Exception as e:
+            from core_conversational.degradations import signaler
+
+            signaler("notifications", f"{type(e).__name__}: {e}")
+
+    threading.Thread(target=_go, daemon=True).start()
+
+
+def _annoncer_bascules() -> None:
+    """CK2 : ce qui manque au démarrage et touche l'utilisateur est DIT (notification), en plus
+    du journal, de /api/health et de doctor. La première réponse le redit."""
+    from core_conversational.degradations import a_annoncer
+
+    for message in a_annoncer():
+        _notifier(message)
 
 
 def _voice_gpu_status(voice_cfg: dict, ct2_cuda_devices: int, torch_cuda: bool) -> tuple[str, str]:
@@ -134,6 +132,19 @@ def _voice_gpu_status(voice_cfg: dict, ct2_cuda_devices: int, torch_cuda: bool) 
                            "le processeur et sera lente (environ 5 s par phrase).")
     extra = "" if torch_cuda else " (torch est en version processeur : seuls EasyOCR et les embeddings tournent sur le processeur)"
     return "info", f"Atlas Voice : transcription sur GPU ({ct2_cuda_devices} périphérique(s) CUDA vu(s) par CTranslate2){extra}."
+
+
+def _dump_modules() -> None:
+    """Sprint Check-up / CK1 : si ATLAS_MODULES_DUMP est posé, écrit la liste des modules
+    Python réellement chargés (mesure dynamique de l'inventaire). Rien sinon."""
+    target = os.environ.get("ATLAS_MODULES_DUMP")
+    if not target:
+        return
+    try:
+        pathlib.Path(target).write_text(json.dumps({"processus": "atlas", "pid": os.getpid(),
+                                                    "modules": sorted(sys.modules)}), encoding="utf-8")
+    except Exception as e:
+        logging.getLogger("atlas").warning("ATLAS_MODULES_DUMP : écriture impossible (%s)", e)
 
 
 def _torch_has_cuda_build() -> bool:
@@ -351,23 +362,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Proactor handler install warning: %s", e)
 
-    tess = _check_tesseract()
-    app.state.tesseract_status = tess  # v5.3 AXE 4 — exposed via /api/health
-    if tess["ok"] and tess.get("warning"):
-        logger.warning("⚠️ Tesseract : %s", tess["warning"])
-    elif tess["ok"]:
-        logger.info("🔍 Tesseract OCR : %s", tess.get("version", "ok"))
-    else:
-        logger.warning("=" * 60)
-        logger.warning("⚠️  TESSERACT OCR NON DISPONIBLE")
-        logger.warning("   Erreur : %s", tess.get("error", "?"))
-        logger.warning("   Conséquence : commandes 'clique sur X' lentes/échouées")
-        logger.warning("   Voir docs/runbook.md section 6 pour l'installation")
-        logger.warning("=" * 60)
+    # Sprint Check-up / CK5 : Tesseract et sa langue fra. Absents, c'est une bascule (signalée,
+    # visible dans /api/health et doctor, dite à Alexis) — plus jamais « 20 fois plus lent » en silence.
+    from tools.grounding import tesseract_etat
+
+    tess = await asyncio.to_thread(tesseract_etat)
+    if tess["ok"]:
+        logger.info("🔍 Tesseract OCR : %s (fra : %s)", tess.get("version"), "oui" if tess["fra"] else "NON")
 
     start_new_session()
     mem = get_memory_manager()
     etat_memoire = mem.status()
+    _verifier_memoire(mem)
     # Sans Docker / SD2 : jamais deux Atlas sur la même base. Si elle est tenue par un autre
     # processus, Atlas refuse de démarrer et dit pourquoi (au lieu de tourner sans mémoire).
     if etat_memoire["etat"] == "verrouillee":
@@ -479,7 +485,9 @@ async def lifespan(app: FastAPI):
             await voice_engine.start()
             logger.info("🎙️ VoiceEngine demarre")
         except Exception as e:
-            logger.warning("⚠️ VoiceEngine demarrage echoue: %s", e)
+            from core_conversational.degradations import signaler
+
+            signaler("voix", f"{type(e).__name__}: {e}")
 
     # Démarrer le Browser Bridge WebSocket (MVP 2.2)
     bridge = get_bridge()
@@ -487,7 +495,9 @@ async def lifespan(app: FastAPI):
         await bridge.start()
         logger.info("🔌 Browser Bridge : WebSocket prêt sur le port %d", bridge.port)
     except Exception as e:
-        logger.warning("⚠️ Browser Bridge : démarrage échoué — %s (fonctionnalité désactivée)", e)
+        from core_conversational.degradations import signaler
+
+        signaler("browser_bridge", f"{type(e).__name__}: {e}")
 
     file_indexer = get_file_indexer()
     if file_indexer.enabled():
@@ -495,11 +505,16 @@ async def lifespan(app: FastAPI):
             await file_indexer.start()
             logger.info("📂 FileIndexer actif (mode passif)")
         except Exception as e:
-            logger.warning("⚠️ FileIndexer démarrage échoué — %s", e)
+            from core_conversational.degradations import signaler
+
+            signaler("file_indexer", f"{type(e).__name__}: {e}")
+
+    _annoncer_bascules()
 
     yield
 
     # Shutdown
+    _dump_modules()
     try:
         stop_sampler()
     except Exception:

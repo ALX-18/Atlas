@@ -14,13 +14,10 @@ import pytest
 
 
 def _ollama_absent() -> bool:
-    """Pré-beta / PB5 : sans Ollama, ce test dépend de lui — ignoré, pas en échec.
-    ATLAS_TEST_NO_OLLAMA=1 simule une machine sans Ollama (comme ATLAS_TEST_NO_CHROMA)."""
-    import os
-    import socket
+    """Sonde commune (tests/conftest.py) : la même qui juge si l'abandon est légitime (CK4)."""
+    from tests.conftest import ollama_absent
 
-    if os.environ.get("ATLAS_TEST_NO_OLLAMA") == "1":
-        return True
+    return ollama_absent()
     try:
         with socket.create_connection(("127.0.0.1", 11434), timeout=0.5):
             return False

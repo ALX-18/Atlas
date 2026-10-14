@@ -27,16 +27,20 @@ try:
     import win32gui
     import win32process
     HAS_WIN32 = True
-except ImportError:
+except ImportError as _e:
+    from core_conversational.degradations import signaler
+
     HAS_WIN32 = False
-    logger.warning("pywin32 non disponible — détection de fenêtre active désactivée")
+    signaler("win32", f"context_monitor : {_e}")
 
 try:
     from pycaw.pycaw import AudioUtilities
     HAS_PYCAW = True
-except ImportError:
+except ImportError as _e:
+    from core_conversational.degradations import signaler
+
     HAS_PYCAW = False
-    logger.warning("pycaw non disponible — détection audio désactivée")
+    signaler("pycaw", str(_e))
 
 
 # --------------------------------------------------------------------------- #
@@ -90,15 +94,8 @@ def _get_gpu_usage() -> float:
             return float(result.stdout.strip().split("\n")[0])
     except Exception:
         pass
-    # Fallback WMI — souvent moins fiable
-    try:
-        import wmi
-        w = wmi.WMI(namespace="root\\cimv2")
-        # Tenter via Win32_VideoController (pas toujours dispo)
-        for gpu in w.Win32_VideoController():
-            pass  # WMI ne donne pas le % d'usage facilement
-    except Exception:
-        pass
+    # Sprint Check-up / CK7 : un « repli WMI » suivait ici. Il ne lisait rien (boucle vide) et
+    # renvoyait toujours -1 : retiré avec le paquet wmi, sans changer le résultat.
     return -1.0  # -1 = indisponible
 
 
@@ -207,7 +204,9 @@ def _process_snapshot() -> dict[int, dict] | None:
             offset += entry.NextEntryOffset
         return out
     except Exception as exc:
-        logger.debug("instantané des processus indisponible : %s", exc)
+        from core_conversational.degradations import signaler
+
+        signaler("instantane_processus", f"{type(exc).__name__}: {exc}")
         return None
 
 

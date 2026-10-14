@@ -270,9 +270,10 @@ def test_pb3_l_instantane_des_processus_est_coherent_avec_psutil():
 
     import core.context_monitor as cm
 
+    if os.name != "nt":
+        pytest.skip("Windows uniquement")
     snap = cm._process_snapshot()
-    if snap is None:
-        pytest.skip("instantané Windows indisponible : repli psutil")
+    assert snap is not None, "instantané Windows en échec : Atlas retomberait sur psutil (CK4 : plus ignoré)"
     moi = os.getpid()
     assert moi in snap and snap[moi]["name"].lower().startswith("python")
     communs = set(snap) & set(psutil.pids())

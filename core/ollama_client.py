@@ -161,7 +161,10 @@ def build_system_prompt(context: dict, memories: list[str] | None = None, extra_
         from core.intent_engine import capabilities_reply
 
         capabilities_section = capabilities_reply()
-    except Exception:
+    except Exception as e:
+        from core_conversational.degradations import signaler
+
+        signaler("prompt_capacites", f"{type(e).__name__}: {e}")
         capabilities_section = "- (liste indisponible)"
 
     return SYSTEM_PROMPT_TEMPLATE.format(

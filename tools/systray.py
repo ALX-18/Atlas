@@ -33,7 +33,9 @@ class AtlasSystray:
             self._PIL_Image = Image
             self._PIL_ImageDraw = ImageDraw
         except Exception as e:
-            logger.warning("Systray dependencies unavailable: %s", e)
+            from core_conversational.degradations import signaler
+
+            signaler("systray", f"{type(e).__name__}: {e}")
 
     def start(self):
         """Start systray in a dedicated thread (pystray is blocking)."""

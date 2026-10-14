@@ -648,8 +648,10 @@ async def verify_post_click(
         )
         return {"verified": verified, "confidence": round(best_score, 3), "method": "ocr"}
 
-    except ImportError:
-        logger.debug("[VERIFY] pytesseract indisponible, vérification ignorée")
+    except ImportError as e:
+        from core_conversational.degradations import signaler
+
+        signaler("tesseract", f"pytesseract ne s'importe pas ({e}) : vérification après clic ignorée")
         return {"verified": True, "confidence": 0.0, "method": "skipped_no_ocr"}
     except Exception as e:
         logger.debug("[VERIFY] OCR failed: %s", e)
@@ -788,8 +790,10 @@ async def _try_uia(app_title: str, element_name: str) -> Optional[dict]:
         logger.debug("[UIA] Élément '%s' non trouvé dans '%s'", element_name, app_title)
         return None
 
-    except ImportError:
-        logger.warning("[UIA] pywinauto non disponible")
+    except ImportError as e:
+        from core_conversational.degradations import signaler
+
+        signaler("uia", f"pywinauto ne s'importe pas ({e})")
         return None
     except Exception as e:
         logger.debug("[UIA] Erreur : %s", e)
@@ -1003,9 +1007,15 @@ async def _try_ocr(app_title: str, element_name: str) -> Optional[dict]:
         return None
 
     except ImportError as e:
-        logger.warning("[OCR] Dépendance manquante : %s", e)
+        from core_conversational.degradations import signaler
+
+        signaler("tesseract", f"pytesseract ne s'importe pas ({e})")
         return None
     except Exception as e:
+        if type(e).__name__ == "TesseractNotFoundError":
+            from core_conversational.degradations import signaler
+
+            signaler("tesseract", "binaire tesseract introuvable au moment d'un clic")
         logger.debug("[OCR] Erreur : %s", e)
         return None
 
@@ -1042,8 +1052,43 @@ def _announce(message: str) -> None:
 
         _threading.Thread(target=lambda: notification.notify(title="Atlas", message=message, timeout=5),
                           daemon=True).start()
-    except Exception:
-        pass
+    except Exception as e:
+        from core_conversational.degradations import signaler
+
+        signaler("notifications", f"{type(e).__name__}: {e}")
+
+
+_TESSERACT_ETAT: Optional[dict] = None
+
+
+def tesseract_etat(rafraichir: bool = False) -> dict:
+    """Sprint Check-up / CK5 — Tesseract présent ? avec la langue fra ? Une bascule signalée sinon.
+
+    Sans Tesseract, chaque clic sur un libellé passait EN SILENCE par EasyOCR (20 fois plus lent) ;
+    sans « fra », les libellés accentués sont mal lus. Résultat gardé : sonder coûte ~0,2 s.
+    """
+    global _TESSERACT_ETAT
+    if _TESSERACT_ETAT is not None and not rafraichir:
+        return _TESSERACT_ETAT
+    from core_conversational.degradations import signaler
+
+    etat = {"ok": False, "version": None, "fra": False, "langues": []}
+    try:
+        import pytesseract
+
+        etat["version"] = str(pytesseract.get_tesseract_version())
+        etat["ok"] = True
+        etat["langues"] = sorted(pytesseract.get_languages(config=""))
+        etat["fra"] = "fra" in etat["langues"]
+    except Exception as e:
+        if not etat["ok"]:
+            signaler("tesseract", f"{type(e).__name__}: {e}"[:200] or "binaire introuvable")
+        else:
+            etat["langues_erreur"] = str(e)[:200]
+    if etat["ok"] and not etat["fra"]:
+        signaler("tesseract_fra", f"langues installées : {', '.join(etat['langues']) or 'illisibles'}")
+    _TESSERACT_ETAT = etat
+    return etat
 
 
 def _start_easyocr_worker():
@@ -1098,7 +1143,9 @@ def _get_easyocr_reader():
         _EASYOCR_READER = _start_easyocr_worker()
         logger.info("[EASYOCR] Lecteur prêt (fr+en, processus à part).")
     except Exception as e:
-        logger.warning("[EASYOCR] Indisponible (%s).", e)
+        from core_conversational.degradations import signaler
+
+        signaler("easyocr", f"{type(e).__name__}: {e}")
         _EASYOCR_READER = None
     return _EASYOCR_READER
 

@@ -81,7 +81,33 @@ class EasyOCRWorker:
                 self._proc.wait(5)
 
 
+def _dump_modules() -> None:
+    """Sprint Check-up / CK1 : modules chargés par ce processus, à côté du fichier d'Atlas."""
+    target = os.environ.get("ATLAS_MODULES_DUMP")
+    if not target:
+        return
+    try:
+        import json
+        from pathlib import Path
+
+        p = Path(target)
+        cible = p.with_name(f"{p.stem}_ocr_worker{p.suffix}")
+        tmp = cible.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"processus": "ocr_worker", "pid": os.getpid(), "modules": sorted(sys.modules)}),
+                       encoding="utf-8")
+        os.replace(tmp, cible)       # jamais un fichier à moitié écrit, même tué pendant l'écriture
+    except Exception:
+        pass
+
+
 def _main() -> int:
+    try:
+        return _boucle()
+    finally:
+        _dump_modules()
+
+
+def _boucle() -> int:
     stdin, stdout = sys.stdin.buffer, sys.stdout.buffer
     sys.stdout = sys.stderr          # aucun print parasite dans le canal
     try:
@@ -94,6 +120,7 @@ def _main() -> int:
             import easyocr
 
             reader = easyocr.Reader(["fr", "en"], verbose=False)
+        _dump_modules()      # CK1 : écrit AVANT de répondre — le parent peut tuer le processus aussitôt après
         _send(stdout, ("ready", None))
     except Exception as e:
         _send(stdout, ("error", str(e)))
@@ -107,6 +134,7 @@ def _main() -> int:
             return 0
         try:
             res = reader.readtext(payload)
+            _dump_modules()  # une lecture peut charger d'autres modules ; écrit avant la réponse
             _send(stdout, ("ok", [([[float(x), float(y)] for x, y in bbox], str(text), float(conf))
                                   for bbox, text, conf in res]))
         except Exception as e:

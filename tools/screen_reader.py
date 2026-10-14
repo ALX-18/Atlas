@@ -46,6 +46,10 @@ def _ocr_text(img) -> str:
         if txt and txt.strip():
             return txt.strip()[:MAX_OCR_CHARS]
     except Exception as e:
+        if type(e).__name__ == "TesseractNotFoundError" or isinstance(e, ImportError):
+            from core_conversational.degradations import signaler
+
+            signaler("tesseract", f"lecture d'écran : {type(e).__name__}")
         logger.debug("Tesseract full-text échoué : %s", e)
 
     # EasyOCR fallback
@@ -54,8 +58,8 @@ def _ocr_text(img) -> str:
         from tools.grounding import _get_easyocr_reader
         reader = _get_easyocr_reader()
         if reader is not None:
-            results = reader.readtext(np.array(img), detail=0)
-            return " ".join(results)[:MAX_OCR_CHARS]
+            results = reader.readtext(np.array(img))
+            return " ".join(texte for _boite, texte, _conf in results)[:MAX_OCR_CHARS]
     except Exception as e:
         logger.debug("EasyOCR full-text échoué : %s", e)
 

@@ -426,11 +426,11 @@ def bridge_state(request, monkeypatch):
     return request.param
 
 
-@pytest.mark.parametrize("url", BAD_URLS)
-@pytest.mark.parametrize("verb", ["navigate", "open_tab"])
+# Sprint Check-up / CK4 : (open_tab, url vide) n'est plus généré puis ignoré — un nouvel onglet
+# vide est légitime (« ouvre un nouvel onglet » : pas de clé url), ce n'est pas un cas de refus.
+@pytest.mark.parametrize("verb,url", [(v, u) for v in ("navigate", "open_tab") for u in BAD_URLS
+                                      if not (v == "open_tab" and u in ("", None))])
 def test_bs4_url_hors_liste_blanche_refusee(bridge_state, verb, url):
-    if verb == "open_tab" and url in ("", None):
-        pytest.skip("un nouvel onglet vide est légitime (« ouvre un nouvel onglet » : pas de clé url)")
     resolved = _resolve("web", verb, params={"url": url})
     assert resolved.rejected is True, f"{verb} {url!r} accepté : {resolved.tool} {resolved.params}"
 

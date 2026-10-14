@@ -78,8 +78,7 @@ def _compute_timeout(user_message: str, full_response: str = "") -> int:
 #  Chat — non-streaming
 # --------------------------------------------------------------------------- #
 
-@router.post("/chat")
-async def chat_endpoint(req: ChatRequest):
+async def _chat(req: ChatRequest):
     """
     Endpoint principal v2.3 :
     1. Classifier détecte l'intention
@@ -246,6 +245,42 @@ async def chat_endpoint(req: ChatRequest):
 #  Chat — streaming with keepalive + step feedback
 # --------------------------------------------------------------------------- #
 
+# --------------------------------------------------------------------------- #
+#  Sprint Check-up / CK2 — une bascule vécue est dite à la première réponse qui suit
+# --------------------------------------------------------------------------- #
+
+def _avec_bascules(reponse):
+    if isinstance(reponse, dict) and "message" in reponse:
+        from core_conversational.degradations import avec_avertissements
+
+        reponse["message"] = avec_avertissements(reponse.get("message"))
+    return reponse
+
+
+@router.post("/chat")
+async def chat_endpoint(req: ChatRequest):
+    """Endpoint principal (voir _chat) ; ajoute à la réponse les bascules vécues pas encore dites."""
+    return _avec_bascules(await _chat(req))
+
+
+async def _flux_avec_bascules(flux: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
+    """Même règle pour le flux : la phrase rejoint le message du résultat (que la fenêtre
+    affiche) et passe aussi en jeton, pour une réponse de conversation."""
+    from core_conversational.degradations import a_dire
+
+    async for evt in flux:
+        if evt.startswith("data: {") and '"type": "result"' in evt:
+            notes = a_dire()
+            if notes:
+                texte = "\n".join(f"ℹ️ {n}" for n in notes)
+                data = json.loads(evt[len("data: "):])
+                msg = data["content"].get("message")
+                data["content"]["message"] = f"{msg}\n\n{texte}" if msg else texte
+                yield f"data: {json.dumps({'type': 'token', 'content': chr(10) * 2 + texte}, ensure_ascii=False)}\n\n"
+                evt = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+        yield evt
+
+
 @router.post("/chat/stream")
 async def chat_stream_endpoint(req: ChatRequest):
     """
@@ -394,7 +429,7 @@ async def chat_stream_endpoint(req: ChatRequest):
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
-        generate(),
+        _flux_avec_bascules(generate()),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -554,6 +589,7 @@ async def api_voice_state():
 async def api_health():
     """Global health for core dependencies and voice runtime."""
     from core.voice_engine import get_voice_engine
+    from core_conversational.degradations import actives as actives_bascules
 
     settings_path = pathlib.Path(__file__).resolve().parent.parent / "config" / "settings.json"
     with open(settings_path, encoding="utf-8") as f:
@@ -611,17 +647,10 @@ async def api_health():
     except Exception as e:
         voice_status.update({"ok": False, "degraded_reason": [f"état de la voix illisible : {e}"]})
 
-    # Tesseract OCR probe
-    import subprocess as _sp
-    tesseract_ok = False
-    tesseract_version: str | None = None
-    try:
-        _tr = _sp.run(["tesseract", "--version"], capture_output=True, text=True, timeout=3.0)
-        tesseract_ok = _tr.returncode == 0
-        if tesseract_ok:
-            tesseract_version = (_tr.stdout or "").strip().split("\n")[0] or None
-    except Exception:
-        pass
+    # Sprint Check-up / CK5 : Tesseract ET sa langue fra (état gardé, sondé au démarrage)
+    from tools.grounding import tesseract_etat
+
+    tess = tesseract_etat()
 
     grounding_cfg = cfg.get("grounding", {})
     vision_enabled = bool(grounding_cfg.get("vision_enabled", True))
@@ -639,8 +668,10 @@ async def api_health():
     return {
         "status": "ok" if global_ok else "degraded",
         "services": services,
-        "tesseract_status": {"ok": tesseract_ok, "version": tesseract_version},
+        "tesseract_status": {"ok": tess["ok"], "version": tess["version"], "fra": tess["fra"]},
         "vision_enabled": vision_enabled,
+        # Sprint Check-up / CK2 : chaque repli en cours, sa cause et ce qu'il fait perdre
+        "bascules": actives_bascules(),
     }
 
 
