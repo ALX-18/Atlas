@@ -47,6 +47,14 @@ CATALOGUE: dict[str, dict] = {
         "vecue": True,
         "message": "Ma mémoire est indisponible : je ne retiens rien pour le moment.",
     },
+    "apprentissage": {
+        "composant": "Apprentissage (corrections et méthodes)",
+        "declencheur": "la mémoire ne peut pas enregistrer ce qui est appris",
+        "perte": "les corrections d'Alexis et les méthodes qui marchent ne sont plus retenues ; tout le reste fonctionne",
+        "vecue": True,
+        "message": "Je ne peux pas retenir ce que tu m'apprends pour le moment : ma mémoire est indisponible. "
+                   "Je fais quand même ce que tu demandes.",
+    },
     "memoire_partielle": {
         "composant": "Mémoire (ChromaDB)",
         "declencheur": "une collection reste illisible après 3 ouvertures (défaut de ChromaDB 1.5.1 à l'ouverture)",

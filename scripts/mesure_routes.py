@@ -31,6 +31,20 @@ CONTEXTE = {"foreground_window": {"title": "", "process": ""}}
 
 
 def route(phrase: str) -> dict:
+    """La route de `phrase` dans un Atlas « neuf » : la fenêtre de travail récente (B1-bis), mémoire
+    de la dernière action, est mise de côté le temps de la mesure (sinon la route dépendrait de
+    ce qui a été fait juste avant, dans le même processus)."""
+    from core.world_state import get_world_state
+
+    ws = get_world_state()
+    garde, ws.last_action = ws.last_action, None
+    try:
+        return _route(phrase)
+    finally:
+        ws.last_action = garde
+
+
+def _route(phrase: str) -> dict:
     from core.intent_classifier import get_classifier
     from core.validator import get_validator
 

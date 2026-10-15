@@ -51,7 +51,7 @@ ORDINAIRES = [
     "c'est quoi un processeur ?", "donne-moi trois idées de cadeaux pour un ami",
 ]
 
-WRITE_METHODS = {"save", "ingest_conversation", "ingest_document_chunks", "store_error", "forget",
+WRITE_METHODS = {"save", "ingest_conversation", "ingest_document_chunks", "forget", "apprentissage_ecrire", "apprentissage_effacer",
                  "forget_category", "_add_to_partition"}
 
 

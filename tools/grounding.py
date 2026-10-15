@@ -1636,6 +1636,7 @@ async def find_and_click(
     app_title: str,
     element_name: str,
     exclude_methods: Optional[set[str]] = None,
+    appris: Optional[dict] = None,
 ) -> dict[str, Any]:
     """
     Résout un clic sémantique via le grounding stack (4 couches).
@@ -1682,6 +1683,14 @@ async def find_and_click(
     layers = _build_layers(app_type, app_title)
     if exclude_methods:
         layers = [l for l in layers if l.__name__.replace("_try_", "") not in exclude_methods]
+    if appris:
+        # Sprint Apprentissage 1 / AP1 : la couche qui a marché pour cette application et cette
+        # cible d'abord, celles qui y ont échoué en dernier.
+        from core.apprentissage import appliquer_ordre
+
+        par_nom = {l.__name__.replace("_try_", ""): l for l in layers}
+        layers = [par_nom[n] for n in appliquer_ordre(list(par_nom), appris)]
+        logger.info("[GROUNDING] Ordre appris : %s", list(par_nom) and [l.__name__[5:] for l in layers])
     attempted_layers: list[str] = []
     layer_attempts: list[dict] = []  # v5.1 corrective — instrumentation détaillée
 

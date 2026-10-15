@@ -59,11 +59,22 @@ CONFIRMATION_TTL_S = 60.0
 
 
 def _confirmation_target(tool_name: str, args: dict) -> str:
-    for key in ("title", "name", "url", "workflow_id", "job_id", "command", "action"):
+    for key in ("title", "name", "url", "workflow_id", "job_id", "command", "action", "libelle"):
         value = (args or {}).get(key)
         if value:
             return str(value)
     return ""
+
+
+def _cle_apprentissage(tool_name: str, params: dict) -> Optional[tuple]:
+    """(outil, application, cible) pour les outils qui apprennent leur méthode (AP1), sinon None."""
+    if tool_name == "ui_click_element" and params.get("app_title") and params.get("element_name"):
+        return ("ui_click_element", params["app_title"], params["element_name"])
+    if tool_name in ("window_focus", "window_restore") and params.get("title"):
+        return ("window_focus", params["title"], "")
+    if tool_name == "launch_app" and params.get("name"):
+        return ("launch_app", params["name"], "")
+    return None
 
 
 def purge_expired_confirmations() -> list[str]:
@@ -239,6 +250,7 @@ TOOL_HANDLERS = {
         name=args.get("name"),
         path=args.get("path"),
         wait_ready=args.get("wait", False),
+        chemin_appris=(args.get("_appris") or {}).get("chemin"),
     ),
     "get_diagnostics": lambda args: diagnostics.full_diagnostics(),
     "run_powershell": lambda args: system_config.run_powershell(args["command"]),
@@ -277,6 +289,7 @@ TOOL_HANDLERS = {
     ),
     "window_focus": lambda args: window_controller.window_focus(
         title=args.get("title", ""),
+        appris=args.get("_appris"),
     ),
     "window_type": lambda args: window_controller.window_type(
         text=args.get("text", ""),
@@ -317,6 +330,7 @@ TOOL_HANDLERS = {
     # Dépôt + Ollama / C2 : le classifieur l'annonçait depuis longtemps, le moteur ne l'avait pas.
     "window_restore": lambda args: window_controller.window_restore(
         title=args.get("title", ""),
+        appris=args.get("_appris"),
     ),
     "window_list": lambda args: window_controller.window_list(),
     "window_snap": lambda args: window_controller.window_snap(
@@ -380,6 +394,10 @@ TOOL_HANDLERS = {
     "memory_save": lambda args: _run_memory_save(args),
     "memory_recall": lambda args: _run_memory_recall(args),
     "memory_forget": lambda args: _run_memory_forget(args),
+
+    # --- Sprint Apprentissage 1 : ce qu'Atlas a appris se voit et s'efface --- #
+    "apprentissage_lister": lambda args: _run_apprentissage_lister(args),
+    "apprentissage_oublier": lambda args: _run_apprentissage_oublier(args),
 }
 
 
@@ -424,6 +442,8 @@ TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "memory_recall": ("Mémoire", "vous le rappeler"),
     "memory_forget": ("Mémoire", "l'oublier"),
     "redo_last_action": ("Mémoire", "refaire la dernière action"),
+    "apprentissage_lister": ("Mémoire", "dire ce que j'ai appris de tes corrections"),
+    "apprentissage_oublier": ("Mémoire", "oublier ce que j'ai appris"),
     "workflow_run": ("Modes et automatisations", "lancer un mode"),
     "workflow_describe": ("Modes et automatisations", "décrire un mode"),
     "workflow_list": ("Modes et automatisations", "lister les modes"),
@@ -545,6 +565,7 @@ def _run_grounding(args: dict):
         app_title=args.get("app_title", ""),
         element_name=args.get("element_name", ""),
         exclude_methods=set(exclude) if exclude else None,
+        appris=args.get("_appris"),
     )
 
 
@@ -819,6 +840,19 @@ def _memory():
     return mm.get_memory_manager()
 
 
+def _run_apprentissage_lister(args: dict) -> dict:
+    from core import apprentissage
+
+    return {"success": True, "message": apprentissage.texte_liste(args.get("sujet") or None)}
+
+
+def _run_apprentissage_oublier(args: dict) -> dict:
+    from core import apprentissage
+
+    n = apprentissage.oublier(list(args.get("ids") or []))
+    return {"success": True, "message": f"C'est oublié ({n} élément(s)) : {args.get('libelle', '')}."}
+
+
 def _run_memory_save(args: dict) -> dict:
     fact = _strip_phrase(args.get("text", ""), _SAVE_PREFIX)
     if not fact:
@@ -1038,25 +1072,18 @@ class ExecutionEngine:
             reason = confirmation_reason(tool_name, interactive=True) or "action sensible"
             return request_confirmation(tool_name, params, context, reason)
 
-        # F4 v6.0 — apprentissage erreurs : mitigation pré-action (skip_layer appris)
-        learned_mitigation = None
-        if tool_name == "ui_click_element":
-            try:
-                from core.error_learning import get_error_learning
-                el = get_error_learning()
-                intent = getattr(resolved, "intent", None)
-                learned_mitigation = el.lookup_mitigation(
-                    intent_category=intent.category if intent else "interaction",
-                    target=params.get("element_name", ""),
-                    app_context=params.get("app_title", ""),
-                )
-                if learned_mitigation and learned_mitigation.get("strategy") == "skip_layer":
-                    skip = learned_mitigation.get("skip_layer")
-                    if skip:
-                        params = {**params, "_exclude_methods": [skip]}
-                        logger.info("[ENGINE] Mitigation apprise : skip couche '%s'", skip)
-            except Exception as _e:
-                logger.debug("Lookup mitigation échoué : %s", _e)
+        # Sprint Apprentissage 1 / AP1 — ce qui a été appris pour cet outil, cette application,
+        # cette cible : la méthode qui a marché en premier, celles qui ont échoué évitées. (Le
+        # mécanisme F4 récupérait des voisins sémantiques et n'appliquait rien : rapport D.)
+        cle_apprise = _cle_apprentissage(tool_name, params)
+        appris = None
+        if cle_apprise:
+            from core import apprentissage
+
+            appris = apprentissage.ordre_appris(*cle_apprise)
+            if appris:
+                params = {**params, "_appris": appris}
+                logger.info("[ENGINE] Appris pour %s : %s", cle_apprise, appris)
 
         idempotent_result = await self._check_idempotence(tool_name, params, context)
         avant_lancement = None
@@ -1184,30 +1211,52 @@ class ExecutionEngine:
         except Exception as e:
             logger.debug("Structured log failed: %s", e)
 
-        # F4 v6.0 — apprentissage erreurs : enregistrer l'échec pour mitigation future
-        if result.get("status") in ("error", "replan_required") or result.get("verification_failed"):
+        # Sprint Apprentissage 1 / AP1 — noter les VRAIES couches ou méthodes tentées (jamais
+        # l'issue globale), apprendre aussi des réussites, et dire quand un apprentissage sert.
+        if cle_apprise and not result.get("idempotent_skip"):
             try:
-                from core.error_learning import get_error_learning, classify_cause
-                intent = getattr(resolved, "intent", None)
-                cause = classify_cause(
-                    result.get("message") or result.get("replan_reason"),
-                    result.get("error_code"),
-                )
-                layer_failed = None
-                if tool_name == "ui_click_element":
-                    inner = result.get("result") or {}
-                    layer_failed = inner.get("method")
-                get_error_learning().record_failure(
-                    intent_category=intent.category if intent else "unknown",
-                    target=params.get("element_name") or params.get("name") or params.get("title") or "",
-                    app_context=params.get("app_title") or context.get("foreground_window", {}).get("title", ""),
-                    cause=cause,
-                    grounding_layer_failed=layer_failed,
-                )
+                result = self._apprendre_du_resultat(tool_name, cle_apprise, appris, result, context)
             except Exception as _e:
-                logger.debug("Record failure échoué : %s", _e)
+                logger.warning("[APPRENTISSAGE] Résultat non retenu : %s", _e)
 
         return result
+
+    @staticmethod
+    def _apprendre_du_resultat(tool_name: str, cle: tuple, appris, result: dict, context: dict) -> dict:
+        from core import apprentissage
+
+        inner = result.get("result") if isinstance(result.get("result"), dict) else {}
+        chemin = None
+        if tool_name == "ui_click_element":
+            tentatives = [{"methode": a.get("layer"), "resultat": a.get("result")}
+                          for a in (inner.get("layer_attempts") or []) if a.get("layer")]
+        elif tool_name in ("window_focus", "window_restore"):
+            tentatives = list(inner.get("tentatives") or [])
+        else:   # launch_app : la manière de lancer qui a marché, constatée par ce qui est apparu
+            ok = result.get("status") == "success" and not result.get("verification_failed")
+            tentatives = [{"methode": inner.get("resolved_by") or "protocole", "resultat": "success" if ok else "failure"}]
+            chemin = inner.get("path") if ok else None
+        rec = apprentissage.noter_methodes(*cle, tentatives, context.get("origine"), chemin=chemin)
+
+        message = inner.get("message") or result.get("message") or ""
+        # Dit dès que l'ordre appris a servi, quelle que soit l'issue : une vérification après clic
+        # ratée (replan_required) ne doit pas cacher l'apprentissage (rejeu réel du 15/10).
+        if appris:
+            if tool_name == "ui_click_element" and appris.get("premiere"):
+                message += f" (appris : je commence par « {appris['premiere']} »)"
+            elif tool_name in ("window_focus", "window_restore") and appris.get("premiere"):
+                message += f" (appris : méthode « {appris['premiere']} » d'abord)"
+            elif tool_name == "launch_app" and inner.get("resolved_by") == "appris":
+                message += " (appris : lancé par le chemin qui avait marché)"
+        if rec and rec.get("echecs_totaux", 0) >= 2:
+            fois = "Deuxième fois" if rec["echecs_totaux"] == 2 else f"{rec['echecs_totaux']}e fois"
+            app, cible = cle[1], cle[2] or cle[1]
+            message = (f"{fois} que je n'y arrive pas pour « {cible} » dans « {app} » : dis-moi le nom exact "
+                       f"affiché, ou vérifie qu'il est bien visible. ({message})")
+        if inner:
+            inner = {**inner, "message": message}
+            return {**result, "result": inner}
+        return {**result, "message": message}
 
     async def execute_plan(self, plan, context: dict, step_callback=None, _depth: int = 0, _seen_signatures: set | None = None) -> list[dict]:
         """

@@ -100,6 +100,7 @@ async function sendMessage() {
             body: JSON.stringify({
                 message: text,
                 history: conversationHistory.slice(-20),  // last 20 messages
+                origine: 'fenetre',  // Apprentissage 1 : une demande d'Alexis
             }),
         });
 

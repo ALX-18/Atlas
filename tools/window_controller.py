@@ -11,7 +11,7 @@ import logging
 import re
 import time
 import unicodedata
-from typing import Any
+from typing import Any, Optional
 
 import pyautogui
 import pygetwindow as gw
@@ -75,6 +75,64 @@ def _resolve_aliases(title: str) -> list[str]:
     if key in _WINDOW_ALIASES:
         return _WINDOW_ALIASES[key]
     return [title]
+
+
+def _premier_plan_pywinauto(alias: str) -> Optional[dict]:
+    # GB4 : titre échappé (« | » devenait une alternative), casse ignorée.
+    if not HAS_PYWINAUTO:
+        return None
+    try:
+        app = PywinautoApplication(backend="uia").connect(title_re=f"(?i).*{re.escape(alias)}.*", timeout=1)
+        window = app.top_window()
+        window.set_focus()
+        time.sleep(0.2)
+        return {"success": True, "message": f"Fenêtre '{window.window_text()}' mise au premier plan (pywinauto).",
+                "title": window.window_text()}
+    except Exception as e:
+        logger.debug("pywinauto focus failed for '%s': %s", alias, e)
+        return None
+
+
+def _premier_plan_pygetwindow(alias: str) -> Optional[dict]:
+    try:
+        windows = gw.getWindowsWithTitle(alias)
+        if windows:
+            w = windows[0]
+            if w.isMinimized:
+                w.restore()
+                time.sleep(0.2)
+            w.activate()
+            time.sleep(0.2)
+            return {"success": True, "message": f"Fenêtre '{w.title}' mise au premier plan (pygetwindow).",
+                    "title": w.title}
+    except Exception as e:
+        logger.debug("pygetwindow focus failed for '%s': %s", alias, e)
+    return None
+
+
+def _premier_plan_win32(alias: str) -> Optional[dict]:
+    if not HAS_WIN32:
+        return None
+    try:
+        trouves = _enum_windows_by_title(alias)
+        if trouves:
+            hwnd = trouves[0]["hwnd"]
+            if win32gui.IsIconic(hwnd):
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+            win32gui.SetForegroundWindow(hwnd)
+            time.sleep(0.2)
+            return {"success": True, "message": f"Fenêtre '{trouves[0]['title']}' mise au premier plan (Win32).",
+                    "title": trouves[0]["title"]}
+    except Exception as e:
+        logger.debug("Win32 focus fallback failed for '%s': %s", alias, e)
+    return None
+
+
+_METHODES_PREMIER_PLAN = {"pywinauto": lambda a: _premier_plan_pywinauto(a),
+                          "pygetwindow": lambda a: _premier_plan_pygetwindow(a),
+                          "win32": lambda a: _premier_plan_win32(a)}
+_PREMIER_PLAN_ATTENTES = [0.2, 0.5, 1.0]
 
 
 def _list_visible_windows() -> list[dict]:
@@ -292,7 +350,7 @@ class WindowController:
         return {"success": False, "message": f"Aucune fenêtre trouvée contenant '{title}'.", "windows": []}
 
     @staticmethod
-    def focus_window(title: str) -> dict[str, Any]:
+    def focus_window(title: str, appris: Optional[dict] = None) -> dict[str, Any]:
         """
         Met au premier plan la fenêtre correspondant au titre.
         Gère les cas minimisés et les restrictions Win32.
@@ -307,67 +365,23 @@ class WindowController:
         if resolved is None and ambiguity and ambiguity.startswith("plusieurs"):
             return _refused(ambiguity)
         candidates = [resolved["title"]] if resolved else _resolve_aliases(title)
-        retries = [0.2, 0.5, 1.0]
-        for attempt, delay in enumerate(retries, start=1):
+        # Sprint Apprentissage 1 / AP1 : trois méthodes nommées ; celle qui a marché pour cette
+        # fenêtre est tentée en premier ; chaque tentative est rendue (pour l'apprentissage).
+        from core.apprentissage import appliquer_ordre
+
+        ordre = appliquer_ordre(list(_METHODES_PREMIER_PLAN), appris)
+        tentatives: list[dict] = []
+        for attempt, delay in enumerate(_PREMIER_PLAN_ATTENTES, start=1):
             for alias in candidates:
-                # 1) pywinauto attempt — GB4 : titre échappé (« | » devenait une alternative)
-                # et sans tenir compte de la casse (« discord » ne trouvait pas « Discord »).
-                if HAS_PYWINAUTO:
-                    try:
-                        app = PywinautoApplication(backend="uia").connect(
-                            title_re=f"(?i).*{re.escape(alias)}.*", timeout=1)
-                        window = app.top_window()
-                        window.set_focus()
-                        time.sleep(0.2)
-                        return {
-                            "success": True,
-                            "message": f"Fenêtre '{window.window_text()}' mise au premier plan (pywinauto).",
-                            "title": window.window_text(),
-                        }
-                    except Exception as e:
-                        logger.debug("pywinauto focus failed for '%s' (attempt %d): %s", alias, attempt, e)
-
-                # 2) pygetwindow attempt
-                try:
-                    windows = gw.getWindowsWithTitle(alias)
-                    if windows:
-                        w = windows[0]
-                        if w.isMinimized:
-                            w.restore()
-                            time.sleep(0.2)
-                        w.activate()
-                        time.sleep(0.2)
-                        return {
-                            "success": True,
-                            "message": f"Fenêtre '{w.title}' mise au premier plan (pygetwindow).",
-                            "title": w.title,
-                        }
-                except Exception as e:
-                    logger.debug("pygetwindow focus failed for '%s' (attempt %d): %s", alias, attempt, e)
-
-                # 3) Win32 fallback
-                if HAS_WIN32:
-                    try:
-                        win32_results = _enum_windows_by_title(alias)
-                        if win32_results:
-                            hwnd = win32_results[0]["hwnd"]
-                            if win32gui.IsIconic(hwnd):
-                                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-                            win32gui.SetForegroundWindow(hwnd)
-                            time.sleep(0.2)
-                            return {
-                                "success": True,
-                                "message": f"Fenêtre '{win32_results[0]['title']}' mise au premier plan (Win32 fallback).",
-                                "title": win32_results[0]["title"],
-                            }
-                    except Exception as e:
-                        logger.debug("Win32 focus fallback failed for '%s' (attempt %d): %s", alias, attempt, e)
-
-            if attempt < len(retries):
+                for nom in ordre:
+                    res = _METHODES_PREMIER_PLAN[nom](alias)
+                    tentatives.append({"methode": nom, "resultat": "success" if res else "failure"})
+                    if res:
+                        return {**res, "methode": nom, "tentatives": tentatives}
+            if attempt < len(_PREMIER_PLAN_ATTENTES):
                 time.sleep(delay)
 
-        return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
+        return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'.", "tentatives": tentatives}
 
     # ------- Actions clavier ------- #
 
@@ -527,19 +541,19 @@ def window_find(title: str) -> dict[str, Any]:
     return _controller.find_window(title)
 
 
-def window_focus(title: str) -> dict[str, Any]:
-    """Met au premier plan une fenêtre."""
-    return _controller.focus_window(title)
+def window_focus(title: str, appris: Optional[dict] = None) -> dict[str, Any]:
+    """Met au premier plan une fenêtre (méthode apprise d'abord, AP1)."""
+    return _controller.focus_window(title, appris) if appris else _controller.focus_window(title)
 
 
-def _focus_and_verify(target: str):
+def _focus_and_verify(target: str, appris: Optional[dict] = None):
     """Met la cible au premier plan PUIS vérifie qu'elle y est. Retourne (fenêtre active, refus).
 
     focus_window peut « réussir » sans que Windows cède le premier plan (protection contre
     le vol de focus d'un processus en arrière-plan) : la frappe partirait alors dans la
     fenêtre qui s'y trouvait. On lit donc la fenêtre réellement active avant d'agir.
     """
-    focus_result = _controller.focus_window(target)
+    focus_result = _controller.focus_window(target, appris) if appris else _controller.focus_window(target)
     if not focus_result["success"]:
         return None, focus_result
     time.sleep(0.3)
@@ -756,7 +770,7 @@ def _restore_hwnd(hwnd) -> bool:
         return False
 
 
-def window_restore(title: str) -> dict[str, Any]:
+def window_restore(title: str, appris: Optional[dict] = None) -> dict[str, Any]:
     """Restaure une fenêtre NOMMÉE à sa taille normale, puis vérifie qu'elle est au premier plan.
 
     Dépôt + Ollama / C2 — mêmes règles que window_focus : un nom obligatoire, plusieurs
@@ -774,7 +788,7 @@ def window_restore(title: str) -> dict[str, Any]:
     if not _restore_hwnd(resolved["hwnd"]):
         return {"success": False, "message": f"Impossible de restaurer la fenêtre '{resolved['title']}'."}
     time.sleep(0.3)
-    _, refusal = _focus_and_verify(resolved["title"])
+    _, refusal = _focus_and_verify(resolved["title"], appris) if appris else _focus_and_verify(resolved["title"])
     if refusal:
         return {"success": False,
                 "message": f"Fenêtre '{resolved['title']}' restaurée, mais elle n'est pas passée au premier plan."}

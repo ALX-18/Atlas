@@ -272,6 +272,7 @@ class AtlasDesktop:
         "trigger_add": "Créer le déclencheur",
         "workflow_create": "Créer le workflow",
         "workflow_run": "Lancer le workflow",
+        "apprentissage_oublier": "Oublier ce que j'ai appris",   # Apprentissage 1
     }
 
     def show_confirmation_dialog(self, data: dict):
@@ -550,6 +551,7 @@ class AtlasDesktop:
             payload = {
                 "message": text,
                 "history": [],
+                "origine": "bureau",      # Apprentissage 1 : une demande d'Alexis
             }
             try:
                 with httpx.Client(timeout=60.0) as client:

@@ -260,7 +260,7 @@ def check_easyocr_models() -> list[Check]:
 
 # Pré-beta / PB4 — version de référence : Ollama s'est mis à jour seul en 0.40.3 (12/10/2026),
 # version avec laquelle les mesures du sprint Dépôt + Ollama ont été faites.
-OLLAMA_REFERENCE_VERSION = "0.40.3"
+OLLAMA_REFERENCE_VERSION = "0.40.4"
 _LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 
 
@@ -292,11 +292,20 @@ def ollama_exposure_check(addresses: list[str]) -> Check:
                  "Atlas n'a besoin que de 127.0.0.1:11434.")
 
 
+def _mineure(version: str | None) -> str | None:
+    morceaux = (version or "").split(".")
+    return ".".join(morceaux[:2]) if len(morceaux) >= 2 else None
+
+
 def ollama_version_check(version: str | None) -> Check:
-    return Check("Ollama", f"Version de référence ({OLLAMA_REFERENCE_VERSION})", version == OLLAMA_REFERENCE_VERSION,
-                 WARNING, f"version installée : {version or 'inconnue'} ; référence : {OLLAMA_REFERENCE_VERSION}",
-                 f"Atlas a été vérifié avec Ollama {OLLAMA_REFERENCE_VERSION}. Une autre version marche "
-                 "probablement, mais n'a pas été mesurée.")
+    """Sprint Apprentissage 1 (décision du superviseur) : Ollama se met à jour seul ; une version
+    de même mineure (0.40.x) est acceptée, seul un changement de mineure est signalé."""
+    ref = _mineure(OLLAMA_REFERENCE_VERSION)
+    return Check("Ollama", f"Version de référence ({ref}.x)", version is not None and _mineure(version) == ref,
+                 WARNING, f"version installée : {version or 'inconnue'} ; référence : {ref}.x "
+                          f"(mesurée en {OLLAMA_REFERENCE_VERSION})",
+                 f"Atlas a été vérifié avec Ollama {ref}.x. Une autre version mineure marche probablement, "
+                 "mais n'a pas été mesurée.")
 
 
 def check_ollama(settings: dict | None) -> list[Check]:

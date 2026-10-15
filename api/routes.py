@@ -92,6 +92,7 @@ async def _chat(req: ChatRequest):
         return {"type": "text", "message": refus, "tool_results": []}
     context = collect_context()
     context["user_input"] = req.message
+    context["origine"] = req.origine          # Apprentissage 1 : n'apprendre que d'Alexis
     ws = get_world_state()
     ws.update_from_context(context)
 
@@ -257,10 +258,27 @@ def _avec_bascules(reponse):
     return reponse
 
 
+def _avec_annonce(reponse, annonce):
+    if annonce and isinstance(reponse, dict) and "message" in reponse:
+        reponse["message"] = f"{annonce} {reponse.get('message') or ''}".strip()
+    return reponse
+
+
 @router.post("/chat")
 async def chat_endpoint(req: ChatRequest):
-    """Endpoint principal (voir _chat) ; ajoute à la réponse les bascules vécues pas encore dites."""
-    return _avec_bascules(await _chat(req))
+    """Endpoint principal (voir _chat) ; ajoute à la réponse les bascules vécues pas encore dites.
+
+    Sprint Apprentissage 1 / AP2 : une correction d'Alexis (« non, je voulais… ») est routée comme
+    la demande voulue et retenue ; une demande déjà corrigée prend la route apprise, et c'est dit.
+    """
+    from core import apprentissage
+
+    prep = apprentissage.preparer(req.message, req.origine)
+    a_router = req if prep["phrase"] == req.message else req.model_copy(update={"message": prep["phrase"]})
+    reponse = await _chat(a_router)
+    if not prep["correction"]:
+        apprentissage.noter_echange(req.message, req.origine)
+    return _avec_bascules(_avec_annonce(reponse, prep["annonce"]))
 
 
 async def _flux_avec_bascules(flux: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
@@ -283,6 +301,31 @@ async def _flux_avec_bascules(flux: AsyncGenerator[str, None]) -> AsyncGenerator
 
 @router.post("/chat/stream")
 async def chat_stream_endpoint(req: ChatRequest):
+    from core import apprentissage
+
+    prep = apprentissage.preparer(req.message, req.origine)
+    if not prep["correction"]:
+        apprentissage.noter_echange(req.message, req.origine)
+    if prep["phrase"] != req.message:
+        req = req.model_copy(update={"message": prep["phrase"]})
+    reponse = await _chat_stream(req)
+    if prep["annonce"]:
+        reponse.body_iterator = _flux_avec_annonce(reponse.body_iterator, prep["annonce"])
+    return reponse
+
+
+async def _flux_avec_annonce(flux, annonce: str):
+    """L'annonce rejoint le message du résultat (que la fenêtre affiche)."""
+    async for evt in flux:
+        if isinstance(evt, str) and evt.startswith("data: {") and '"type": "result"' in evt:
+            data = json.loads(evt[len("data: "):])
+            msg = data["content"].get("message")
+            data["content"]["message"] = f"{annonce} {msg or ''}".strip()
+            evt = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+        yield evt
+
+
+async def _chat_stream(req: ChatRequest):
     """
     Endpoint streaming v2.3 :
     - Classifier détecte l'intention
@@ -298,6 +341,7 @@ async def chat_stream_endpoint(req: ChatRequest):
         return StreamingResponse(refuse(), media_type="text/event-stream")
     context = collect_context()
     context["user_input"] = req.message
+    context["origine"] = req.origine
     ws = get_world_state()
     ws.update_from_context(context)
 

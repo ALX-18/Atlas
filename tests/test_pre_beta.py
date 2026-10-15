@@ -308,13 +308,17 @@ def test_pb4_ollama_ne_tourne_pas():
     assert d.ollama_exposure_check([]).ok is True     # rien n'écoute : la joignabilité le dit déjà
 
 
-@pytest.mark.parametrize("version,attendu", [("0.40.3", True), ("0.40.2", False), ("0.41.0", False), (None, False)])
+# Sprint Apprentissage 1 (décision du superviseur) : une mise à jour de même version mineure
+# (0.40.x) est acceptée sans avertissement ; on ne prévient qu'au changement de version mineure.
+@pytest.mark.parametrize("version,attendu", [("0.40.3", True), ("0.40.4", True), ("0.40.2", True),
+                                             ("0.41.0", False), ("0.39.9", False), ("1.40.3", False),
+                                             (None, False)])
 def test_pb4_version_comparee_a_la_reference(version, attendu):
     d = _doctor()
-    assert d.OLLAMA_REFERENCE_VERSION == "0.40.3"
+    assert d.OLLAMA_REFERENCE_VERSION.startswith("0.40.")
     c = d.ollama_version_check(version)
     assert c.ok is attendu and c.severity == d.WARNING, c
-    assert "0.40.3" in (c.detail + c.fix)
+    assert "0.40" in (c.detail + c.fix)
 
 
 def test_pb4_check_ollama_ajoute_version_et_exposition(monkeypatch):

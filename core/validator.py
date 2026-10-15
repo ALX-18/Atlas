@@ -160,6 +160,8 @@ CONFIRMATION_POLICY: dict[str, tuple[str, str]] = {
     "trigger_add":     ("interactif", "créer un déclencheur automatique"),
     "workflow_create": ("interactif", "créer un workflow"),
     "workflow_run":    ("interactif", "lancer un workflow, soit plusieurs actions d'un coup"),
+    # Sprint Apprentissage 1 : oublier ce qui a été appris efface, comme toute suppression.
+    "apprentissage_oublier": ("toujours", "oublier ce que j'ai appris"),
 }
 
 
@@ -645,6 +647,22 @@ class Validator:
                 confirmation_required=confirmation_reason(tool_name, interactive=True) is not None,
                 intent=intent,
             )
+
+        # --- Sprint Apprentissage 1 : lister, oublier ce qui a été appris ---
+        if category == "apprentissage":
+            from core import apprentissage
+
+            sujet = (intent.params or {}).get("sujet", "")
+            if verb == "oublier":
+                recs = apprentissage.chercher(sujet) if sujet else apprentissage.lister()
+                if not recs:
+                    return ResolvedAction(tool="apprentissage_lister", params={"sujet": sujet}, intent=intent)
+                return ResolvedAction(
+                    tool="apprentissage_oublier",
+                    params={"sujet": sujet, "ids": [r["id"] for r in recs],
+                            "libelle": " ; ".join(r["libelle"] for r in recs)},
+                    confirmation_required=True, intent=intent)
+            return ResolvedAction(tool="apprentissage_lister", params={"sujet": sujet}, intent=intent)
 
         # --- F2 v6.0 : Vision / lecture d'écran ---
         if category == "vision" and verb == "read_screen":
