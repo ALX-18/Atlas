@@ -202,6 +202,40 @@ class MemoryManager:
     def is_connected(self) -> bool:
         return self._connected
 
+    # ------------------------------------------------------------------ #
+    #  Sprint Fiabilité — lire malgré le défaut de ChromaDB 1.5.1
+    # ------------------------------------------------------------------ #
+
+    def _rouvrir(self) -> None:
+        """Rouvre le client de la mémoire (le verrou reste tenu). Lecture seule."""
+        from chromadb.api.client import SharedSystemClient
+
+        _CLIENTS.pop(str(pathlib.Path(CHROMA_PATH).resolve()), None)
+        SharedSystemClient.clear_system_cache()
+        self._connect()
+
+    def _interroger(self, collection, methode: str = "query", **kwargs):
+        """`collection()` donne la collection à jour ; une seule reprise, client rouvert.
+
+        ChromaDB 1.5.1 cesse parfois de lire l'index d'une collection (« hnsw segment reader:
+        Nothing found on disk ») pour toute la vie du client, à l'ouverture comme en cours de
+        session ; un client rouvert le relit. Si la reprise échoue aussi : bascule signalée.
+        """
+        try:
+            return getattr(collection(), methode)(**kwargs)
+        except Exception as e:
+            if "hnsw segment reader" not in str(e):
+                raise
+            logger.warning("Mémoire : index illisible (%s) — client rouvert, nouvel essai.", str(e)[:120])
+            self._rouvrir()
+            try:
+                return getattr(collection(), methode)(**kwargs)
+            except Exception as e2:
+                from core_conversational.degradations import signaler
+
+                signaler("memoire_partielle", f"lecture en échec après réouverture : {str(e2)[:160]}")
+                raise
+
     def status(self) -> dict[str, str]:
         """SD2 : « ok », « neutralisee », « verrouillee » ou « en_panne », sans les confondre."""
         return dict(self._status)
@@ -318,7 +352,7 @@ class MemoryManager:
     def _find_by_hash(self, content_hash: str) -> Optional[str]:
         """Identifiant d'un souvenir déjà écrit avec cette empreinte, s'il existe (D5)."""
         try:
-            found = self._collection.get(where={"content_hash": content_hash}, limit=1)
+            found = self._interroger(lambda: self._collection, "get", where={"content_hash": content_hash}, limit=1)
             ids = found.get("ids") or []
             return ids[0] if ids else None
         except Exception as e:
@@ -355,7 +389,8 @@ class MemoryManager:
         try:
             where_filter = {"category": category} if category else None
 
-            results = self._collection.query(
+            results = self._interroger(
+                lambda: self._collection,
                 query_embeddings=[qvec],
                 n_results=top_k,
                 where=where_filter,
@@ -511,13 +546,13 @@ class MemoryManager:
             return []
         from core import embeddings as emb
 
-        coll = self._partitions[partition]
+        coll = lambda: self._partitions[partition]       # noqa: E731 — à jour après réouverture
         try:
             qvec = emb.embed_query(query)
             if qvec is not None:
-                results = coll.query(query_embeddings=[qvec], n_results=top_k)
+                results = self._interroger(coll, query_embeddings=[qvec], n_results=top_k)
             else:
-                results = coll.query(query_texts=[query], n_results=top_k)
+                results = self._interroger(coll, query_texts=[query], n_results=top_k)
         except Exception as e:
             logger.error("Erreur retrieve partition '%s' : %s", partition, e)
             return []
@@ -652,7 +687,7 @@ class MemoryManager:
                 # Compter par catégorie
                 for cat in CATEGORIES:
                     try:
-                        cat_results = self._collection.get(where={"category": cat})
+                        cat_results = self._interroger(lambda: self._collection, "get", where={"category": cat})
                         result[f"count_{cat}"] = len(cat_results["ids"])
                     except Exception:
                         result[f"count_{cat}"] = 0

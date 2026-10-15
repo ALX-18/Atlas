@@ -828,28 +828,32 @@ async def _try_cache(app_title: str, element_name: str) -> Optional[dict]:
     x, y = coords
 
     # Adjust cached point when target window moved since cache insertion.
+    # Sprint Fiabilité / FI7 bis : la fenêtre visée doit être trouvée et contenir le point.
+    # Avant, fenêtre introuvable ou erreur → clic quand même aux coordonnées gardées, qui
+    # pouvaient dater d'une autre disposition d'écrans (x = −1482, 10/04).
     try:
         windows = _find_candidate_windows(app_title)
         w = _choose_best_window(windows, app_title)
-        if w is not None:
-            current_rect = (
-                int(getattr(w, "left", 0)),
-                int(getattr(w, "top", 0)),
-                int(getattr(w, "width", 0)),
-                int(getattr(w, "height", 0)),
-            )
-            if cached_rect and len(cached_rect) == 4:
-                x += current_rect[0] - int(cached_rect[0])
-                y += current_rect[1] - int(cached_rect[1])
-
-            in_window = (
-                current_rect[0] <= x < current_rect[0] + current_rect[2]
-                and current_rect[1] <= y < current_rect[1] + current_rect[3]
-            )
-            if not in_window:
-                return None
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("[CACHE] Fenêtre '%s' introuvable (%s) : pas de clic en cache", app_title, e)
+        return None
+    if w is None:
+        return None
+    current_rect = (
+        int(getattr(w, "left", 0)),
+        int(getattr(w, "top", 0)),
+        int(getattr(w, "width", 0)),
+        int(getattr(w, "height", 0)),
+    )
+    if cached_rect and len(cached_rect) == 4:
+        x += current_rect[0] - int(cached_rect[0])
+        y += current_rect[1] - int(cached_rect[1])
+    in_window = (
+        current_rect[0] <= x < current_rect[0] + current_rect[2]
+        and current_rect[1] <= y < current_rect[1] + current_rect[3]
+    )
+    if not in_window or not _point_in_bounds(x, y, _get_virtual_screen_bounds()):
+        return None
 
     try:
         pyautogui.click(x=x, y=y)

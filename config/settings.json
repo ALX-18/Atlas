@@ -91,7 +91,9 @@
         "del ", "rmdir", "rd "
     ],
     "automation": {
-        "trigger_check_interval_seconds": 10
+        "trigger_check_interval_seconds": 10,
+        "max_active_triggers": 20,
+        "min_cooldown_seconds": 60
     },
     "filesystem_assistant": {
         "enabled": false,

@@ -740,7 +740,8 @@ def composants() -> list[dict]:
             cuda_ok = False
     ligne("Transcription (faster-whisper)", f"voix → texte, modèle « {voice.get('stt_model', 'base')} »",
           _pkg_version("faster-whisper") is not None, _pkg_version("faster-whisper"),
-          "GPU" if cuda_ok else "processeur", "voix indisponible", ("stt_gpu",))
+          "GPU" if cuda_ok else "processeur", "on ne peut plus parler à Atlas (dit par Atlas)",
+          ("stt_gpu", "stt_absent"))
     if stt_dev == "cuda" and not cuda_ok and "stt_gpu" not in actives:
         lignes[-1]["bascule"] = "→ processeur (~5 s par phrase)"
     voix_piper = ROOT / "data" / "voices" / f"{voice.get('tts_voice', 'fr_FR-siwis-medium')}.onnx"

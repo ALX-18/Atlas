@@ -92,6 +92,17 @@ _BARE_AFFIRMATIONS = {
 }
 
 
+def verifier_transcription() -> None:
+    """Sprint Fiabilité / FI7 — au démarrage : sans faster-whisper, chaque phrase dite échouait
+    sans que rien ne le dise (rapport Check-up §9). Une bascule annoncée, avant toute phrase."""
+    import importlib.util
+
+    if importlib.util.find_spec("faster_whisper") is None:
+        from core_conversational.degradations import signaler
+
+        signaler("stt_absent", "paquet faster-whisper introuvable")
+
+
 def is_bare_affirmation(text: str) -> bool:
     """« Oui. », « ok vas-y », « d'accord » : un acquiescement sans autre contenu."""
     cleaned = re.sub(r"[.!?,;:…«»\"]", " ", (text or "").lower())
@@ -151,6 +162,7 @@ class VoiceEngine:
             return
 
         self._loop = asyncio.get_running_loop()
+        verifier_transcription()          # FI7 : dit au démarrage, avant la première phrase
         await self._init_wake_word()
 
         self._running = True
@@ -527,6 +539,9 @@ class VoiceEngine:
         try:
             from faster_whisper import WhisperModel
         except Exception as e:
+            from core_conversational.degradations import signaler
+
+            signaler("stt_absent", f"faster_whisper ne s'importe pas ({type(e).__name__}: {e})")
             raise RuntimeError(f"faster-whisper unavailable: {e}")
 
         if self._whisper_model is None:

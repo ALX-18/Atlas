@@ -33,6 +33,10 @@ from tools import (
 
 logger = logging.getLogger("atlas.intent_engine")
 
+# Sprint Fiabilité / FI3 : délai pendant lequel on attend la fenêtre ou le processus d'une
+# application lancée. Une application Windows moderne met 2 à 5 s à afficher sa fenêtre.
+LANCEMENT_ATTENTE_S = 8.0
+
 # --------------------------------------------------------------------------- #
 #  Browser process detection — pour le routage interaction
 # --------------------------------------------------------------------------- #
@@ -962,6 +966,28 @@ class ExecutionEngine:
     Remplace le chemin process_ai_response pour le nouveau pipeline (classifier → validator → engine).
     """
 
+    async def _verifier_lancement(self, avant: dict, name: str, result: dict) -> dict:
+        """FI3 — un lancement n'est JAMAIS rejoué. On attend une trace (fenêtre ou processus
+        apparu depuis le lancement) ; sans trace, on le dit, sans relancer."""
+        from tools import app_launcher as al
+
+        fin = time.monotonic() + LANCEMENT_ATTENTE_S
+        while True:
+            trace = al.apparu_depuis(avant, name)
+            if trace or time.monotonic() >= fin:
+                break
+            await asyncio.sleep(0.5)
+        if trace:
+            logger.info("[ENGINE] Lancement de '%s' constaté : %s", name, trace)
+            return result
+        nom = (name or "l'application").strip()
+        nom = nom[:1].upper() + nom[1:]
+        message = f"J'ai lancé {nom}, mais je ne vois pas sa fenêtre."
+        logger.warning("[ENGINE] %s (pas de relance)", message)
+        res = dict(result.get("result") or {})
+        res["message"] = message
+        return {**result, "result": res, "verification_failed": True}
+
     async def execute(self, resolved, context: dict) -> dict:
         """
         Exécute une seule ResolvedAction avec vérification et retry.
@@ -1033,11 +1059,16 @@ class ExecutionEngine:
                 logger.debug("Lookup mitigation échoué : %s", _e)
 
         idempotent_result = await self._check_idempotence(tool_name, params, context)
+        avant_lancement = None
         if idempotent_result is not None:
             result = idempotent_result
             result["idempotent_skip"] = True
             logger.info("[ENGINE] Action idempotente skip: %s %s", tool_name, params)
         else:
+            if tool_name == "launch_app":
+                from tools import app_launcher as _al
+
+                avant_lancement = _al.instantane()
             result = await execute_tool(tool_name, params, context)
 
         # P1: Post-click verification for ui_click_element
@@ -1070,8 +1101,11 @@ class ExecutionEngine:
                 else:
                     click_verified = True
 
+        # FI3 : un lancement se vérifie par ce qui est apparu, et ne se rejoue jamais.
+        if avant_lancement is not None and result.get("status") == "success":
+            result = await self._verifier_lancement(avant_lancement, params.get("name") or "", result)
         # Verification if success
-        if result.get("status") == "success" and resolved.verification.type != "none":
+        elif result.get("status") == "success" and resolved.verification.type != "none":
             verified = await self._verify(resolved.verification, context)
             if not verified:
                 # Retry

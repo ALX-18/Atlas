@@ -13,6 +13,7 @@ Mémoire JETABLE (dossier temporaire) : jamais data/chromadb.
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 
@@ -253,7 +254,21 @@ def sauvegarde(tmp_path, monkeypatch):
 
     monkeypatch.setattr(bm, "embed", _faux_vecteur)
     source = tmp_path / "chromadb"
-    _memoire_jetable(source)
+    # Sprint Fiabilité : ChromaDB 1.5.1 refuse parfois de lire une collection d'une base
+    # fraîchement écrite (« hnsw segment reader: Nothing found on disk », ~1 fois sur 10,
+    # selon l'ordre des lectures : rapport Fiabilité). Ce test vérifie la sauvegarde, pas
+    # ChromaDB : il part d'une base que ChromaDB relit, écrite par un autre processus comme
+    # la vraie. Le défaut lui-même est couvert par test_fiabilite (FI0).
+    for _ in range(5):
+        shutil.rmtree(source, ignore_errors=True)
+        subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, 'tests'); import test_sans_docker as t; "
+                        "t._memoire_jetable(sys.argv[1])", str(source)], cwd=ROOT, check=True)
+        try:
+            bm._summarize(source)
+            break
+        except Exception as e:
+            if "hnsw segment reader" not in str(e):
+                raise
     return bm, source, tmp_path / "sauvegardes"
 
 
