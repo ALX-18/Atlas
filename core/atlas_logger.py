@@ -5,10 +5,14 @@ Append-only JSONL logs for pipeline observability.
 """
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
-LOG_FILE = Path(__file__).resolve().parent.parent / "data" / "atlas_actions.jsonl"
+# Apprentissage 2 : les rejeux réels écrivent ailleurs (ATLAS_ACTIONS_LOG), jamais dans le
+# journal d'Alexis — c'est la source de ses habitudes (core/habitudes.py).
+LOG_FILE = Path(os.environ.get("ATLAS_ACTIONS_LOG")
+                or Path(__file__).resolve().parent.parent / "data" / "atlas_actions.jsonl")
 
 
 async def log_action(
@@ -27,8 +31,12 @@ async def log_action(
     click_verified: bool | None = None,
     disambiguation_triggered: bool = False,
     grounding_attempts: list[dict] | None = None,
+    origine: str | None = None,
 ):
-    """Append one structured Atlas action entry as JSONL."""
+    """Append one structured Atlas action entry as JSONL.
+
+    origine (Apprentissage 2) : bureau, fenetre ou voix pour une demande d'Alexis ; absente pour un
+    script ou un test. Seules les entrées d'Alexis comptent pour ses habitudes."""
     entry = {
         "timestamp": datetime.now().isoformat(),
         "user_input": user_input,
@@ -49,6 +57,8 @@ async def log_action(
         entry["disambiguation_triggered"] = True
     if grounding_attempts:
         entry["grounding_attempts"] = grounding_attempts
+    if origine:
+        entry["origine"] = origine
 
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_FILE, "a", encoding="utf-8") as f:

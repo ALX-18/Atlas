@@ -47,20 +47,6 @@ def neutralise() -> bool:
     return os.environ.get("ATLAS_APPRENTISSAGE", "").strip().lower() in ("off", "0", "non", "false")
 
 
-def _mm():
-    from core.memory_manager import get_memory_manager
-
-    return get_memory_manager()
-
-
-def _connectee(m) -> bool:
-    """Une mémoire utilisable pour l'apprentissage (un double de test minimal n'en est pas une)."""
-    try:
-        return bool(m.is_connected()) and hasattr(m, "apprentissage_lire")
-    except Exception:
-        return False
-
-
 def _sans_accents(texte: str) -> str:
     return "".join(c for c in unicodedata.normalize("NFD", texte) if unicodedata.category(c) != "Mn")
 
@@ -91,24 +77,28 @@ def _signaler_indisponible(cause: str) -> None:
 
 
 def _ecrire(doc_id: str, libelle: str, meta: dict) -> bool:
-    m = _mm()
-    if not _connectee(m):
-        _signaler_indisponible("mémoire indisponible")
+    """Apprentissage 2 / AQ2 : SQLite (core/apprentissage_store.py), une transaction par écriture."""
+    from core import apprentissage_store as store
+
+    try:
+        store.ecrire(doc_id, meta.get("type", "?"), libelle, meta)
+        return True
+    except Exception as e:
+        logger.warning("Apprentissage : écriture impossible (%s)", e)
+        _signaler_indisponible(f"écriture impossible ({e})")
         return False
-    if not m.apprentissage_ecrire(doc_id, libelle, meta):
-        _signaler_indisponible("écriture impossible (embeddings ou mémoire)")
-        return False
-    return True
 
 
-def _lire(ids: list[str]) -> list[dict]:
-    m = _mm()
-    if neutralise() or not _connectee(m):
+def _lire(ids: Optional[list[str]]) -> list[dict]:
+    from core import apprentissage_store as store
+
+    if neutralise():
         return []
     try:
-        return m.apprentissage_lire(ids)
+        return store.lire(ids)
     except Exception as e:
         logger.warning("Apprentissage : lecture impossible (%s)", e)
+        _signaler_indisponible(f"lecture impossible ({e})")
         return []
 
 
@@ -160,13 +150,19 @@ _PAS_UNE_CORRECTION = re.compile(
     r"^(?:non|nan)?[\s,.!]*(?:merci|c'?est bon|ca ira|ça ira|pas maintenant|pas besoin|pas grave|"
     r"c'?est pas grave|je ne veux pas|je veux pas|pourquoi)\b|^pas (?:mal|besoin|grave|maintenant)\b",
     re.IGNORECASE)
-_VOULU_VIDE = re.compile(r"^(?:juste|rien|pas|savoir|dire merci|que ça|que ca)\b", re.IGNORECASE)
+_VOULU_VIDE = re.compile(r"^(?:juste|rien|pas|savoir|dire merci|que ça|que ca|toi|moi|ça|ca|du tout|"
+                         r"pour rire|une blague)\b", re.IGNORECASE)
 _CORRECTIONS = [
     re.compile(r"^(?:non|nan)?[\s,.!]*(?:c'?est pas ça|c'?est pas ca|ce n'est pas ça|ce n'est pas ca|pas ça|pas ca)"
                r"[\s,.!]*(?:je voulais dire|je voulais|je veux)?\s*(?:que tu\s+)?(?P<v>.+)$", re.IGNORECASE),
     re.compile(r"^(?:non|nan)?[\s,.!]*je t'ai demand[ée]\s+(?:de\s+|d')?(?P<v>.+)$", re.IGNORECASE),
     re.compile(r"^(?:non|nan)[\s,.!]*(?:je voulais dire|je voulais|je veux)\s+(?:que tu\s+)?(?P<v>.+)$",
                re.IGNORECASE),
+    # Apprentissage 2 / AQ5 : « tu t'es trompé, c'était… », « je parlais de… », « non, c'était… »
+    re.compile(r"^(?:non|nan)?[\s,.!]*tu t'es tromp[ée]e?[\s,.!]*(?:c'?[ée]tait|je voulais dire|je voulais|je veux)"
+               r"\s+(?:que tu\s+)?(?P<v>.+)$", re.IGNORECASE),
+    re.compile(r"^(?:non|nan)?[\s,.!]*je parlais d(?:e\s+|')(?P<v>.+)$", re.IGNORECASE),
+    re.compile(r"^(?:non|nan)[\s,.!]*c'?[ée]tait\s+(?P<v>.+)$", re.IGNORECASE),
 ]
 _PAS_X_MAIS_Y = re.compile(r"^pas\s+(?P<x>.+?)\s*,\s*(?:mais\s+)?(?P<y>.+)$", re.IGNORECASE)
 
@@ -252,21 +248,37 @@ def preparer(phrase: str, origine: Optional[str]) -> dict:
     """Avant de router une demande : est-ce une correction ? une demande déjà corrigée ?
 
     Retourne {"phrase": la demande à router, "annonce": ce qu'Atlas dit en tête de réponse ou
-    None, "correction": bool}.
+    None, "correction": bool, "reponse": réponse directe sans rien router ou None, "a_noter": la
+    demande qu'une correction suivante corrigerait, ou None}.
+
+    Apprentissage 2 : d'abord, est-ce le « oui » ou le « non » d'Alexis à une question d'Atlas
+    (réessayer un clic, une habitude) ? Ce n'est pas un apprentissage : jamais neutralisé.
     """
+    from core import habitudes, propositions
+
+    commande = habitudes.commande(phrase, origine)       # AQ4 : « arrête de me proposer ça »…
+    if commande:
+        return {"phrase": phrase, "annonce": None, "correction": False, "a_noter": None, "reponse": commande}
+    reponse = propositions.repondre(phrase, origine)
+    if reponse and reponse["oui"]:
+        return {"phrase": reponse["phrase"], "annonce": None, "correction": False, "reponse": None,
+                "a_noter": reponse["phrase"]}
+    if reponse:
+        return {"phrase": phrase, "annonce": None, "correction": False, "a_noter": None,
+                "reponse": "D'accord, je n'y touche pas."}
     if neutralise():
-        return {"phrase": phrase, "annonce": None, "correction": False}
+        return {"phrase": phrase, "annonce": None, "correction": False, "reponse": None, "a_noter": phrase}
     voulu = detecter_correction(phrase, echange_precedent())
     if voulu:
         precedente = echange_precedent()["phrase"]
         etat = apprendre_correction(precedente, voulu, origine)
         annonce = f"D'accord : « {precedente} », c'était « {voulu} ». Je le retiens." if etat == "appris" else None
-        return {"phrase": voulu, "annonce": annonce, "correction": True}
+        return {"phrase": voulu, "annonce": annonce, "correction": True, "reponse": None, "a_noter": None}
     appris = correction_pour(phrase)
     if appris:
         return {"phrase": appris, "annonce": f"Comme tu me l'as appris, je comprends « {appris} ».",
-                "correction": False}
-    return {"phrase": phrase, "annonce": None, "correction": False}
+                "correction": False, "reponse": None, "a_noter": phrase}
+    return {"phrase": phrase, "annonce": None, "correction": False, "reponse": None, "a_noter": phrase}
 
 
 # --------------------------------------------------------------------------- #
@@ -354,18 +366,79 @@ def noter_methodes(outil: str, app: str, cible: str, tentatives: list[dict], ori
 #  Lister, chercher, oublier
 # --------------------------------------------------------------------------- #
 
+# --------------------------------------------------------------------------- #
+#  Apprentissage 2 / AQ3 — tes refus
+#
+#  Un refus, c'est Annuler dans un dialogue de confirmation, sur une demande venue d'Alexis.
+#  Une expiration n'en est pas un (Alexis était peut-être absent). Effet : à partir du 2e refus
+#  d'affilée de la même demande normalisée pour la même action, Atlas le dit AVANT de proposer
+#  et suggère la correction. La confirmation reste affichée ; rien n'est sauté ni refusé.
+#  Une acceptation remet le compte à zéro (Alexis peut avoir changé d'avis).
+# --------------------------------------------------------------------------- #
+
+REFUS_AVANT_RAPPEL = 2
+_NOMBRES = {2: "deux", 3: "trois", 4: "quatre", 5: "cinq"}
+
+
+def _id_refus(demande: str, outil: str) -> str:
+    return _id("refus", f"{outil}|{normaliser(demande)}")
+
+
+def noter_refus(demande: Optional[str], outil: str, cible: Optional[str], origine: Optional[str]) -> Optional[int]:
+    """Enregistre un Annuler d'Alexis ; retourne le nombre de refus d'affilée (None si rien retenu)."""
+    if neutralise() or origine not in ORIGINES_ALEXIS or not (demande or "").strip():
+        return None
+    doc_id = _id_refus(demande, outil)
+    avant = _lire([doc_id])
+    fois = int(avant[0]["meta"].get("fois") or 0) + 1 if avant else 1
+    libelle = f"Refus : « {demande} » annulé {fois} fois d'affilée"
+    meta = {"type": "refus", "outil": outil, "cible": str(cible or ""), "demande": demande,
+            "cle": normaliser(demande), "fois": fois, "origine": origine}
+    if _ecrire(doc_id, libelle, meta):
+        logger.info("[APPRENTISSAGE] %s", libelle)
+        return fois
+    return None
+
+
+def accepte(demande: Optional[str], outil: str) -> None:
+    """Alexis a confirmé : les refus d'avant ne disent plus rien de ce qu'il veut."""
+    if neutralise() or not (demande or "").strip():
+        return
+    doc_id = _id_refus(demande, outil)
+    if _lire([doc_id]):
+        oublier([doc_id])
+
+
+def rappel_refus(demande: Optional[str], outil: str) -> Optional[str]:
+    """La phrase dite avant de proposer, à partir du 2e refus d'affilée ; sinon None."""
+    if neutralise() or not (demande or "").strip():
+        return None
+    recs = _lire([_id_refus(demande, outil)])
+    if not recs:
+        return None
+    m = recs[0]["meta"]
+    fois = int(m.get("fois") or 0)
+    if fois < REFUS_AVANT_RAPPEL:
+        return None
+    return (f"Les {_NOMBRES.get(fois, str(fois))} dernières fois, tu as annulé « {m.get('demande')} ». "
+            "Je te le propose quand même ; si tu voulais autre chose, dis « non, je voulais… ».")
+
+
+def lister_enregistrements() -> list[dict]:
+    return [{"id": r["id"], "type": r["type"], "libelle": r["libelle"],
+             "details": dict(r["meta"]), "depuis": r["depuis"]} for r in _lire(None)]
+
+
 def lister() -> list[dict]:
-    m = _mm()
-    if not _connectee(m):
-        return []
+    """Tout ce qui est appris : les enregistrements, puis les habitudes actives (AQ4, calculées)."""
+    from core import habitudes
+
     try:
-        recs = m.apprentissage_lire(None)
+        calculees = habitudes.comme_enregistrements()
     except Exception as e:
-        logger.warning("Apprentissage : liste impossible (%s)", e)
-        return []
-    return sorted(({"id": r["id"], "type": r["meta"].get("type", "?"), "libelle": r["libelle"],
-                    "details": {k: v for k, v in r["meta"].items() if k not in ("created_at", "timestamp")},
-                    "depuis": r["meta"].get("timestamp", "")} for r in recs), key=lambda r: r["depuis"])
+        logger.warning("Habitudes : liste impossible (%s)", e)
+        calculees = []
+    return lister_enregistrements() + calculees
 
 
 def chercher(sujet: str) -> list[dict]:
@@ -376,12 +449,21 @@ def chercher(sujet: str) -> list[dict]:
 
 
 def oublier(ids: list[str]) -> int:
+    from core import apprentissage_store as store
+
     if not ids:
         return 0
-    m = _mm()
-    if not _connectee(m):
+    from core import habitudes
+
+    # AQ4 : une habitude calculée ne s'efface pas du journal ; « l'oublier », c'est l'écarter.
+    ecartees = habitudes.oublier_virtuelles(ids)
+    ids = [i for i in ids if i not in ecartees]
+    try:
+        n = store.effacer(ids) + len(ecartees) if ids else len(ecartees)
+    except Exception as e:
+        logger.warning("Apprentissage : effacement impossible (%s)", e)
+        _signaler_indisponible(f"effacement impossible ({e})")
         return 0
-    n = m.apprentissage_effacer(ids)
     logger.info("[APPRENTISSAGE] %d enregistrement(s) oublié(s)", n)
     return n
 

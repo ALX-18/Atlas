@@ -168,8 +168,12 @@ class TestErrorHelpers:
 class TestPartitionsLive:
     def test_partitions_created(self, mem):
         assert mem.is_connected()
-        for key in ("conversations", "documents", "context_apps", "habits", "errors"):
+        for key in ("conversations", "documents", "errors"):
             assert key in mem._partitions
+        # Apprentissage 2 / AQ2 : déclarées, jamais utilisées (rapport D §4.2) — retirées ; ce
+        # qu'Atlas apprend est dans data/apprentissage.db.
+        for key in ("context_apps", "habits", "apprentissage"):
+            assert key not in mem._partitions
 
     def test_ingest_and_retrieve_conversation(self, mem):
         tag = uuid.uuid4().hex[:6]

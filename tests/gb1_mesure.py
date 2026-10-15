@@ -51,8 +51,10 @@ ORDINAIRES = [
     "c'est quoi un processeur ?", "donne-moi trois idées de cadeaux pour un ami",
 ]
 
-WRITE_METHODS = {"save", "ingest_conversation", "ingest_document_chunks", "forget", "apprentissage_ecrire", "apprentissage_effacer",
-                 "forget_category", "_add_to_partition"}
+WRITE_METHODS = {"save", "ingest_conversation", "ingest_document_chunks", "forget", "forget_category",
+                 "_add_to_partition"}
+# Apprentissage 2 : ce qui est appris est dans data/apprentissage.db — écritures enregistrées, jamais faites.
+STORE_WRITES = ("ecrire", "effacer", "noter_proposition", "fixer_etat")
 
 
 class ReadOnlyMemory:
@@ -84,7 +86,11 @@ def main(out_path: str, phrases=None) -> None:
         ie.TOOL_HANDLERS[name] = (lambda n: lambda args: executed.append(n)
                                   or {"success": True, "message": f"[simulé] {n}"})(name)
     ie._save_action_to_memory = lambda *a, **k: None
-    ie.save_rejection = lambda *a, **k: None
+    from core import apprentissage_store as store
+    for name in STORE_WRITES:
+        setattr(store, name, (lambda n: lambda *a, **k: mem.writes.append((f"apprentissage.{n}", a[:2], {})))(name))
+    from core.world_state import get_world_state
+    ws = get_world_state()
 
     rows = []
     for kind, liste in (("action", ACTIONS), ("ordinaire", ORDINAIRES)):
@@ -94,7 +100,13 @@ def main(out_path: str, phrases=None) -> None:
             executed.clear()
             mem.writes.clear()
             t0 = time.monotonic()
-            r = asyncio.run(chat_endpoint(ChatRequest(message=phrase, history=[])))
+            # AQ5 : comme scripts/mesure_routes.py, chaque demande part d'un Atlas « neuf » : la
+            # fenêtre de travail récente (dernière action) est mise de côté le temps de la demande.
+            garde, ws.last_action = ws.last_action, None
+            try:
+                r = asyncio.run(chat_endpoint(ChatRequest(message=phrase, history=[])))
+            finally:
+                ws.last_action = garde
             ie.purge_expired_confirmations()
             from core import confirmation
             confirmation._pending.clear()

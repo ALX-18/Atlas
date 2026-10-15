@@ -101,7 +101,10 @@ def _isolate_data() -> pathlib.Path:
     import tools.system_config as system_config
     import api.routes as routes
 
+    import core.apprentissage_store as apprentissage_store
+
     atlas_logger.LOG_FILE = data / "atlas_actions.jsonl"
+    apprentissage_store.DB_PATH = data / "apprentissage.db"      # Apprentissage 2 : jamais le vrai
     context_monitor._DB_PATH = data / "habits.db"
     file_indexer.DATA_DIR, file_indexer.INDEX_FILE = data, data / "file_index.json"
     file_organizer.DATA_DIR, file_organizer.HISTORY_FILE = data, data / "file_reorg_history.jsonl"

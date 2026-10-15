@@ -300,6 +300,8 @@ class AtlasDesktop:
         ttk.Label(dlg, text=self.ACTION_LABELS.get(action, action), style="CardTitle.TLabel",
                   padding=(16, 12, 16, 2)).pack(anchor="w")
         ttk.Label(dlg, text=f"Cible : {cible}", padding=(16, 2)).pack(anchor="w")
+        if data.get("rappel"):          # Apprentissage 2 / AQ3 : tes refus d'avant, dits avant de proposer
+            ttk.Label(dlg, text=data["rappel"], wraplength=360, padding=(16, 2)).pack(anchor="w")
         ttk.Label(dlg, text=f"Pourquoi je demande : {motif}", wraplength=360,
                   padding=(16, 2)).pack(anchor="w")
         if data.get("level"):

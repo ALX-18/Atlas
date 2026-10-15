@@ -104,7 +104,6 @@ def _install():
     for name in list(ie.TOOL_HANDLERS):
         ie.TOOL_HANDLERS[name] = (lambda n: lambda args: {"success": True, "message": f"[simulé] {n}"})(name)
     ie._save_action_to_memory = lambda *a, **k: None
-    ie.save_rejection = lambda *a, **k: None
     return mem
 
 

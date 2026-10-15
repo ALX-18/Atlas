@@ -330,12 +330,16 @@ def test_ap2_rien_n_est_appris_d_une_correction_qui_ne_vient_pas_d_alexis(memoir
 
 
 def test_ap2_memoire_indisponible_atlas_fonctionne_et_le_dit(memoire_apprentissage, premier_plan, monkeypatch):
-    import core.memory_manager as mm
+    import core.apprentissage_store as store
     from core_conversational.degradations import actives
 
+    def indisponible(*a, **k):
+        raise store.Indisponible("fichier verrouillé par un autre processus")
+
     faits = premier_plan
-    m = mm.get_memory_manager()
-    monkeypatch.setattr(m, "_connected", False)
+    # Apprentissage 2 : le stockage est data/apprentissage.db (SQLite) ; on le rend indisponible.
+    for nom in ("ecrire", "lire", "effacer"):
+        monkeypatch.setattr(store, nom, indisponible)
     _chat("mets le témoin devant")
     r = _chat("non, je voulais mets AtlasTemoin au premier plan")
     assert faits == ["atlastemoin"], r                                 # la bonne demande est faite

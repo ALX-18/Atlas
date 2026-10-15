@@ -19,6 +19,13 @@ script refuse, et la copie est donc toujours cohérente.
   mise de côté (<dossier>.avant_restauration_<horodatage>), puis la sauvegarde est copiée et
   revérifiée sur place.
 
+Apprentissage 2 / AQ2 : les bases SQLite d'Atlas voisines du dossier de la mémoire
+(SQLITE_FICHIERS : data/apprentissage.db, data/habits.db) sont copiées avec l'API de sauvegarde de
+SQLite dans <sauvegarde>/sqlite/, avec leurs empreintes, leurs décomptes par table et un
+`PRAGMA integrity_check` dans le manifeste ; verify les rouvre sur une copie jetable ; restore
+met de côté le fichier en place (<fichier>.avant_restauration_<horodatage>) avant de le remettre.
+Le verrou d'apprentissage.db est pris comme celui de la mémoire : Atlas lancé, le script refuse.
+
 Les sauvegardes faites du temps de Docker ont un autre manifeste : elles ne passent pas par
 verify / restore, mais par scripts/migrer_memoire.py, qui les contrôle contre la mémoire d'origine.
 """
@@ -41,6 +48,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 DEFAULT_SOURCE = ROOT / "data" / "chromadb"
 DEFAULT_DEST = Path.home() / "Atlas_backups" / "memoire"
 QUERY_COLLECTIONS = ("atlas_memory_e5", "atlas_conversations", "atlas_documents")
+SQLITE_FICHIERS = ("apprentissage.db", "habits.db")      # voisins du dossier de la mémoire (data/)
+SQLITE_VERROUILLES = ("apprentissage.db",)               # tenus par Atlas comme la mémoire
 
 
 def log(msg: str) -> None:
@@ -130,9 +139,55 @@ def _summarize(path: Path) -> dict:
 def _lock(source: Path) -> None:
     from core.memory_manager import acquire_memory_lock
 
-    ok, why = acquire_memory_lock(str(source))
-    if not ok:
-        raise SystemExit(f"Refus : {why}. Arrêter Atlas avant de sauvegarder ou de restaurer.")
+    for chemin in [source] + [source.parent / n for n in SQLITE_VERROUILLES]:
+        ok, why = acquire_memory_lock(str(chemin))
+        if not ok:
+            raise SystemExit(f"Refus : {why}. Arrêter Atlas avant de sauvegarder ou de restaurer.")
+
+
+def _sqlite_releve(fichier: Path) -> dict:
+    """Décomptes par table et contrôle d'intégrité, sur une copie jetable. Lecture seule."""
+    import sqlite3
+
+    work = Path(tempfile.mkdtemp(prefix="atlas_sqlite_"))
+    try:
+        copie = work / fichier.name
+        shutil.copy2(fichier, copie)
+        conn = sqlite3.connect(copie)
+        try:
+            integrite = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            tables = [r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+            comptes = {t: conn.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0] for t in tables}
+        finally:
+            conn.close()
+        return {"integrite": integrite, "tables": comptes}
+    except Exception as e:
+        return {"integrite": f"illisible : {e}", "tables": {}}
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def _sqlite_sauvegarder(dossier_data: Path, target: Path) -> dict:
+    """Copie cohérente (API de sauvegarde de SQLite) de chaque base présente, puis relevé."""
+    import sqlite3
+
+    out = {}
+    (target / "sqlite").mkdir(exist_ok=True)
+    for nom in SQLITE_FICHIERS:
+        src = dossier_data / nom
+        if not src.exists():
+            continue
+        dst = target / "sqlite" / nom
+        a, b = sqlite3.connect(src), sqlite3.connect(dst)
+        try:
+            a.backup(b)
+        finally:
+            a.close()
+            b.close()
+        out[nom] = {"sha256": sha256_file(dst), **_sqlite_releve(dst)}
+        log(f"  {nom:22} {out[nom]['tables']}  intégrité={out[nom]['integrite']}")
+    return out
 
 
 def cmd_backup(args) -> int:
@@ -153,7 +208,8 @@ def cmd_backup(args) -> int:
         raise SystemExit("Échec : la base a changé pendant la copie. Sauvegarde annulée.")
     (target / "SHA256SUMS").write_text("".join(f"{h}  {p}\n" for p, h in apres.items()), encoding="utf-8")
     log("Empreintes identiques ; relevé du manifeste sur une copie jetable…")
-    manifest = {"cree": stamp, "source": str(source), "fichiers": len(apres), **summarize(data)}
+    manifest = {"cree": stamp, "source": str(source), "fichiers": len(apres), **summarize(data),
+                "sqlite": _sqlite_sauvegarder(source.parent, target)}
     (target / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
     for n, c in manifest["collections"].items():
         log(f"  {n:22} {c['count']:5} éléments  dim={c['dim']}")
@@ -175,7 +231,7 @@ def _compare_requetes(a: list, b: list, tol: float = 1e-3) -> tuple[int, float]:
     return ordres, ecart
 
 
-def verify_dir(backup: Path, data: Path | None = None) -> dict:
+def verify_dir(backup: Path, data: Path | None = None, sqlite_dir: Path | None = None) -> dict:
     data = data or backup / "data"
     sums = {}
     for line in (backup / "SHA256SUMS").read_text(encoding="utf-8").splitlines():
@@ -187,9 +243,26 @@ def verify_dir(backup: Path, data: Path | None = None) -> dict:
     now = summarize(data)
     cols_ok = now["collections"] == manifest["collections"]
     ordres, ecart = _compare_requetes(manifest["requetes"], now["requetes"])
-    ok = empreintes_ok and cols_ok and ordres == 0 and ecart <= 1e-3
+    sqlite_ok, sqlite = _sqlite_verifier(manifest.get("sqlite", {}), sqlite_dir or backup / "sqlite")
+    ok = empreintes_ok and cols_ok and ordres == 0 and ecart <= 1e-3 and sqlite_ok
     return {"ok": ok, "empreintes_identiques": empreintes_ok, "collections_identiques": cols_ok,
-            "collections": now["collections"], "requetes_40": {"ordres_differents": ordres, "ecart_distance_max": ecart}}
+            "collections": now["collections"], "requetes_40": {"ordres_differents": ordres, "ecart_distance_max": ecart},
+            "sqlite_identiques": sqlite_ok, "sqlite": sqlite}
+
+
+def _sqlite_verifier(attendu: dict, dossier: Path) -> tuple[bool, dict]:
+    """Chaque base du manifeste : même empreinte, intégrité « ok », mêmes décomptes."""
+    res, ok = {}, True
+    for nom, m in attendu.items():
+        f = dossier / nom
+        if not f.exists():
+            res[nom], ok = {"present": False}, False
+            continue
+        now = {"sha256": sha256_file(f), **_sqlite_releve(f)}
+        bon = now["sha256"] == m["sha256"] and now["integrite"] == "ok" and now["tables"] == m["tables"]
+        res[nom] = {"identique": bon, "tables": now["tables"], "integrite": now["integrite"]}
+        ok = ok and bon
+    return ok, res
 
 
 def cmd_verify(args) -> int:
@@ -204,7 +277,8 @@ def cmd_verify(args) -> int:
     log(f"Empreintes : {'identiques' if res['empreintes_identiques'] else 'DIFFÉRENTES'} ; "
         f"collections : {'identiques' if res['collections_identiques'] else 'DIFFÉRENTES'} ; "
         f"40 requêtes : {res['requetes_40']['ordres_differents']} ordre(s) différent(s), "
-        f"écart {res['requetes_40']['ecart_distance_max']:.1e}")
+        f"écart {res['requetes_40']['ecart_distance_max']:.1e} ; "
+        f"bases SQLite : {'identiques' if res['sqlite_identiques'] else 'DIFFÉRENTES'} {list(res['sqlite'])}")
     log("RESTAURATION PROUVÉE." if res["ok"] else "ÉCHEC : cette sauvegarde n'est pas fiable.")
     return 0 if res["ok"] else 1
 
@@ -224,7 +298,15 @@ def cmd_restore(args) -> int:
         shutil.move(str(cible), str(mise_de_cote))
         log(f"Base en place mise de côté (rien n'est effacé) : {mise_de_cote}")
     shutil.copytree(backup / "data", cible, dirs_exist_ok=True)
-    res = verify_dir(backup, cible)
+    manifest = json.loads((backup / "manifest.json").read_text(encoding="utf-8"))
+    for nom in manifest.get("sqlite", {}):
+        en_place = cible.parent / nom
+        if en_place.exists():
+            mise_de_cote = en_place.with_name(f"{nom}.avant_restauration_{stamp}")
+            shutil.move(str(en_place), str(mise_de_cote))
+            log(f"{nom} en place mis de côté (rien n'est effacé) : {mise_de_cote}")
+        shutil.copy2(backup / "sqlite" / nom, en_place)
+    res = verify_dir(backup, cible, cible.parent)
     log("Restaurée et revérifiée sur place." if res["ok"] else "ÉCHEC de la vérification après restauration.")
     return 0 if res["ok"] else 1
 

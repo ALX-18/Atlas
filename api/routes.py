@@ -18,7 +18,7 @@ import httpx
 from api.models import ChatRequest, ConfirmationResponse, MemoryIngestRequest
 from core.context_monitor import collect_context
 from core.ollama_client import chat_stream, chat_full, OllamaStreamTimeout, STREAM_TIMEOUT, too_long_reply
-from core.intent_engine import process_ai_response, execute_confirmed, save_rejection, get_execution_engine
+from core.intent_engine import process_ai_response, execute_confirmed, get_execution_engine
 from core.intent_classifier import get_classifier
 from core.validator import get_validator, honest_reply
 from core.planner import get_planner
@@ -217,7 +217,9 @@ async def _chat(req: ChatRequest):
                 "target": r.get("target"),
                 "level": r.get("level"),
                 "expires_in": r.get("expires_in"),
-                "message": f"Confirmation requise : {r.get('reason') or 'action sensible'}.",
+                "rappel": r.get("rappel"),
+                "message": ((r["rappel"] + " ") if r.get("rappel") else "")
+                + f"Confirmation requise : {r.get('reason') or 'action sensible'}.",
                 "tool_results": results,
             }
 
@@ -258,6 +260,29 @@ def _avec_bascules(reponse):
     return reponse
 
 
+def _avec_proposition(reponse, origine, ts_avant):
+    """Apprentissage 2 / AQ4 : une habitude peut être PROPOSÉE à la fin de la réponse — jamais
+    exécutée, jamais au milieu, jamais sur une confirmation ou une désambiguïsation en attente."""
+    from core import habitudes
+    from core.world_state import get_world_state
+
+    if not isinstance(reponse, dict) or reponse.get("type") in ("confirmation_required", "disambiguation_required"):
+        return reponse
+    q = habitudes.proposition(*_derniere_action(get_world_state(), ts_avant), origine)
+    if q:
+        reponse["message"] = f"{reponse.get('message') or ''}\n\n{q}".strip()
+    return reponse
+
+
+def _derniere_action(ws, ts_avant):
+    """(outil, paramètres, réussie ?) de l'action faite pendant cette demande, sinon (None, None, False)."""
+    la = ws.last_action if getattr(ws, "last_action_ts", None) not in (None, ts_avant) else None
+    if not la:
+        return None, None, False
+    res = la.get("result") or {}
+    return la.get("tool"), la.get("params"), res.get("status") == "success"
+
+
 def _avec_annonce(reponse, annonce):
     if annonce and isinstance(reponse, dict) and "message" in reponse:
         reponse["message"] = f"{annonce} {reponse.get('message') or ''}".strip()
@@ -274,11 +299,14 @@ async def chat_endpoint(req: ChatRequest):
     from core import apprentissage
 
     prep = apprentissage.preparer(req.message, req.origine)
+    if prep["reponse"]:          # « non » à une question d'Atlas : rien n'est routé
+        return _avec_bascules({"type": "text", "message": prep["reponse"], "tool_results": []})
     a_router = req if prep["phrase"] == req.message else req.model_copy(update={"message": prep["phrase"]})
+    ts_avant = getattr(get_world_state(), "last_action_ts", None)
     reponse = await _chat(a_router)
-    if not prep["correction"]:
-        apprentissage.noter_echange(req.message, req.origine)
-    return _avec_bascules(_avec_annonce(reponse, prep["annonce"]))
+    if prep["a_noter"]:
+        apprentissage.noter_echange(prep["a_noter"], req.origine)
+    return _avec_proposition(_avec_bascules(_avec_annonce(reponse, prep["annonce"])), req.origine, ts_avant)
 
 
 async def _flux_avec_bascules(flux: AsyncGenerator[str, None]) -> AsyncGenerator[str, None]:
@@ -304,14 +332,34 @@ async def chat_stream_endpoint(req: ChatRequest):
     from core import apprentissage
 
     prep = apprentissage.preparer(req.message, req.origine)
-    if not prep["correction"]:
-        apprentissage.noter_echange(req.message, req.origine)
+    if prep["reponse"]:
+        texte = prep["reponse"]
+
+        async def direct():
+            yield f"data: {json.dumps({'type': 'token', 'content': texte}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'result', 'content': {'type': 'text', 'message': texte, 'tool_results': []}}, ensure_ascii=False)}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(direct(), media_type="text/event-stream")
+    if prep["a_noter"]:
+        apprentissage.noter_echange(prep["a_noter"], req.origine)
     if prep["phrase"] != req.message:
         req = req.model_copy(update={"message": prep["phrase"]})
+    ts_avant = getattr(get_world_state(), "last_action_ts", None)
     reponse = await _chat_stream(req)
     if prep["annonce"]:
         reponse.body_iterator = _flux_avec_annonce(reponse.body_iterator, prep["annonce"])
+    reponse.body_iterator = _flux_avec_proposition(reponse.body_iterator, req.origine, ts_avant)
     return reponse
+
+
+async def _flux_avec_proposition(flux, origine, ts_avant):
+    """AQ4 : la proposition rejoint la fin du message du résultat, après tout le reste."""
+    async for evt in flux:
+        if isinstance(evt, str) and evt.startswith("data: {") and '"type": "result"' in evt:
+            data = json.loads(evt[len("data: "):])
+            data["content"] = _avec_proposition(data["content"], origine, ts_avant)
+            evt = f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+        yield evt
 
 
 async def _flux_avec_annonce(flux, annonce: str):
@@ -452,6 +500,8 @@ async def _chat_stream(req: ChatRequest):
         # Build summary
         summaries = []
         for r in results:
+            if r.get("rappel"):          # Apprentissage 2 / AQ3 : tes refus d'avant, dits avant de proposer
+                summaries.append(r["rappel"])
             res = r.get("result", {})
             if isinstance(res, dict):
                 msg = res.get("message", "")
@@ -536,18 +586,21 @@ async def confirm_endpoint(req: ConfirmationResponse, request: Request = None):
     context = collect_context()
 
     if not req.accepted:
-        # Sauvegarder le refus comme correction en mémoire. F2 : l'attente est retirée
-        # (resolve_pending) ; avant, un refus la laissait pendante.
+        # F2 : l'attente est retirée (resolve_pending) ; avant, un refus la laissait pendante.
+        # Apprentissage 2 / AQ3 : un Annuler d'Alexis (origine de la demande) est retenu, par
+        # demande normalisée et action ; une confirmation déjà expirée n'est pas un refus.
+        # (L'ancien save_rejection écrivait « ne pas reproduire » en mémoire, quelle que soit
+        # l'origine : la fausse « correction » de G-bis. Retiré.)
+        from core import apprentissage
         from core.confirmation import resolve_pending
+
         pending = resolve_pending(req.confirmation_id)
-        if pending:
-            save_rejection(
-                req.confirmation_id,
-                pending.get("tool", ""),
-                pending.get("args", {}),
-                context,
-            )
-        return {"status": "cancelled", "message": "Action annulée — je m'en souviendrai."}
+        fois = None
+        if pending and (pending.get("expires_at") is None or pending["expires_at"] > time.time()):
+            fois = apprentissage.noter_refus(pending.get("demande"), pending.get("tool", ""),
+                                             pending.get("target"), pending.get("origine"))
+        message = "Action annulée." + (" Je retiens que tu l'as annulée." if fois else "")
+        return {"status": "cancelled", "message": message}
 
     result = await execute_confirmed(req.confirmation_id, context)
     return result
