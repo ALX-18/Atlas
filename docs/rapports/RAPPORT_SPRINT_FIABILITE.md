@@ -22,7 +22,7 @@ Agent: Claude Opus 5.5 (CHAT6, Claude Code Windows)
 
 ## 1. Résumé exécutif
 
-**Statut global : PARTIELLEMENT VALIDÉ** — un critère reste ouvert : **FI6** (suppression de `qwen2.5:14b`, `mistral` et DialoGPT). Les deux commandes ont été **refusées par le classifieur de sécurité de la session** ; je ne l'ai pas contourné. Commandes prêtes pour Alexis (§7.1). Tout le reste est fait et prouvé.
+**Statut global : VALIDÉ** (sous réserve du superviseur). **FI6** : les suppressions ont été refusées par le classifieur de sécurité de la session ; je ne l'ai pas contourné, **Alexis les a lancées lui-même** (§6.7).
 
 **Runtime :** Ollama 0.40.3, **mis à jour tout seul en 0.40.4** au redémarrage pendant la suite « sans Ollama » (GB1 mesuré en 0.40.3) ; mémoire réelle jamais ouverte par Atlas (copies) ; deux écrans 1920 × 1080 à 100 %.
 
@@ -53,7 +53,7 @@ Agent: Claude Opus 5.5 (CHAT6, Claude Code Windows)
 | FI4 — limites appliquées, déterministes ; dans la configuration, lues (CK3) ; blocage journalisé et visible | création, chargement, réactivation, évaluation ; `report_automation_block` (journal, journal d'actions, notification) | PASS |
 | FI5 — torch cu128 dans un environnement jetable ; mesures avec le modèle chargé ; rafales 10 fenêtres et 10 écrans ; VRAM ; RAM ; taille | tout mesuré (§6.5) ; **torch 2.11.0+cu128** (l'index cu128 ne publie pas 2.12.1) | PASS |
 | FI5 — trois options chiffrées, recommandation, choix inchangé ; environnement supprimé, place dite | §6.5 ; 4,7 Go libérés | PASS |
-| FI6 — `qwen2.5:14b`, `mistral`, DialoGPT supprimés ; `minicpm-v` gardé ; avant/après | liste avant faite (15,1 Go) ; **suppression refusée par le classifieur de la session** | **FAIL** (en attente d'Alexis) |
+| FI6 — `qwen2.5:14b`, `mistral`, DialoGPT supprimés ; `minicpm-v` gardé ; avant/après | liste avant (15,1 Go) ; suppression refusée à la session, **lancée par Alexis** ; après : `ollama list` = `qwen2.5:7b`, `minicpm-v` ; `doctor.py --composants` inchangé pour Atlas (§6.7) | PASS |
 | FI7 — faster-whisper absent : bascule annoncée, test rouge d'abord | `stt_absent`, vérifiée au démarrage du moteur vocal et à la première phrase | PASS |
 | FI7 bis — disposition relevée ; x = −1482 expliqué ; capture limitée à la fenêtre ; rejeu écran 1, écran 2, à cheval | §6.4 | PASS |
 | FI8 — rapport, suites, GB1, C3, bascules, rejeu réel | ce rapport | PASS |
@@ -243,13 +243,22 @@ Une fenêtre à cheval est capturée sur ses deux moitiés (le bureau virtuel co
 - **Aucune bascule silencieuse** : 2 nouvelles bascules au catalogue (`memoire_partielle`, `stt_absent`), branchées et testées ; `/api/health` : aucune bascule active pendant les deux rejeux.
 - **C3** : mémoire réelle 276 / 489 / 20 / 19 / 8 / 0 / 0, **identique** ; scénarios sur copies ; GB1 en lecture seule ; recherche du x = −1482 en lecture seule. `data/habits.db` remis tel quel après chaque rejeu ; autres fichiers de `data/` inchangés. **Aucune trace à retirer.**
 
+### 6.7 FI6 — ménage décidé par Alexis
+| | Avant | Après |
+|---|---|---|
+| Modèles Ollama | `qwen2.5:7b` 4,7 Go, `minicpm-v` 5,5 Go, `qwen2.5:14b` 9,0 Go, `mistral` 4,4 Go | `qwen2.5:7b`, `minicpm-v` |
+| Cache Hugging Face | `faster-whisper-base`, `multilingual-e5-base`, `DialoGPT-medium` 1,7 Go | `faster-whisper-base`, `multilingual-e5-base` |
+| Place libre sur C: | 45 Go | **59 Go** |
+
+Commandes refusées à la session, lancées par Alexis (`ollama rm` ×2, `Remove-Item` du dossier DialoGPT). `doctor.py --composants` après : inchangé pour Atlas (Ollama : `minicpm-v`, `qwen2.5:7b`).
+
 ---
 
 ## 7. Limites et risques identifiés
 
 | # | Description | Sévérité | Mitigation |
 |---|---|---|---|
-| 1 | **FI6 non fait** : `ollama rm qwen2.5:14b`, `ollama rm mistral` et la suppression du cache DialoGPT ont été refusés par le classifieur de sécurité de la session. Rien n'est supprimé. | Moyen | Alexis lance : `ollama rm qwen2.5:14b`, `ollama rm mistral`, puis supprime `%USERPROFILE%\.cache\huggingface\hub\models--microsoft--DialoGPT-medium` (15,1 Go en tout). |
+| 1 | Les suppressions de FI6 ont été refusées par le classifieur de sécurité de la session ; Alexis les a lancées lui-même. | Faible | Fait (§6.7). |
 | 2 | **ChromaDB 1.5.1** refuse parfois de lire une collection d'une base fraîchement écrite (~1 ouverture sur 10, selon l'ordre des lectures). Filet en place (reprise, bascule signalée), **pas de correction**. | Élevé | P1 : tester une version plus récente de ChromaDB sur une copie, ou signaler le défaut en amont. |
 | 3 | Le corpus a servi à écrire les règles : 99,6 % dessus ; **87,5 % sur 40 demandes neuves** au premier passage. Le vrai taux sur des phrases inconnues est entre les deux. | Moyen | Continuer d'ajouter au corpus les phrases réelles mal routées ; le plancher empêche de reculer. |
 | 4 | **Changement de décision** : « ouvre les paramètres » avec Discord au premier plan ouvrait les paramètres de Discord (v6.0.1, P1) ; il ouvre désormais ceux de Windows. Raison : au rejeu, la même phrase cliquait dans VS Code ; même règle que B1-bis (« jamais le premier plan »). À la voix, l'ancien comportement pouvait être voulu. | Moyen | Validation du superviseur demandée ; « paramètres de Discord » reste un clic dans Discord. |
@@ -270,7 +279,7 @@ Une fenêtre à cheval est capturée sur ses deux moitiés (le bureau virtuel co
 - [x] Une seule instance par demande ; échec de vérification dit, sans relance (§4.4, §6.3, `test_fi3_*`)
 - [x] Limites d'automatisation appliquées et testées (`test_fi4_*`)
 - [x] EasyOCR GPU mesuré avec le modèle chargé ; trois options chiffrées ; environnement jetable supprimé (§6.5)
-- [ ] `qwen2.5:14b`, `mistral` et DialoGPT supprimés ; `minicpm-v` gardé — **refusé par le classifieur de la session, commandes prêtes pour Alexis (§7.1)**
+- [x] `qwen2.5:14b`, `mistral` et DialoGPT supprimés ; `minicpm-v` gardé (par Alexis, la session ayant refusé ; §6.7)
 - [x] faster-whisper absent : bascule annoncée (`test_fi7_*`)
 - [x] Deux écrans : disposition relevée ; le x = −1482 expliqué ; lecture et clic justes sur l'écran 1 et l'écran 2, limités à la fenêtre visée (§6.4)
 - [x] `python -m pytest tests/ -q` → code 0, avec et sans Ollama ; GB1 à 0 (§5.1, §6.6)
