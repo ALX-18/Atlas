@@ -35,10 +35,17 @@
         "collections": {
             "conversations": "atlas_conversations",
             "documents": "atlas_documents",
-            "context_apps": "atlas_context_apps",
-            "habits": "atlas_habits",
-            "errors": "atlas_errors",
-            "apprentissage": "atlas_apprentissage"
+            "errors": "atlas_errors"
+        }
+    },
+    "apprentissage": {
+        "_note": "Apprentissage 2 / AQ4 : seuils des habitudes (justification : docs/CONFIGURATION.md)",
+        "habitudes": {
+            "enchainement_minutes": 10,
+            "occurrences_min": 3,
+            "jours_min": 3,
+            "tranche_minutes": 60,
+            "max_propositions_par_heure": 2
         }
     },
     "web": {

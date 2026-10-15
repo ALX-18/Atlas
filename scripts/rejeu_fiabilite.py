@@ -112,7 +112,10 @@ def main(argv=None) -> int:
     res: dict = {"debut": time.strftime("%Y-%m-%d %H:%M:%S"), "phrases": [], "applications": [], "ecrans": []}
     fen = []
     env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PATH": str(travail / "chromadb"),
-           "PYTHONIOENCODING": "utf-8"}
+           "PYTHONIOENCODING": "utf-8",
+           # Apprentissage 2 : jamais le journal d'Alexis (source de ses habitudes) ni ce qu'il a appris
+           "ATLAS_ACTIONS_LOG": str(travail / "atlas_actions.jsonl"),
+           "ATLAS_APPRENTISSAGE_DB": str(travail / "apprentissage.db")}
     journal = open(dossier / "atlas_stdout.log", "w", encoding="utf-8")
     atlas = subprocess.Popen([PY, "main.py"], cwd=ROOT, stdout=journal, stderr=subprocess.STDOUT, env=env,
                              creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)

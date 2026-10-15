@@ -13,7 +13,8 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 | `ollama` | modèle de langue : adresse, modèle, `keep_alive`, `temperature`, `context_window`, délai du flux | `core/ollama_client.py`, `core_conversational/llm_client.py`, `main.py` |
 | `server` | adresse et port de l'API d'Atlas (`127.0.0.1:8550`) | `main.py`, `scripts/doctor.py` |
 | `protection_rules` | processus qu'Atlas n'arrête jamais, seuils « intouchable » GPU/CPU, mots-clés des jeux | `core/confirmation.py` |
-| `memory` | dossier de la mémoire, collections, moteur des embeddings (`onnx`), seuils de rappel | `core/memory_manager.py`, `core/embeddings.py`, `core/context_monitor.py` |
+| `memory` | dossier de la mémoire, collections (`conversations`, `documents`, `errors`), moteur des embeddings (`onnx`), seuils de rappel | `core/memory_manager.py`, `core/embeddings.py`, `core/context_monitor.py` |
+| `apprentissage` | seuils des habitudes (sprint Apprentissage 2, détail ci-dessous) | `core/habitudes.py` |
 | `web` | délais de recherche et de lecture de page, taille maximale lue | `tools/web_search.py`, `tools/web_reader.py`, `tools/browser_controller.py` |
 | `browser_bridge` | port et activation du pont vers l'extension du navigateur | `tools/browser_bridge.py`, `main.py` |
 | `powershell_allowlist`, `powershell_denylist` | commandes PowerShell permises et interdites | `tools/system_config.py` |
@@ -21,6 +22,28 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 | `filesystem_assistant` | index des fichiers : activation, dossiers, exclusions | `core/file_indexer.py` |
 | `grounding` | vision (désactivée), délai d'arrêt du processus EasyOCR inactif | `tools/grounding.py` |
 | `voice` | micro, mot d'éveil, transcription (`stt_device` : `cuda` ou `cpu`), voix Piper | `core/voice_engine.py`, `main.py` |
+
+## `memory.collections` : une archive
+
+`atlas_errors` (`memory.collections.errors`) est une **archive** : depuis le sprint Apprentissage 1,
+aucun code ne l'écrit ni ne la lit. Elle garde les 20 entrées écrites par les sessions d'Alexis et
+reste dans les sauvegardes (décision d'Alexis, 15/10/2026). La clé reste lue par
+`core/memory_manager.py`, qui ouvre la collection pour que sauvegarde et vérification la voient.
+`context_apps`, `habits` et `apprentissage` ont été retirées au sprint Apprentissage 2 : ce qu'Atlas
+apprend est dans `data/apprentissage.db` (SQLite).
+
+## `apprentissage.habitudes` : les seuils des habitudes
+
+Une habitude n'est **jamais exécutée** : Atlas la propose à la fin d'une réponse. Seules les
+actions d'Alexis comptent (entrées du journal avec une origine bureau, fenêtre ou voix).
+
+| Clé | Valeur | Pourquoi |
+|---|---|---|
+| `enchainement_minutes` (N) | 10 | B ouvert au plus 10 min après A : la même séance (on ouvre Discord en lançant un jeu, pas une heure après). Au-delà, deux ouvertures sans lien se ressembleraient. |
+| `occurrences_min` (K) | 3 | Deux fois peut être un hasard ; trois fois le même enchaînement est une habitude qu'Alexis reconnaîtra. |
+| `jours_min` (D) | 3 | Trois jours différents : une seule soirée où l'on ouvre et ferme dix fois la même chose ne fait pas une habitude. |
+| `tranche_minutes` | 60 | Tranche d'une heure pour l'habitude « heure » : « vers 9 h ». Plus fin, les horaires réels (9 h 05, 9 h 40) ne se regrouperaient plus. |
+| `max_propositions_par_heure` (X) | 2 | Au total, toutes habitudes confondues. Avec « une fois par habitude et par jour », Atlas ne devient pas envahissant. |
 
 ## Exception justifiée (clé conservée, lue par personne)
 

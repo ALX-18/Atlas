@@ -767,12 +767,24 @@ class VoiceEngine:
         from core import apprentissage
 
         prep = apprentissage.preparer(text, "voix")
-        if not prep["correction"]:
-            apprentissage.noter_echange(text, "voix")
+        if prep["reponse"]:
+            return avec_avertissements(prep["reponse"]).replace("ℹ️ ", "")
+        if prep["a_noter"]:
+            apprentissage.noter_echange(prep["a_noter"], "voix")
+        from core import habitudes
+        from core.world_state import get_world_state
+
+        ws = get_world_state()
+        ts_avant = getattr(ws, "last_action_ts", None)
         reponse = await self._run_text_pipeline_sans_avertissement(prep["phrase"])
         if prep["annonce"]:
             reponse = f"{prep['annonce']} {reponse}"
-        return avec_avertissements(reponse).replace("ℹ️ ", "")
+        reponse = avec_avertissements(reponse).replace("ℹ️ ", "")
+        # AQ4 : une proposition n'interrompt jamais une réponse : elle vient après, en dernier.
+        from api.routes import _derniere_action
+
+        question = habitudes.proposition(*_derniere_action(ws, ts_avant), "voix")
+        return f"{reponse} {question}".strip() if question else reponse
 
     async def _run_text_pipeline_sans_avertissement(self, text: str) -> str:
         from core.context_monitor import collect_context
@@ -828,13 +840,16 @@ class VoiceEngine:
             # faisait ce code, faute de message à résumer.
             if statut == "confirmation_required":
                 raison = item.get("reason") or item.get("message") or ""
+                if item.get("rappel"):        # Apprentissage 2 / AQ3
+                    raison = f"{item['rappel']} {raison}".strip()
                 logger.warning("[VOIX] Confirmation impossible à la voix : %s", raison)
                 self._announce_on_screen(
                     "Confirmation requise",
                     f"{raison} Réponds à l'écran pour valider ou annuler.".strip(),
                 )
                 summaries.append(
-                    "Cette action nécessite une confirmation à l'écran. "
+                    ((item["rappel"] + " ") if item.get("rappel") else "")
+                    + "Cette action nécessite une confirmation à l'écran. "
                     "Je ne l'ai pas exécutée."
                 )
                 continue

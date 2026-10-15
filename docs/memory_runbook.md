@@ -10,10 +10,16 @@ collections ChromaDB
 ├── atlas_memory          # legacy (habits/preferences/corrections) — embedder par défaut
 ├── atlas_conversations   # échanges user/assistant (FIFO 10k) — e5
 ├── atlas_documents       # documents ingérés (.txt/.md/.pdf) — e5
-├── atlas_context_apps    # états applications (réservé) — e5
-├── atlas_habits          # miroir vectoriel habits.db (réservé) — e5
-└── atlas_errors          # apprentissage par erreurs — e5
+└── atlas_errors          # ARCHIVE : écrite nulle part, lue nulle part (voir ci-dessous) — e5
 ```
+
+> **Apprentissage 2 (15/10/2026).** `atlas_context_apps` et `atlas_habits` (déclarées, jamais
+> utilisées) et `atlas_apprentissage` sont retirées de la configuration et de la mémoire, après une
+> sauvegarde vérifiée. Ce qu'Atlas apprend (corrections, méthodes, refus, habitudes écartées) est
+> dans **`data/apprentissage.db`** (SQLite, `core/apprentissage_store.py`), lu par identifiant
+> exact ; `scripts/backup_memory.py` le sauvegarde, le vérifie et le restaure avec `habits.db`.
+> `atlas_errors` garde les 20 entrées des sessions d'Alexis : plus aucun code ne la lit ni ne
+> l'écrit depuis le sprint Apprentissage 1, elle reste dans les sauvegardes comme archive.
 
 ## Prérequis
 

@@ -40,6 +40,13 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 PY = str(ROOT / ".venv" / "Scripts" / "python.exe")
 API = "http://127.0.0.1:8550/api"
 DATA = ROOT / "data"
+def copies_journal_et_apprentissage(copie: pathlib.Path) -> dict:
+    """Apprentissage 2 : un Atlas d'essai écrit son journal des actions et ce qu'il apprend à côté de
+    la copie de la mémoire — jamais dans data/ (le journal d'Alexis est la source de ses habitudes)."""
+    return {"ATLAS_ACTIONS_LOG": str(pathlib.Path(copie).parent / "atlas_actions.jsonl"),
+            "ATLAS_APPRENTISSAGE_DB": str(pathlib.Path(copie).parent / "apprentissage.db")}
+
+
 PROTEGES = ["schedules.json", "triggers.json", "workflows", "habits.db", "file_index.json"]
 
 
@@ -171,7 +178,7 @@ def phase_atlas(dossier: pathlib.Path, copie: pathlib.Path) -> dict:
     ]
     dump = dossier / "modules_atlas.json"
     env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PATH": str(copie),
-           "ATLAS_MODULES_DUMP": str(dump), "PYTHONIOENCODING": "utf-8"}
+           "ATLAS_MODULES_DUMP": str(dump), "PYTHONIOENCODING": "utf-8", **copies_journal_et_apprentissage(copie)}
     journal = open(dossier / "atlas_stdout.log", "w", encoding="utf-8")
     t0 = time.perf_counter()
     atlas = subprocess.Popen([PY, "main.py"], cwd=ROOT, stdout=journal, stderr=subprocess.STDOUT, env=env,
@@ -299,7 +306,8 @@ pathlib.Path(sys.argv[1]).write_text(json.dumps(out, ensure_ascii=False, default
 
 def phase_voix(dossier: pathlib.Path, copie: pathlib.Path) -> dict:
     sortie = dossier / "voix.json"
-    env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PATH": str(copie), "PYTHONIOENCODING": "utf-8"}
+    env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PATH": str(copie), "PYTHONIOENCODING": "utf-8",
+           **copies_journal_et_apprentissage(copie)}
     r = subprocess.run([PY, "-c", VOIX, str(sortie)], cwd=ROOT, env=env, capture_output=True, text=True,
                        encoding="utf-8", timeout=600)
     if not sortie.exists():

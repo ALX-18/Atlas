@@ -318,7 +318,10 @@ def mesure_atlas(copie: str, duree_melange_s: int = 600) -> dict:
     atlas = None
     try:
         env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PATH": str(work / "chromadb"),
-               "PYTHONIOENCODING": "utf-8"}
+               "PYTHONIOENCODING": "utf-8",
+               # Apprentissage 2 : jamais le journal d'Alexis ni ce qu'il a appris
+               "ATLAS_ACTIONS_LOG": str(work / "atlas_actions.jsonl"),
+               "ATLAS_APPRENTISSAGE_DB": str(work / "apprentissage.db")}
         t0 = time.perf_counter()
         atlas = subprocess.Popen([PY, "main.py"], cwd=ROOT, env=env, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL)

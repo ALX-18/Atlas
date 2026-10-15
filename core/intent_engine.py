@@ -104,6 +104,7 @@ def list_pending_confirmations() -> list[dict]:
             "target": item.get("target"),
             "reason": item.get("reason"),
             "level": item.get("level"),
+            "rappel": item.get("rappel"),
             "expires_in": max(0, int(item["expires_at"] - now)),
         }
         for cid, item in list(_pending.items())
@@ -207,11 +208,18 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
         args = {"memory_id": fact["id"], "content": fact["content"]}
         target = fact["content"]
 
+    # Apprentissage 2 / AQ3 : la demande et son origine suivent la confirmation (un Annuler ne
+    # compte comme refus que venant d'Alexis) ; au 2e refus d'affilée, Atlas le dit avant.
+    from core import apprentissage
+
+    demande = context.get("user_input")
+    rappel = apprentissage.rappel_refus(demande, tool_name)
     now = time.time()
     confirmation_id = str(uuid.uuid4())[:8]
     store_pending(confirmation_id, tool_name, args, {
         "reason": detail, "level": level, "target": target, "suggestion": suggestion,
         "created_at": now, "expires_at": now + CONFIRMATION_TTL_S,
+        "demande": demande, "origine": context.get("origine"), "rappel": rappel,
     })
     logger.info("[CONFIRMATION] %s → « %s » en attente (%s), expire dans %ds : %s",
                 tool_name, target, confirmation_id, int(CONFIRMATION_TTL_S), detail)
@@ -223,6 +231,7 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
         "reason": detail,
         "level": level,
         "suggestion": suggestion,
+        "rappel": rappel,
         "expires_in": int(CONFIRMATION_TTL_S),
         "error_code": "ERR_CONFIRMATION_REQUIRED",
     }
@@ -1105,28 +1114,28 @@ class ExecutionEngine:
             and result.get("status") == "success"
             and not result.get("idempotent_skip")
         ):
-            from tools.grounding import verify_post_click, find_and_click as grounding_click
+            from tools.grounding import verify_post_click
             app_title = params.get("app_title", "")
             element_name = params.get("element_name", "")
             if app_title and element_name:
                 verify = await verify_post_click(app_title, element_name)
-                if not verify["verified"]:
-                    method_used = (result.get("result") or {}).get("method") or ""
-                    exclude = {method_used} if method_used and method_used not in {"all_failed", "none"} else None
-                    retry = await grounding_click(app_title, element_name, exclude_methods=exclude)
-                    if retry.get("success"):
-                        verify2 = await verify_post_click(app_title, element_name)
+                click_verified = bool(verify["verified"])
+                if not click_verified:
+                    # AQ1 : un clic non vérifié n'est JAMAIS refait automatiquement — sur « Envoyer »
+                    # ou un interrupteur, deux clics ne valent pas un. Atlas le dit et demande.
+                    from core import propositions
+
+                    logger.warning("[ENGINE] Clic sur '%s' non vérifié : pas de second clic", element_name)
+                    result["click_verified"] = False
+                    result["verification_failed"] = True
+                    message = (f"J'ai cliqué sur « {element_name} », mais je n'ai pas pu vérifier que ça a "
+                               f"marché. Si rien ne s'est passé, tu veux que je réessaie ?")
+                    if isinstance(result.get("result"), dict):
+                        result["result"] = {**result["result"], "message": message}
                     else:
-                        verify2 = {"verified": False}
-                    if not verify2["verified"]:
-                        result["status"] = "replan_required"
-                        result["replan_reason"] = f"Clic '{element_name}' exécuté mais état UI inchangé"
-                        logger.warning("[ENGINE] Post-click verification failed pour '%s'", element_name)
-                        click_verified = False
-                    else:
-                        click_verified = True
-                else:
-                    click_verified = True
+                        result["message"] = message
+                    propositions.proposer(context.get("user_input") or f"clique sur {element_name} dans {app_title}",
+                                          "reessayer_clic", context.get("origine"))
 
         # FI3 : un lancement se vérifie par ce qui est apparu, et ne se rejoue jamais.
         if avant_lancement is not None and result.get("status") == "success":
@@ -1207,6 +1216,7 @@ class ExecutionEngine:
                 click_verified=click_verified,
                 disambiguation_triggered=disambiguation_fired,
                 grounding_attempts=grounding_attempts,
+                origine=context.get("origine"),
             )
         except Exception as e:
             logger.debug("Structured log failed: %s", e)
@@ -1240,7 +1250,7 @@ class ExecutionEngine:
 
         message = inner.get("message") or result.get("message") or ""
         # Dit dès que l'ordre appris a servi, quelle que soit l'issue : une vérification après clic
-        # ratée (replan_required) ne doit pas cacher l'apprentissage (rejeu réel du 15/10).
+        # ratée (clic non vérifié) ne doit pas cacher l'apprentissage (rejeu réel du 15/10).
         if appris:
             if tool_name == "ui_click_element" and appris.get("premiere"):
                 message += f" (appris : je commence par « {appris['premiere']} »)"
@@ -1989,6 +1999,9 @@ async def execute_confirmed(confirmation_id: str, context: dict) -> dict[str, An
         if inspect.isawaitable(result):
             result = await result
         logger.info("Confirmed tool '%s' executed: %s", tool_name, args)
+        from core import apprentissage
+
+        apprentissage.accepte(pending.get("demande"), tool_name)        # AQ3 : il a changé d'avis
 
         # Sauvegarder l'action confirmée en mémoire
         _save_action_to_memory(tool_name, args, result, context)
@@ -1997,22 +2010,6 @@ async def execute_confirmed(confirmation_id: str, context: dict) -> dict[str, An
     except Exception as e:
         logger.error("Confirmed tool '%s' failed: %s", tool_name, e, exc_info=True)
         return {"status": "error", "message": str(e)}
-
-
-def save_rejection(confirmation_id: str, tool_name: str, args: dict, context: dict):
-    """Sauvegarde le refus d'une action comme correction en mémoire."""
-    mem = get_memory_manager()
-    fg = context.get("foreground_window", {})
-    context_desc = f"foreground={fg.get('process', '?')}, cpu={context.get('cpu_usage', '?')}%, ram={context.get('ram_usage', '?')}%"
-    mem.save(
-        category="correction",
-        content=f"L'utilisateur a refusé l'action '{tool_name}' avec args={json.dumps(args, ensure_ascii=False)} dans ce contexte : {context_desc}. Ne pas reproduire.",
-        metadata={
-            "timestamp": datetime.now().isoformat(),
-            "tool": tool_name,
-            "target": args.get("name", args.get("pid", "")),
-        },
-    )
 
 
 # --------------------------------------------------------------------------- #

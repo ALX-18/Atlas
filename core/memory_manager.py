@@ -52,13 +52,12 @@ _COLL_CFG = _cfg.get("collections", {})
 PARTITIONS = {
     "conversations": _COLL_CFG.get("conversations", "atlas_conversations"),
     "documents": _COLL_CFG.get("documents", "atlas_documents"),
-    "context_apps": _COLL_CFG.get("context_apps", "atlas_context_apps"),
-    "habits": _COLL_CFG.get("habits", "atlas_habits"),
+    # Archive (Apprentissage 2) : écrite nulle part, lue nulle part, gardée dans les sauvegardes.
     "errors": _COLL_CFG.get("errors", "atlas_errors"),
-    # Sprint Apprentissage 1 : ce qu'Atlas a appris (corrections d'Alexis, méthodes qui marchent),
-    # en enregistrements explicites, lus par identifiant (core/apprentissage.py).
-    "apprentissage": _COLL_CFG.get("apprentissage", "atlas_apprentissage"),
 }
+# Apprentissage 2 / AQ2 : atlas_apprentissage, atlas_habits et atlas_context_apps sont retirées.
+# Ce qu'Atlas apprend (corrections, méthodes, refus, habitudes) est dans data/apprentissage.db
+# (core/apprentissage_store.py) : lu par identifiant exact, sans base vectorielle.
 RETRIEVAL_TOP_K: int = int(_cfg.get("retrieval_top_k", 3))
 RETRIEVAL_MIN_SCORE: float = float(_cfg.get("retrieval_min_score", 0.5))
 CONVERSATIONS_MAX: int = int(_cfg.get("conversations", {}).get("max_entries", 10000))
@@ -501,47 +500,6 @@ class MemoryManager:
                 continue
             meta[k] = v if isinstance(v, (str, int, float, bool)) else str(v)
         return meta
-
-    # ------------------------------------------------------------------ #
-    #  Sprint Apprentissage 1 — enregistrements explicites, lus par identifiant
-    # ------------------------------------------------------------------ #
-
-    def apprentissage_ecrire(self, doc_id: str, libelle: str, metadata: dict) -> bool:
-        """Écrit (ou remplace) un enregistrement. Jamais l'embedder par défaut de ChromaDB."""
-        if not self._connected or "apprentissage" not in self._partitions:
-            return False
-        from core import embeddings as emb
-
-        vecs = emb.embed_passages([libelle])
-        if vecs is None:
-            return False
-        meta = self._sanitize_meta(metadata)
-        meta.setdefault("created_at", time.time())
-        meta["timestamp"] = datetime.now().isoformat()
-        try:
-            self._partitions["apprentissage"].upsert(ids=[doc_id], documents=[libelle], metadatas=[meta],
-                                                     embeddings=vecs)
-            return True
-        except Exception as e:
-            logger.error("Apprentissage : écriture impossible (%s)", e)
-            return False
-
-    def apprentissage_lire(self, ids: Optional[list[str]] = None) -> list[dict]:
-        """Les enregistrements demandés (tous si ids est None) : {id, libelle, meta}."""
-        if not self._connected or "apprentissage" not in self._partitions:
-            return []
-        kwargs = {"include": ["documents", "metadatas"]}
-        if ids is not None:
-            kwargs["ids"] = list(ids)
-        r = self._interroger(lambda: self._partitions["apprentissage"], "get", **kwargs)
-        return [{"id": i, "libelle": d, "meta": m or {}}
-                for i, d, m in zip(r.get("ids") or [], r.get("documents") or [], r.get("metadatas") or [])]
-
-    def apprentissage_effacer(self, ids: list[str]) -> int:
-        if not self._connected or "apprentissage" not in self._partitions or not ids:
-            return 0
-        self._partitions["apprentissage"].delete(ids=list(ids))
-        return len(ids)
 
     def _add_to_partition(
         self,
