@@ -78,14 +78,12 @@ Le script `start_atlas_desktop.bat` attend le venv **à la racine du dépôt**, 
   ```powershell
   python -m pip install -r requirements.txt
   ```
-  Les paquets Windows `pywin32`, `comtypes`, `pycaw` et `wmi` en font partie.
-- [ ] **Paquets absents de `requirements.txt` mais utilisés** (anomalie remontée au sprint B) :
+  Les paquets Windows `pywin32`, `comtypes` et `pycaw` en font partie, ainsi qu'`easyocr` (OCR de repli,
+  il apporte torch) et `pypdf` (PDF dans la mémoire), déclarés depuis le sprint Check-up.
+- [ ] **Outils de test** (seulement pour lancer les tests) :
   ```powershell
-  python -m pip install easyocr pypdf
-  python -m pip install pytest pytest-asyncio     # seulement pour lancer les tests
+  python -m pip install -r requirements-dev.txt
   ```
-  - `easyocr` : couche OCR 2 du grounding. Sans lui, la couche est ignorée silencieusement.
-  - `pypdf` : ingestion de PDF dans la mémoire.
 - [ ] **Navigateur Playwright** (commandes « ouvre une page ») : à relancer après chaque installation ou mise à jour de `playwright`. ⚠ Vu sur le terrain : sans cette étape, l'échec est `BrowserType.launch: Executable doesn't exist ... chromium-1243`.
   ```powershell
   python -m playwright install chromium
@@ -93,10 +91,11 @@ Le script `start_atlas_desktop.bat` attend le venv **à la racine du dépôt**, 
 - [ ] Vérification :
   ```powershell
   python -m pip check          # "No broken requirements found."
-  python -c "import win32api, comtypes, pycaw, wmi, pywinauto; print('win ok')"
+  python -c "import win32api, comtypes, pycaw, pywinauto; print('win ok')"
+  python scripts/doctor.py --composants      # chaque composant : présent, version, matériel, bascule
   ```
 - [ ] Note : `requirements.txt` ne fixe pas la plupart des versions (`>=`). Deux installations à des dates différentes n'obtiennent donc pas les mêmes versions. ⚠ Vu sur le terrain : le venv historique a piper-tts 1.4.1 et torch 2.12.1, une installation neuve du 16/09/2026 a piper-tts 1.8.0 et torch 2.14.0.
-- [ ] Note GPU : `pip` installe **torch en version CPU**. EasyOCR et les embeddings tournent donc sur CPU, et `main.py` affiche au démarrage un avertissement « aucun GPU CUDA » **même si le GPU fonctionne** pour la voix (faster-whisper utilise CTranslate2, qui voit bien le GPU). Installer torch CUDA est un arbitrage du sprint B, **non appliqué** ici.
+- [ ] Note GPU : `pip` installe **torch en version CPU**. torch ne sert qu'à EasyOCR, dans un processus à part (les embeddings passent par ONNX Runtime depuis le sprint Performance) ; la voix utilise le GPU par CTranslate2, sans torch. EasyOCR sur GPU, sur processeur ou retiré : décision d'Alexis, chiffrée au sprint Check-up (CK5).
 
 ## 5. Tesseract OCR 5.5.0 (obligatoire)
 

@@ -48,9 +48,7 @@ def test_01_mono_instance_second_launch_exits_cleanly(monkeypatch, tmp_path):
     # Verrou dans un dossier temporaire : ne jamais toucher data/atlas.lock d'une instance réelle.
     monkeypatch.setattr(main, "LOCK_FILE", tmp_path / "atlas.lock")
 
-    ok1, _ = acquire_instance_lock()
-    if not ok1:
-        pytest.skip("Atlas already running in this environment; mono-instance lock is expected to be held")
+    ok1, _ = acquire_instance_lock()     # dossier temporaire : aucun Atlas réel ne peut le tenir (CK4)
     ok2, msg2 = acquire_instance_lock()
     release_instance_lock()
 

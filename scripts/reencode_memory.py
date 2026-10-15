@@ -27,7 +27,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import chromadb
 
 from core.memory_manager import _content_hash
-from core_conversational.memory_core import EMBED_DIM, embed_passages
+# Sprint Check-up / CK7 : par core.embeddings, qui applique memory.embedding_backend (ONNX) comme
+# Atlas. Importé directement, memory_core gardait son moteur par défaut : sentence-transformers et torch.
+from core.embeddings import EMBED_DIM, embed_passages
 
 SOURCE_DEFAULT = "atlas_memory"
 TARGET_DEFAULT = "atlas_memory_e5"

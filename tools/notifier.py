@@ -23,5 +23,7 @@ async def notify(message: str, title: str = "Atlas", duration_seconds: int = 5):
         logger.info("🔔 Notification : %s — %s", title, message)
         return {"success": True, "message": f"Notification affichée : {message}"}
     except Exception as e:
-        logger.error("Erreur notification : %s", e)
+        from core_conversational.degradations import signaler
+
+        signaler("notifications", f"{type(e).__name__}: {e}")
         return {"success": False, "message": f"Erreur notification : {e}"}

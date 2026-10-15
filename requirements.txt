@@ -4,13 +4,10 @@ psutil==6.1.1
 pywin32==308
 httpx==0.28.1
 pydantic==2.10.4
-pydantic-settings==2.7.1
 comtypes==1.4.8
 pycaw==20240210
-wmi==1.5.1
 chromadb==1.5.1
 sentence-transformers==3.3.1
-aiosqlite>=0.19.0
 beautifulsoup4>=4.12.0
 ddgs>=6.0.0
 playwright>=1.44.0
@@ -21,6 +18,11 @@ pyperclip>=1.8.2
 websockets>=12.0
 pywinauto>=0.6.9
 pytesseract>=0.3.13
+# Sprint Check-up / CK1 : installés et utilisés, mais jamais déclarés. EasyOCR (repli de Tesseract,
+# processus à part) apporte torch, build processeur depuis PyPI : choix en cours (rapport Check-up, CK5).
+easyocr==1.7.2
+# Ingestion de documents PDF dans la mémoire (tools/memory_ingest.py)
+pypdf>=4.0.0
 apscheduler>=3.10.0
 plyer>=2.1.0
 pyyaml>=6.0.1

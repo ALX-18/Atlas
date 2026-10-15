@@ -547,8 +547,9 @@ class VoiceEngine:
                 # E2 : le repli processeur est acceptable, le repli SILENCIEUX ne l'est pas.
                 # Sur cette chaîne, le processeur coûte ~5 s par phrase contre 0,1 s sur GPU.
                 self._stt_error = f"{type(e).__name__}: {e}"
-                logger.error("[VOIX] Transcription sur '%s' impossible (%s) — repli processeur, "
-                             "la réponse sera nettement plus lente.", device, self._stt_error)
+                from core_conversational.degradations import signaler
+
+                signaler("stt_gpu", f"chargement sur '{device}' : {self._stt_error}")
                 self._whisper_model = _load_whisper(WhisperModel, model_name, "cpu")
                 self._stt_device_used = "cpu"
 
@@ -581,11 +582,13 @@ class VoiceEngine:
             return False
         if self._speak_piper(text):
             return True
-        logger.warning("[VOIX] Piper indisponible — repli sur la voix Windows (SAPI).")
+        from core_conversational.degradations import signaler
+
+        signaler("tts_piper", "Piper n'a pas parlé (voir le journal [VOIX] précédent)")
         if self._speak_sapi(text):
             self._tts_backend = "sapi"
             return True
-        logger.error("[VOIX] Aucune synthèse disponible : ni Piper, ni SAPI. Atlas reste muet.")
+        signaler("tts_muet", "ni Piper ni SAPI n'ont parlé")
         self._tts_backend = "aucun"
         return False
 
@@ -741,7 +744,15 @@ class VoiceEngine:
         }
 
     async def _run_text_pipeline(self, text: str) -> str:
-        """Run existing text pipeline and return short spoken response."""
+        """Run existing text pipeline and return short spoken response.
+
+        Sprint Check-up / CK2 : une bascule vécue pas encore dite est ajoutée à la réponse."""
+        from core_conversational.degradations import avec_avertissements
+
+        reponse = await self._run_text_pipeline_sans_avertissement(text)
+        return avec_avertissements(reponse).replace("ℹ️ ", "")
+
+    async def _run_text_pipeline_sans_avertissement(self, text: str) -> str:
         from core.context_monitor import collect_context
         from core.intent_classifier import get_classifier
         from core.memory_manager import get_memory_manager

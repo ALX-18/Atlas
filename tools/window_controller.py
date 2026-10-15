@@ -32,15 +32,20 @@ try:
     import win32con
     import win32process
     HAS_WIN32 = True
-except ImportError:
+except ImportError as _e:
+    from core_conversational.degradations import signaler
+
     HAS_WIN32 = False
-    logger.warning("pywin32 non disponible — certaines fonctions de fenêtre seront limitées")
+    signaler("win32", f"window_controller : {_e}")
 
 try:
     from pywinauto import Application as PywinautoApplication
     HAS_PYWINAUTO = True
-except ImportError:
+except ImportError as _e:
+    from core_conversational.degradations import signaler
+
     HAS_PYWINAUTO = False
+    signaler("pywinauto_fenetres", str(_e))
 
 # --------------------------------------------------------------------------- #
 #  Alias FR/EN pour les noms d'applications courantes

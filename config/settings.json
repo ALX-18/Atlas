@@ -9,13 +9,6 @@
         "context_window": 8192,
         "stream_timeout_seconds": 90
     },
-    "assistant": {
-        "name": "Atlas",
-        "language": "fr",
-        "log_actions": true,
-        "confirm_destructive": true,
-        "power_user_mode": false
-    },
     "server": {
         "host": "127.0.0.1",
         "port": 8550
@@ -23,17 +16,15 @@
     "protection_rules": {
         "intouchable_gpu_threshold": 50.0,
         "intouchable_cpu_threshold": 60.0,
-        "idle_timeout_minutes": 10,
         "always_protected": ["explorer.exe", "svchost.exe", "csrss.exe", "lsass.exe", "System", "winlogon.exe"],
         "game_executables_keywords": ["game", "steam", "epic", "battle.net", "riot", "valorant", "helldivers", "gog"]
     },
     "memory": {
         "chroma_path": "data/chromadb",
         "collection_name": "atlas_memory_e5",
-    "collection_name_previous": "atlas_memory",
-        "recall_top_k": 5,
+        "_collection_name_previous": "atlas_memory",
         "habit_detection_threshold": 3,
-        "embedding_model": "intfloat/multilingual-e5-base",
+        "_embedding_model": "intfloat/multilingual-e5-base (fixé dans core_conversational/memory_core.py ; le dossier ONNX contient son export)",
         "embedding_backend": "onnx",
         "embedding_onnx_dir": "models/embeddings/multilingual-e5-base",
         "retrieval_top_k": 3,
@@ -100,9 +91,7 @@
         "del ", "rmdir", "rd "
     ],
     "automation": {
-        "trigger_check_interval_seconds": 10,
-        "max_active_triggers": 20,
-        "min_cooldown_seconds": 60
+        "trigger_check_interval_seconds": 10
     },
     "filesystem_assistant": {
         "enabled": false,
@@ -120,7 +109,6 @@
     },
     "grounding": {
         "vision_enabled": false,
-        "vision_model": "minicpm-v:latest",
         "_note": "Désactivé par défaut depuis Réunion Atlas #4. OCR Tesseract suffit pour 95%+ des cas. Réactiver si Tesseract ne trouve pas l'élément.",
         "easyocr_idle_unload_s": 600,
         "_note_easyocr_idle": "Sprint Performance / PF2 : EasyOCR (~460 Mo, ~10 s à charger) est libéré après 10 min sans usage. Les clics sur un libellé viennent par rafales ; 10 min couvre une rafale sans le recharger."

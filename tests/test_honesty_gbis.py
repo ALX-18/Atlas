@@ -241,13 +241,11 @@ def test_gb1_la_voix_repond_la_phrase_fixe_a_une_action_sans_outil(monde, monkey
 # --------------------------------------------------------------------------- #
 
 def _ollama_joignable():
-    import urllib.request
+    """Sonde commune (tests/conftest.py). Avant : toute exception, quelle qu'elle soit, valait
+    « Ollama injoignable » et ignorait le test en silence (CK4)."""
+    from tests.conftest import ollama_absent
 
-    try:
-        urllib.request.urlopen("http://127.0.0.1:11434/api/version", timeout=2)
-        return True
-    except Exception:
-        return False
+    return not ollama_absent()
 
 
 @pytest.mark.skipif(not _ollama_joignable(), reason="Ollama injoignable")

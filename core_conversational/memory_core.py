@@ -101,7 +101,9 @@ def _load_model(model_name: str = DEFAULT_EMBED_MODEL):
                 _model_name = model_name
                 return _model
             except Exception as e:
-                logger.warning("Embedding ONNX indisponible (%s) — repli sentence-transformers.", e)
+                from core_conversational.degradations import signaler
+
+                signaler("embeddings_onnx", f"{type(e).__name__}: {e}")
                 _model = None
         try:
             from sentence_transformers import SentenceTransformer
@@ -109,7 +111,9 @@ def _load_model(model_name: str = DEFAULT_EMBED_MODEL):
             _model = SentenceTransformer(model_name)
             _model_name = model_name
         except Exception as e:
-            logger.warning("Embedding '%s' indisponible (%s) — mode legacy.", model_name, e)
+            from core_conversational.degradations import signaler
+
+            signaler("embeddings_absents", f"{model_name} : {type(e).__name__}: {e}")
             _model = None
     return _model
 

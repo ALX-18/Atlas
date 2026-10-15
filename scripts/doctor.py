@@ -18,6 +18,8 @@ Usage:
     python scripts/doctor.py            # rapport lisible
     python scripts/doctor.py --json     # rapport machine (pour un futur installeur)
     python scripts/doctor.py --precheck # AVANT installation : verdict matériel, Python nu suffit
+    python scripts/doctor.py --composants        # chaque composant : présent, version, matériel, bascule
+    python scripts/doctor.py --composants --json
 
 Code de retour:
     0 — aucun composant critique manquant (des avertissements peuvent subsister)
@@ -129,7 +131,6 @@ PACKAGES: list[tuple[str, str, str, str]] = [
     ("requests", "requests", CRITICAL, "HTTP (grounding, scripts)"),
     ("pyyaml", "yaml", CRITICAL, "workflows"),
     ("apscheduler", "apscheduler", CRITICAL, "planificateur"),
-    ("aiosqlite", "aiosqlite", WARNING, "SQLite async"),
     ("pyautogui", "pyautogui", CRITICAL, "clics / clavier"),
     ("pygetwindow", "pygetwindow", CRITICAL, "fenêtres"),
     ("pyperclip", "pyperclip", CRITICAL, "presse-papiers"),
@@ -137,26 +138,28 @@ PACKAGES: list[tuple[str, str, str, str]] = [
     ("pywin32", "win32api", CRITICAL, "API Windows"),
     ("comtypes", "comtypes", CRITICAL, "COM Windows"),
     ("pycaw", "pycaw", WARNING, "contrôle du volume"),
-    ("wmi", "wmi", WARNING, "diagnostics matériels"),
     ("plyer", "plyer", WARNING, "notifications"),
     ("websockets", "websockets", CRITICAL, "browser bridge"),
     ("pytesseract", "pytesseract", CRITICAL, "OCR couche 1"),
-    ("easyocr", "easyocr", WARNING, "OCR couche 2 (absent de requirements.txt)"),
+    ("easyocr", "easyocr", WARNING, "OCR couche 2, repli de Tesseract (processus à part)"),
     ("chromadb", "chromadb", CRITICAL, "mémoire long terme"),
-    ("sentence-transformers", "sentence_transformers", CRITICAL, "embeddings"),
+    # Sprint Check-up / CK7 : les embeddings tournent sur ONNX Runtime ; sentence-transformers
+    # (et torch) n'est que le REPLI si le modèle ONNX manque — jamais chargé sinon (prouvé en CK1).
+    ("sentence-transformers", "sentence_transformers", WARNING, "repli des embeddings si le modèle ONNX manque"),
     ("beautifulsoup4", "bs4", WARNING, "lecture web"),
     ("lxml", "lxml", WARNING, "lecture web"),
-    ("ddgs", "ddgs", WARNING, "recherche web (repli SearXNG)"),
+    ("ddgs", "ddgs", WARNING, "recherche web (DuckDuckGo)"),
     ("playwright", "playwright", WARNING, "navigateur piloté"),
     ("numpy", "numpy", CRITICAL, "audio / OCR"),
     ("sounddevice", "sounddevice", WARNING, "micro / haut-parleur"),
     ("openwakeword", "openwakeword", WARNING, "mot d'éveil"),
     ("faster-whisper", "faster_whisper", WARNING, "STT"),
     ("piper-tts", "piper", WARNING, "TTS"),
-    ("onnxruntime", "onnxruntime", WARNING, "inférence wake word / TTS"),
+    ("onnxruntime", "onnxruntime", CRITICAL, "embeddings de la mémoire, mot d'éveil, voix Piper"),
     ("pystray", "pystray", WARNING, "icône systray"),
-    ("pytest", "pytest", INFO, "tests (absent de requirements.txt)"),
-    ("pytest-asyncio", "pytest_asyncio", INFO, "tests async (absent de requirements.txt)"),
+    ("pypdf", "pypdf", WARNING, "ingestion de documents PDF dans la mémoire"),
+    ("pytest", "pytest", INFO, "tests (requirements-dev.txt)"),
+    ("pytest-asyncio", "pytest_asyncio", INFO, "tests async (requirements-dev.txt)"),
 ]
 
 
@@ -383,14 +386,15 @@ def detect_gpu() -> tuple[list[Check], dict]:
         import torch
         cuda = bool(torch.cuda.is_available())
         detail = f"torch {torch.__version__} (CUDA build={torch.version.cuda})"
-        checks.append(Check("GPU", "torch voit le GPU (EasyOCR, embeddings)", cuda, WARNING, detail,
-                            "torch est une build CPU : EasyOCR et les embeddings tournent sur CPU "
+        checks.append(Check("GPU", "torch voit le GPU (EasyOCR)", cuda, WARNING, detail,
+                            "torch est une build CPU : EasyOCR tourne sur CPU (choix en cours, rapport "
+                            "Check-up §CK5) "
                             "(la transcription n'est pas concernée : elle passe par CTranslate2, vérifié "
                             "juste en dessous). Build CUDA : "
                             "pip install torch --index-url https://download.pytorch.org/whl/cu128 "
                             "(RTX 50xx : CUDA 12.8 minimum)"))
     except Exception as e:
-        checks.append(Check("GPU", "torch voit le GPU (EasyOCR, embeddings)", False, WARNING, str(e)[:200]))
+        checks.append(Check("GPU", "torch voit le GPU (EasyOCR)", False, WARNING, str(e)[:200]))
     try:
         import ctranslate2
         n = ctranslate2.get_cuda_device_count()
@@ -567,6 +571,215 @@ def check_voice(settings: dict | None) -> list[Check]:
 
 
 # --------------------------------------------------------------------------- #
+#  Sprint Check-up / CK2 — les bascules : celles qu'Atlas a faites, et leurs conditions
+# --------------------------------------------------------------------------- #
+
+def _atlas_health() -> dict | None:
+    """/api/health d'Atlas s'il tourne, sinon None."""
+    port = int(((_load_settings() or {}).get("server", {}) or {}).get("port", 8550))
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=15) as resp:
+            return json.loads(resp.read().decode("utf-8", "replace"))
+    except Exception:
+        return None
+
+
+def _onnx_present(settings: dict) -> tuple[bool, Path]:
+    d = ROOT / (settings.get("memory", {}) or {}).get("embedding_onnx_dir", "models/embeddings/multilingual-e5-base")
+    return (d / "model_ext.onnx").is_file() or (d / "model.onnx").is_file(), d
+
+
+def check_bascules() -> list[Check]:
+    """Aucune dégradation silencieuse : les bascules en cours (Atlas lancé) et, toujours, les
+    conditions qui en déclencheraient une."""
+    import importlib.util
+
+    settings = _load_settings() or {}
+    checks: list[Check] = []
+    sante = _atlas_health()
+    if sante is None:
+        checks.append(Check("Bascules", "Bascules en cours dans Atlas", True, INFO,
+                            "Atlas n'est pas lancé : seules les conditions ci-dessous sont vérifiées"))
+    else:
+        actives = sante.get("bascules") or []
+        if not actives:
+            checks.append(Check("Bascules", "Bascules en cours dans Atlas", True, INFO, "aucune"))
+        for b in actives:
+            checks.append(Check("Bascules", f"Bascule en cours : {b.get('composant', b.get('cle'))}", False, WARNING,
+                                f"cause : {b.get('cause')} — ce qui est perdu : {b.get('perte')}"))
+
+    onnx_ok, onnx_dir = _onnx_present(settings)
+    checks.append(Check("Bascules", "Embeddings ONNX (sinon repli sentence-transformers, plus lent)", onnx_ok,
+                        WARNING, str(onnx_dir), "python scripts/download_voice_models.py"))
+    ocr_ok = importlib.util.find_spec("easyocr") is not None and importlib.util.find_spec("torch") is not None
+    checks.append(Check("Bascules", "EasyOCR, repli de Tesseract (sinon certains clics impossibles)", ocr_ok,
+                        WARNING, "easyocr et torch importables" if ocr_ok else "easyocr ou torch absent",
+                        "pip install -r requirements.txt"))
+    uia_ok = importlib.util.find_spec("pywinauto") is not None
+    checks.append(Check("Bascules", "UI Automation (sinon chaque clic passe par l'OCR)", uia_ok, WARNING,
+                        "pywinauto importable" if uia_ok else "pywinauto absent", "pip install -r requirements.txt"))
+    tts = (settings.get("voice", {}) or {}).get("tts_voice", "fr_FR-siwis-medium")
+    piper_ok = (ROOT / "data" / "voices" / f"{tts}.onnx").is_file()
+    checks.append(Check("Bascules", "Voix Piper (sinon voix de Windows)", piper_ok, WARNING,
+                        str(ROOT / "data" / "voices" / f"{tts}.onnx"), "python scripts/download_voice_models.py"))
+    return checks
+
+
+# --------------------------------------------------------------------------- #
+#  Sprint Check-up / CK6 — doctor.py --composants : le tableau de CK1, en court
+# --------------------------------------------------------------------------- #
+
+def _torch_build() -> str | None:
+    """« processeur » ou « CUDA x.y », lu dans torch/version.py sans importer torch."""
+    import importlib.util
+    import re
+
+    spec = importlib.util.find_spec("torch")
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    try:
+        texte = (Path(list(spec.submodule_search_locations)[0]) / "version.py").read_text(encoding="utf-8")
+        m = re.search(r"^cuda\s*(?::[^=]*)?=\s*(.+)$", texte, re.M)
+        cuda = m.group(1).strip().strip("'\"") if m else "None"
+    except Exception:
+        return "?"
+    return "processeur" if cuda in ("None", "") else f"CUDA {cuda}"
+
+
+def _ct2_cuda_devices() -> int:
+    """Périphériques CUDA vus par CTranslate2, importé sans torch (comme main.py)."""
+    cache = "torch" not in sys.modules
+    if cache:
+        sys.modules["torch"] = None
+    try:
+        import ctranslate2
+
+        return int(ctranslate2.get_cuda_device_count())
+    except Exception:
+        return 0
+    finally:
+        if cache and sys.modules.get("torch", 0) is None:
+            del sys.modules["torch"]
+
+
+def composants() -> list[dict]:
+    """Chaque composant d'Atlas : présent, version, matériel utilisé, bascule active ou non."""
+    settings = _load_settings() or {}
+    voice = settings.get("voice", {}) or {}
+    sante = _atlas_health()
+    actives = {b.get("cle"): b for b in ((sante or {}).get("bascules") or [])}
+    lignes: list[dict] = []
+
+    def ligne(composant, role, present, version, materiel, bascule_si_absent, cles=()):
+        active = next((actives[c] for c in cles if c in actives), None)
+        if active:
+            bascule = f"ACTIVE : {active.get('cause')}"
+        elif not present:
+            bascule = bascule_si_absent
+        else:
+            bascule = "aucune"
+        lignes.append({"composant": composant, "role": role, "present": bool(present), "version": version or "—",
+                       "materiel": materiel, "bascule": bascule})
+
+    # Ollama et ses modèles
+    base = (settings.get("ollama", {}) or {}).get("base_url", "http://127.0.0.1:11434").rstrip("/")
+    ok_v, body_v = _http_get(f"{base}/api/version")
+    version = json.loads(body_v).get("version") if ok_v else None
+    modeles, vram = [], 0
+    if ok_v:
+        try:
+            modeles = sorted(m["name"] for m in json.loads(body_full(f"{base}/api/tags"))["models"])
+            vram = sum(int(m.get("size_vram", 0)) for m in json.loads(body_full(f"{base}/api/ps")).get("models", []))
+        except Exception:
+            pass
+    ligne("Ollama", "modèle de langue", ok_v, f"{version} — modèles : {', '.join(modeles) or 'aucun'}" if ok_v else None,
+          f"GPU ({vram // 1048576} Mo en VRAM)" if vram else ("GPU si la VRAM suffit (modèle non chargé)" if ok_v else "—"),
+          "Atlas répond « modèle indisponible » (dit à chaque demande)")
+
+    # OCR
+    tess_exe = shutil.which("tesseract")
+    tess_v, langs = None, []
+    if tess_exe:
+        code, out = _run([tess_exe, "--version"])
+        tess_v = out.strip().splitlines()[0] if code == 0 and out.strip() else None
+        code, out = _run([tess_exe, "--list-langs"])
+        langs = [x.strip() for x in out.strip().splitlines()[1:] if x.strip()] if code == 0 else []
+    ligne("Tesseract", "OCR des clics, couche rapide", bool(tess_v),
+          f"{tess_v} — fra : {'oui' if 'fra' in langs else 'NON'}" if tess_v else None, "processeur",
+          "clics par EasyOCR, ~20× plus lents (dit par Atlas)", ("tesseract", "tesseract_fra"))
+    build = _torch_build()
+    ligne("EasyOCR", "OCR de repli (processus à part)", _pkg_version("easyocr") is not None,
+          _pkg_version("easyocr"), f"{build or '—'} (torch)" if build else "—",
+          "certains clics impossibles (dit par Atlas)", ("easyocr",))
+    ligne("torch", "EasyOCR seulement (jamais chargé par Atlas lui-même)", build is not None,
+          _pkg_version("torch"), f"build {build}" if build else "—", "EasyOCR indisponible")
+
+    # Mémoire
+    onnx_ok, onnx_dir = _onnx_present(settings)
+    ligne("Embeddings (ONNX)", "vecteurs de la mémoire (e5)", onnx_ok and _pkg_version("onnxruntime") is not None,
+          f"onnxruntime {_pkg_version('onnxruntime')}", "processeur",
+          "repli sentence-transformers : +700 Mo, rappel plus lent (dit par Atlas)",
+          ("embeddings_onnx", "embeddings_absents"))
+    ligne("sentence-transformers", "repli des embeddings si le modèle ONNX manque (non chargé sinon)",
+          _pkg_version("sentence-transformers") is not None, _pkg_version("sentence-transformers"),
+          "processeur (torch)", "aucun repli d'embeddings si ONNX manque aussi")
+    mem_dir = ROOT / (settings.get("memory", {}) or {}).get("chroma_path", "data/chromadb")
+    ligne("Mémoire (ChromaDB)", "mémoire à long terme (dossier)", _pkg_version("chromadb") is not None,
+          f"{_pkg_version('chromadb')} — {mem_dir}", "disque", "Atlas ne retient rien (dit par Atlas)", ("memoire",))
+
+    # Voix
+    stt_dev = str(voice.get("stt_device", "cuda"))
+    cuda_ok = False
+    if stt_dev == "cuda":
+        try:
+            sys.path.insert(0, str(ROOT))
+            from core.voice_engine import ensure_cuda_libraries
+
+            cuda_ok = ensure_cuda_libraries()[0] and _ct2_cuda_devices() > 0
+        except Exception:
+            cuda_ok = False
+    ligne("Transcription (faster-whisper)", f"voix → texte, modèle « {voice.get('stt_model', 'base')} »",
+          _pkg_version("faster-whisper") is not None, _pkg_version("faster-whisper"),
+          "GPU" if cuda_ok else "processeur", "voix indisponible", ("stt_gpu",))
+    if stt_dev == "cuda" and not cuda_ok and "stt_gpu" not in actives:
+        lignes[-1]["bascule"] = "→ processeur (~5 s par phrase)"
+    voix_piper = ROOT / "data" / "voices" / f"{voice.get('tts_voice', 'fr_FR-siwis-medium')}.onnx"
+    ligne("Synthèse (Piper)", "texte → voix", _pkg_version("piper-tts") is not None and voix_piper.is_file(),
+          _pkg_version("piper-tts"), "processeur", "→ voix de Windows (SAPI) (dit par Atlas)", ("tts_piper", "tts_muet"))
+    ww = ROOT / str(voice.get("wake_word_model", ""))
+    ligne("Mot d'éveil (openWakeWord)", "« Hey Atlas »", _pkg_version("openwakeword") is not None and ww.is_file(),
+          _pkg_version("openwakeword"), "processeur", "on ne peut plus parler à Atlas (dit par Atlas)", ("voix",))
+
+    # Matériel NVIDIA
+    exe = shutil.which("nvidia-smi")
+    pilote = None
+    if exe:
+        code, out = _run([exe, "--query-gpu=name,driver_version", "--format=csv,noheader"])
+        pilote = out.strip().splitlines()[0] if code == 0 and out.strip() else None
+    ligne("Pilote NVIDIA", "GPU pour Ollama et la transcription", bool(pilote), pilote, "GPU",
+          "modèle de langue et transcription sur processeur")
+    cu = [f"{d} {_pkg_version(d)}" for d in ("nvidia-cublas-cu12", "nvidia-cudnn-cu12") if _pkg_version(d)]
+    ligne("cuBLAS / cuDNN", "transcription sur GPU (paquets pip)", len(cu) == 2, ", ".join(cu) or None, "GPU",
+          "transcription sur processeur (dit par Atlas)", ("stt_gpu",))
+
+    # Internet
+    ligne("Recherche web (ddgs)", "DuckDuckGo", _pkg_version("ddgs") is not None, _pkg_version("ddgs"), "réseau",
+          "recherche impossible (dit à chaque demande)")
+    return lignes
+
+
+def render_composants(lignes: list[dict]) -> None:
+    print("Atlas — composants\n")
+    largeurs = [30, 7, 44, 26]
+    print(f"{'Composant':<30} {'Présent':<7} {'Version':<44} {'Matériel':<26} Bascule")
+    print("-" * 140)
+    for x in lignes:
+        version = x["version"] if len(x["version"]) <= 43 else x["version"][:42] + "…"
+        print(f"{x['composant']:<{largeurs[0]}} {'oui' if x['present'] else 'NON':<{largeurs[1]}} "
+              f"{version:<{largeurs[2]}} {x['materiel'][:25]:<{largeurs[3]}} {x['bascule']}")
+
+
+# --------------------------------------------------------------------------- #
 #  Sprint G / G5 — verdict lisible par un non-informaticien
 #
 #  Bibliothèque standard UNIQUEMENT dans cette section : la pré-vérification
@@ -737,6 +950,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="sortie JSON")
     parser.add_argument("--precheck", action="store_true",
                         help="pré-vérification AVANT installation : matériel seulement, Python nu suffit")
+    parser.add_argument("--composants", action="store_true",
+                        help="chaque composant : présent, version, matériel utilisé, bascule active ou non")
     args = parser.parse_args(argv)
 
     for stream in (sys.stdout, sys.stderr):
@@ -744,6 +959,14 @@ def main(argv: list[str] | None = None) -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
+
+    if args.composants:
+        lignes = composants()
+        if args.json:
+            print(json.dumps(lignes, ensure_ascii=False, indent=2))
+        else:
+            render_composants(lignes)
+        return 0
 
     # G5 : le verdict d'abord, en une ligne, pour un non-informaticien.
     machine = collect_machine()
@@ -777,6 +1000,7 @@ def main(argv: list[str] | None = None) -> int:
     models = next((c.data.get("models", {}) for c in ollama_checks if c.data.get("models")), {})
     checks += recommend(gpu, settings, models)
     checks += check_voice(settings)
+    checks += check_bascules()
 
     failed_critical = any(not c.ok and c.severity == CRITICAL for c in checks)
     if failed_critical and verdict != VERDICT_KO:

@@ -65,10 +65,10 @@ def controle(dossier: pathlib.Path) -> dict:
         res["identique"] &= ligne["ok"]
         res["collections"][n] = ligne
 
-    # Les 40 requêtes, mêmes vecteurs des deux côtés
-    import core_conversational.memory_core as mc
+    # Les 40 requêtes, mêmes vecteurs des deux côtés ; moteur d'Atlas (ONNX) par core.embeddings (CK7)
+    from core.embeddings import embed_query
 
-    vecs = {q: mc.embed_query(q) for q in REQUETES}
+    vecs = {q: embed_query(q) for q in REQUETES}
 
     def releve(client):
         out = []

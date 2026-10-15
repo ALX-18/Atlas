@@ -59,8 +59,7 @@ async def test_05_read_url_invalid_error_handled():
 
 @pytest.mark.anyio
 async def test_06_browser_open_and_get_current_url():
-    playwright = pytest.importorskip("playwright")
-    _ = playwright
+    import playwright  # noqa: F401  (déclaré : absent, c'est une panne — CK4)
 
     open_result = await browser_controller.browser_open("https://example.com")
     assert open_result.get("success") is True
