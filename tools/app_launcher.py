@@ -522,6 +522,7 @@ def launch_app(
     path: str | None = None,
     args: list[str] | None = None,
     wait_ready: bool = False,
+    chemin_appris: str | None = None,
 ) -> dict[str, Any]:
     """
     Lance une application par son nom.
@@ -537,6 +538,18 @@ def launch_app(
     if error:
         logger.warning("[LAUNCH] Nom refusé : %s", error)
         return {"success": False, "message": f"Action refusée : {error}."}
+
+    # Sprint Apprentissage 1 / AP1 : le chemin qui a déjà lancé cette application (constaté par
+    # sa fenêtre ou son processus) est repris tel quel, sans refaire la résolution du nom.
+    if chemin_appris and os.path.isfile(chemin_appris) and chemin_appris.lower().endswith(".exe"):
+        try:
+            logger.info("Launching (appris): %s", chemin_appris)
+            subprocess.Popen([chemin_appris], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+            return {"success": True, "message": f"'{name}' lancé avec succès.", "path": chemin_appris,
+                    "resolved_by": "appris"}
+        except Exception as e:
+            logger.info("Chemin appris inutilisable (%s) : résolution normale", e)
 
     # Check UWP protocol first
     if name and not path:

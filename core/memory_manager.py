@@ -55,6 +55,9 @@ PARTITIONS = {
     "context_apps": _COLL_CFG.get("context_apps", "atlas_context_apps"),
     "habits": _COLL_CFG.get("habits", "atlas_habits"),
     "errors": _COLL_CFG.get("errors", "atlas_errors"),
+    # Sprint Apprentissage 1 : ce qu'Atlas a appris (corrections d'Alexis, méthodes qui marchent),
+    # en enregistrements explicites, lus par identifiant (core/apprentissage.py).
+    "apprentissage": _COLL_CFG.get("apprentissage", "atlas_apprentissage"),
 }
 RETRIEVAL_TOP_K: int = int(_cfg.get("retrieval_top_k", 3))
 RETRIEVAL_MIN_SCORE: float = float(_cfg.get("retrieval_min_score", 0.5))
@@ -499,6 +502,47 @@ class MemoryManager:
             meta[k] = v if isinstance(v, (str, int, float, bool)) else str(v)
         return meta
 
+    # ------------------------------------------------------------------ #
+    #  Sprint Apprentissage 1 — enregistrements explicites, lus par identifiant
+    # ------------------------------------------------------------------ #
+
+    def apprentissage_ecrire(self, doc_id: str, libelle: str, metadata: dict) -> bool:
+        """Écrit (ou remplace) un enregistrement. Jamais l'embedder par défaut de ChromaDB."""
+        if not self._connected or "apprentissage" not in self._partitions:
+            return False
+        from core import embeddings as emb
+
+        vecs = emb.embed_passages([libelle])
+        if vecs is None:
+            return False
+        meta = self._sanitize_meta(metadata)
+        meta.setdefault("created_at", time.time())
+        meta["timestamp"] = datetime.now().isoformat()
+        try:
+            self._partitions["apprentissage"].upsert(ids=[doc_id], documents=[libelle], metadatas=[meta],
+                                                     embeddings=vecs)
+            return True
+        except Exception as e:
+            logger.error("Apprentissage : écriture impossible (%s)", e)
+            return False
+
+    def apprentissage_lire(self, ids: Optional[list[str]] = None) -> list[dict]:
+        """Les enregistrements demandés (tous si ids est None) : {id, libelle, meta}."""
+        if not self._connected or "apprentissage" not in self._partitions:
+            return []
+        kwargs = {"include": ["documents", "metadatas"]}
+        if ids is not None:
+            kwargs["ids"] = list(ids)
+        r = self._interroger(lambda: self._partitions["apprentissage"], "get", **kwargs)
+        return [{"id": i, "libelle": d, "meta": m or {}}
+                for i, d, m in zip(r.get("ids") or [], r.get("documents") or [], r.get("metadatas") or [])]
+
+    def apprentissage_effacer(self, ids: list[str]) -> int:
+        if not self._connected or "apprentissage" not in self._partitions or not ids:
+            return 0
+        self._partitions["apprentissage"].delete(ids=list(ids))
+        return len(ids)
+
     def _add_to_partition(
         self,
         partition: str,
@@ -652,22 +696,6 @@ class MemoryManager:
                 stored += 1
         logger.info("Ingestion document '%s' : %d/%d chunks stockés", source, stored, len(chunks))
         return stored
-
-    # ------------------------------------------------------------------ #
-    #  F4 — Errors partition (utilisé par error_learning)
-    # ------------------------------------------------------------------ #
-
-    def store_error(self, signature: str, metadata: dict) -> Optional[str]:
-        """Stocke une signature d'échec dans la partition errors."""
-        if not self._connected:
-            return None
-        err_id = f"err_{uuid.uuid4().hex[:12]}"
-        ok = self._add_to_partition("errors", err_id, signature, metadata)
-        return err_id if ok else None
-
-    def query_errors(self, signature: str, top_k: int = 1, min_score: float = 0.85) -> list[dict]:
-        """Recherche un échec similaire passé. min_score élevé = match strict."""
-        return self.retrieve(signature, partition="errors", top_k=top_k, min_score=min_score)
 
     # ------------------------------------------------------------------ #
     #  Stats

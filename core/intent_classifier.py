@@ -183,6 +183,11 @@ INTENT_CATEGORIES = {
             "forget": "memory_forget",
         },
     },
+    # Sprint Apprentissage 1 : ce qu'Atlas a appris (règles dédiées dans classify)
+    "apprentissage": {
+        "verbs_map": {},
+        "tools": {"lister": "apprentissage_lister", "oublier": "apprentissage_oublier"},
+    },
     "automation": {
         "verbs_map": {
             # FR
@@ -803,6 +808,19 @@ class IntentClassifier:
                 is_complex=False,
                 raw_input=raw,
             )
+
+        # --- Sprint Apprentissage 1 : « qu'est-ce que tu as appris ? », « oublie ce que tu as appris sur … »
+        _plain_ap = _sans_accents(normalized).replace("’", "'")
+        m = re.match(r"^(?:atlas[\s,]*)?oublie(?:r)?\s+(?:tout\s+)?ce que tu as appris(?:\s+(?:sur|a propos de|pour)\s+(?P<s>.+))?$",
+                     _plain_ap.strip().rstrip(" .!?"))
+        if m:
+            sujet = raw.strip().rstrip(" .!?")[len(raw.strip().rstrip(" .!?")) - len(m.group("s")):] if m.group("s") else ""
+            return IntentResult(category="apprentissage", verb="oublier", target=sujet or None,
+                                params={"sujet": sujet}, confidence=0.97, is_complex=False, raw_input=raw)
+        if re.search(r"\b(?:qu'est-ce que|qu'est ce que|qu'as-tu|quest-ce que|que)\s*(?:tu\s+)?(?:as|a)?\s*appris\b|"
+                     r"\bce que tu as appris\b|\btu as appris quoi\b", _plain_ap):
+            return IntentResult(category="apprentissage", verb="lister", target=None, params={},
+                                confidence=0.95, is_complex=False, raw_input=raw)
 
         # --- Sprint Fiabilité / FI2 : règles prioritaires (texte sans accents) ---
         plain = _sans_accents(normalized).replace("’", "'")

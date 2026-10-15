@@ -37,7 +37,8 @@
             "documents": "atlas_documents",
             "context_apps": "atlas_context_apps",
             "habits": "atlas_habits",
-            "errors": "atlas_errors"
+            "errors": "atlas_errors",
+            "apprentissage": "atlas_apprentissage"
         }
     },
     "web": {

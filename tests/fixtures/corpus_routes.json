@@ -829,6 +829,30 @@
   }
  },
  {
+  "phrase": "qu'est-ce que tu as appris ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "apprentissage_lister"
+  }
+ },
+ {
+  "phrase": "qu'est ce que tu as appris",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "apprentissage_lister"
+  }
+ },
+ {
+  "phrase": "oublie ce que tu as appris sur discord",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "apprentissage_lister"
+  }
+ },
+ {
   "phrase": "lance le mode gaming",
   "famille": "modes_planification",
   "attendu": {

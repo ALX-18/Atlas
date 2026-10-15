@@ -17,9 +17,10 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from tools.memory_ingest import chunk_text, extract_text, is_supported, mime_for
 from core import embeddings as emb
-from core.error_learning import (
-    ErrorLearning, build_signature, classify_cause, _mitigation_for, VALID_CAUSES,
-)
+# Sprint Apprentissage 1 : core/error_learning.py (voisins sémantiques, F4) est retiré — il n'a
+# jamais changé le comportement d'Atlas (rapport D, §4.1). La classification des causes vit dans
+# core/apprentissage.py ; l'apprentissage se teste de bout en bout dans tests/test_apprentissage.py.
+from core.apprentissage import classify_cause
 
 
 # --------------------------------------------------------------------------- #
@@ -158,21 +159,6 @@ class TestErrorHelpers:
     def test_classify_cause_other(self):
         assert classify_cause("weird unknown thing", None) == "other"
 
-    def test_build_signature_format(self):
-        sig = build_signature("interaction", "Bibliothèque", "steam")
-        assert "intent=interaction" in sig and "steam" in sig
-
-    def test_mitigation_not_found_skips_layer(self):
-        m = _mitigation_for("not_found", "ocr")
-        assert m["strategy"] == "skip_layer" and m["skip_layer"] == "ocr"
-
-    def test_mitigation_ambiguous_confirms(self):
-        assert _mitigation_for("ambiguous", None)["strategy"] == "confirm"
-
-    def test_all_causes_have_mitigation(self):
-        for c in VALID_CAUSES:
-            assert "strategy" in _mitigation_for(c, "ocr")
-
 
 # --------------------------------------------------------------------------- #
 #  LIVE — Partitions, ingestion, retrieval (ChromaDB requis)
@@ -223,36 +209,3 @@ class TestPartitionsLive:
         time.sleep(0.3)
         out = mem.recall_for_prompt(f"mode gaming {tag}")
         assert isinstance(out, list)
-
-
-# --------------------------------------------------------------------------- #
-#  LIVE — Apprentissage erreurs
-# --------------------------------------------------------------------------- #
-
-@live
-class TestErrorLearningLive:
-    def test_store_and_lookup_error(self, mem):
-        tag = uuid.uuid4().hex[:6]
-        el = ErrorLearning(memory_manager=mem)
-        el.record_failure(
-            intent_category="interaction", target=f"jeu_{tag}",
-            app_context="steam", cause="not_found", grounding_layer_failed="ocr",
-        )
-        time.sleep(0.3)
-        mit = el.lookup_mitigation("interaction", f"jeu_{tag}", "steam", min_score=0.7)
-        assert mit is not None
-        assert mit["strategy"] == "skip_layer"
-        assert mit["skip_layer"] == "ocr"
-
-    def test_no_mitigation_for_unknown(self, mem):
-        el = ErrorLearning(memory_manager=mem)
-        mit = el.lookup_mitigation("interaction", f"jamais_vu_{uuid.uuid4().hex}", "inconnue", min_score=0.95)
-        assert mit is None
-
-    def test_error_stored_in_errors_partition(self, mem):
-        tag = uuid.uuid4().hex[:6]
-        before = mem._partitions["errors"].count()
-        mem.store_error(f"intent=x cible=t_{tag} app=a", {"cause": "timeout"})
-        time.sleep(0.2)
-        after = mem._partitions["errors"].count()
-        assert after == before + 1

@@ -9,6 +9,10 @@ from typing import Optional
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, description="Message de l'utilisateur")
     history: list[dict] = Field(default_factory=list, description="Historique de conversation [{role, content}]")
+    # Sprint Apprentissage 1 : d'où vient la demande. Atlas n'apprend que d'Alexis : la fenêtre
+    # d'Atlas (« bureau »), l'interface web (« fenetre ») et la voix. Un script, un test ou un
+    # essai n'envoie pas d'origine : rien n'est appris de lui.
+    origine: str | None = Field(default=None, description="bureau | fenetre | voix ; absent = n'apprend rien")
 
 
 class ConfirmationResponse(BaseModel):

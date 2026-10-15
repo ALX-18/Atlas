@@ -764,7 +764,14 @@ class VoiceEngine:
         Sprint Check-up / CK2 : une bascule vécue pas encore dite est ajoutée à la réponse."""
         from core_conversational.degradations import avec_avertissements
 
-        reponse = await self._run_text_pipeline_sans_avertissement(text)
+        from core import apprentissage
+
+        prep = apprentissage.preparer(text, "voix")
+        if not prep["correction"]:
+            apprentissage.noter_echange(text, "voix")
+        reponse = await self._run_text_pipeline_sans_avertissement(prep["phrase"])
+        if prep["annonce"]:
+            reponse = f"{prep['annonce']} {reponse}"
         return avec_avertissements(reponse).replace("ℹ️ ", "")
 
     async def _run_text_pipeline_sans_avertissement(self, text: str) -> str:
@@ -782,6 +789,7 @@ class VoiceEngine:
             return refus
         context = collect_context()
         context["user_input"] = text
+        context["origine"] = "voix"      # Apprentissage 1 : la voix, c'est Alexis
 
         mem = get_memory_manager()
         memories = mem.recall_texts(text, top_k=5)

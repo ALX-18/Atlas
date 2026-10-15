@@ -39,7 +39,8 @@ IdentityCard(base_identity, persona_overlay=None).build_system_prompt()
 ## Validation cross-platform (Mac M, par Alexis)
 
 ```bash
-cd ~/Projet/cortana-killer-atlas
+# Dépôt : https://github.com/ALX-18/Atlas (anciennement cortana-killer-atlas)
+cd ~/Projet/Atlas
 git pull
 cd core_conversational
 python3.12 -m venv .venv && source .venv/bin/activate
