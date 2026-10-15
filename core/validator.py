@@ -716,7 +716,10 @@ class Validator:
             elif verb in ("minimize", "maximize", "focus"):
                 if target:
                     params = {"title": target}
-                elif params.get("title") == "__last_window__" or verb == "focus":
+                # Sprint Fiabilité : la dernière fenêtre ne sert qu'à « remets-la », jamais à
+                # remplacer une fenêtre NOMMÉE (« mets X au premier plan » visait le Bloc-notes
+                # de l'action précédente, trouvé au rejeu réel).
+                elif params.get("title") == "__last_window__" or (verb == "focus" and not params.get("title")):
                     # Recover last explicit window target for anaphora like "remets-la en premier plan"
                     try:
                         from core.world_state import get_world_state

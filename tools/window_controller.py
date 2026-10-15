@@ -86,6 +86,11 @@ def _list_visible_windows() -> list[dict]:
     def callback(hwnd, _):
         if win32gui.IsWindowVisible(hwnd):
             text = win32gui.GetWindowText(hwnd)
+            # Sprint Fiabilité / FI3 : une application Windows moderne (Paramètres, Calculatrice…)
+            # montre un cadre (ApplicationFrameWindow) et la fenêtre de contenu qu'il héberge
+            # (CoreWindow), au même titre. On agit sur le cadre ; deux homonymes faisaient refuser.
+            if text and win32gui.GetClassName(hwnd) == "Windows.UI.Core.CoreWindow":
+                return True
             if text:
                 process = ""
                 try:

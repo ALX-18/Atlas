@@ -17,7 +17,7 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 | `web` | délais de recherche et de lecture de page, taille maximale lue | `tools/web_search.py`, `tools/web_reader.py`, `tools/browser_controller.py` |
 | `browser_bridge` | port et activation du pont vers l'extension du navigateur | `tools/browser_bridge.py`, `main.py` |
 | `powershell_allowlist`, `powershell_denylist` | commandes PowerShell permises et interdites | `tools/system_config.py` |
-| `automation` | fréquence de vérification des déclencheurs | `main.py` |
+| `automation` | fréquence de vérification des déclencheurs ; `max_active_triggers` et `min_cooldown_seconds`, limites appliquées à la création, au chargement, à la réactivation et à chaque évaluation (sprint Fiabilité) | `main.py`, `core/trigger_engine.py` |
 | `filesystem_assistant` | index des fichiers : activation, dossiers, exclusions | `core/file_indexer.py` |
 | `grounding` | vision (désactivée), délai d'arrêt du processus EasyOCR inactif | `tools/grounding.py` |
 | `voice` | micro, mot d'éveil, transcription (`stt_device` : `cuda` ou `cpu`), voix Piper | `core/voice_engine.py`, `main.py` |
@@ -30,6 +30,8 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 
 ## Clés retirées au sprint Check-up (personne ne les lisait)
 
+`automation.max_active_triggers` et `automation.min_cooldown_seconds` en faisaient partie : elles sont revenues au sprint Fiabilité, lues par `core/trigger_engine.py`. Les limites existaient déjà dans le code (20 et 60, en dur, appliquées à la seule création) : le rapport Check-up disait à tort « aucune limite appliquée ».
+
 | Clé | Ce qu'elle laissait croire | Ce qui s'applique réellement |
 |---|---|---|
 | `assistant.name`, `assistant.language` | qu'on pouvait renommer Atlas ou changer sa langue | identité fixe dans `core_conversational/identity.py` ; le français est dans les consignes |
@@ -40,7 +42,6 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 | `memory.recall_top_k` | le nombre de souvenirs rappelés | 5, fixé dans `core/memory_manager.py` (`recall_texts`) |
 | `memory.embedding_model` | qu'on pouvait changer de modèle | modèle fixé dans `core_conversational/memory_core.py` ; gardé en commentaire (`_embedding_model`) |
 | `memory.collection_name_previous` | — | gardé en commentaire (`_collection_name_previous`) : nom de l'ancienne collection |
-| `automation.max_active_triggers`, `automation.min_cooldown_seconds` | des limites sur les déclencheurs | **aucune limite appliquée** (listé pour un sprint ultérieur : c'est une fonction) |
 | `grounding.vision_model` | le modèle de vision utilisé | liste fixe dans `tools/grounding.py` (`_preferred_vision_models`) ; vision désactivée |
 
 ## Valeurs par défaut documentées

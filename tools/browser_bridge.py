@@ -42,7 +42,7 @@ def check_url(url, allow_empty: bool = False) -> tuple[str, str]:
     """Contrôle une URL de navigation. Retourne (URL normalisée, erreur).
 
     Les navigateurs ignorent les espaces et caractères de contrôle en tête et à
-    l'intérieur du schéma (« java	script: », « javascript: ») : ils sont refusés
+    l'intérieur du schéma (« java	script: », « \x01javascript: ») : ils sont refusés
     plutôt que nettoyés, pour que le schéma contrôlé soit celui que le navigateur verra.
     """
     if url is None and allow_empty:

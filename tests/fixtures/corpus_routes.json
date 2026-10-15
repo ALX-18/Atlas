@@ -1,0 +1,1992 @@
+[
+ {
+  "phrase": "ouvre la calculatrice",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "calculatrice"
+  }
+ },
+ {
+  "phrase": "ouvre la calculatrice stp",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "calculatrice"
+  }
+ },
+ {
+  "phrase": "tu peux ouvrir la calculatrice ?",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "calculatrice"
+  }
+ },
+ {
+  "phrase": "ouvre moi la calculatrice",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "calculatrice"
+  }
+ },
+ {
+  "phrase": "ouvre la calculatirce",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "calcul"
+  }
+ },
+ {
+  "phrase": "lance discord",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "Ouvres Discord.",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "demarre discord",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "ouvre steam",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "lance steam s'il te plait",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "tu peux lancer spotify",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "spotify"
+  }
+ },
+ {
+  "phrase": "ouvre spotify",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "spotify"
+  }
+ },
+ {
+  "phrase": "ouvre le bloc-notes",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "bloc-notes"
+  }
+ },
+ {
+  "phrase": "lance chrome",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "chrome"
+  }
+ },
+ {
+  "phrase": "ouvre les paramètres",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "param"
+  }
+ },
+ {
+  "phrase": "ouvre les parametres windows",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "param"
+  }
+ },
+ {
+  "phrase": "ferme steam",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_close",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "Fermes, Steam.",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_close",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "Fermez Steam",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_close",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "ferme-moi Steam",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_close",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "ferme la fenetre de discord stp",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_close",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "réduis chrome",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_minimize",
+   "cible": "chrome"
+  }
+ },
+ {
+  "phrase": "Réduis, Chrome.",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_minimize",
+   "cible": "chrome"
+  }
+ },
+ {
+  "phrase": "reduis chrome",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_minimize",
+   "cible": "chrome"
+  }
+ },
+ {
+  "phrase": "minimise spotify",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_minimize",
+   "cible": "spotify"
+  }
+ },
+ {
+  "phrase": "agrandis steam",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_maximize",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "restaure discord",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_restore",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "met steam en premier plan",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_focus",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "Mets Steam au premier plan.",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_focus",
+   "cible": "steam"
+  }
+ },
+ {
+  "phrase": "mets la fenêtre de discord en premier plan",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_focus",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "liste les fenêtres ouvertes",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_list"
+  }
+ },
+ {
+  "phrase": "liste les fenêtres",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_list"
+  }
+ },
+ {
+  "phrase": "ferme la fenêtre",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "refus"
+  },
+  "origine": "session Alexis G-bis"
+ },
+ {
+  "phrase": "ok tu peux te fermer",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "refus"
+  },
+  "origine": "session Alexis G-bis"
+ },
+ {
+  "phrase": "écris bonjour dans le bloc-notes",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_type",
+   "cible": "bonjour"
+  }
+ },
+ {
+  "phrase": "ecris bonjour dans le bloc-notes",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_type",
+   "cible": "bonjour"
+  }
+ },
+ {
+  "phrase": "tape bonjour dans le bloc-notes",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_type",
+   "cible": "bonjour"
+  }
+ },
+ {
+  "phrase": "écris « salut » dans discord",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_type",
+   "cible": "salut"
+  }
+ },
+ {
+  "phrase": "envoie « j'arrive » dans discord",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_send_message",
+   "cible": "j'arrive"
+  }
+ },
+ {
+  "phrase": "envoie j'arrive dans discord",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_send_message",
+   "cible": "j'arrive"
+  }
+ },
+ {
+  "phrase": "clique sur Bibliothèque dans Steam",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "ui_click_element",
+   "cible": "bibliothèque"
+  }
+ },
+ {
+  "phrase": "clique sur bibliotheque dans steam",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "ui_click_element",
+   "cible": "bibliothèque"
+  }
+ },
+ {
+  "phrase": "tu peux cliquer sur bibliothèque dans steam ?",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "ui_click_element",
+   "cible": "bibliothèque"
+  }
+ },
+ {
+  "phrase": "clique sur amis dans discord",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "ui_click_element",
+   "cible": "amis"
+  }
+ },
+ {
+  "phrase": "fais ctrl+s dans le bloc-notes",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_hotkey",
+   "cible": "bloc-notes"
+  }
+ },
+ {
+  "phrase": "appuie sur ctrl+s dans le bloc-notes",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_hotkey",
+   "cible": "bloc-notes"
+  }
+ },
+ {
+  "phrase": "appuie sur ctrl+s",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "refus"
+  }
+ },
+ {
+  "phrase": "fais ctrl+c",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "refus"
+  }
+ },
+ {
+  "phrase": "cherche sur internet la météo à Paris",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "météo"
+  }
+ },
+ {
+  "phrase": "cherche la météo à paris",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "météo"
+  }
+ },
+ {
+  "phrase": "recherche la meteo a paris",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "météo"
+  }
+ },
+ {
+  "phrase": "cherche des recettes de crêpes",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "crêpes"
+  }
+ },
+ {
+  "phrase": "trouve-moi des recettes de crêpes sur internet",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "crêpes"
+  }
+ },
+ {
+  "phrase": "recherche le prix d'une rtx 5060",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "5060"
+  }
+ },
+ {
+  "phrase": "lis https://example.com",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "example.com"
+  },
+  "origine": "Check-up D7"
+ },
+ {
+  "phrase": "résume la page https://example.com",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "example.com"
+  },
+  "origine": "Check-up D7"
+ },
+ {
+  "phrase": "résume https://example.com",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "example.com"
+  },
+  "origine": "Check-up D7"
+ },
+ {
+  "phrase": "tu peux lire https://example.com stp",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "example.com"
+  },
+  "origine": "Check-up D7"
+ },
+ {
+  "phrase": "resume la page https://example.com",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "example.com"
+  },
+  "origine": "Check-up D7"
+ },
+ {
+  "phrase": "résume cette page https://fr.wikipedia.org/wiki/Rome",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "wikipedia"
+  }
+ },
+ {
+  "phrase": "ouvre un nouvel onglet",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "opera"
+  }
+ },
+ {
+  "phrase": "ouvre https://example.com dans un nouvel onglet",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "opera"
+  }
+ },
+ {
+  "phrase": "va sur https://github.com",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "browser_open",
+   "cible": "github.com"
+  }
+ },
+ {
+  "phrase": "ouvre la page https://github.com",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "browser_open",
+   "cible": "github.com"
+  }
+ },
+ {
+  "phrase": "liste les processus",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "Check-up D10"
+ },
+ {
+  "phrase": "liste les programmes en cours",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "Check-up D10"
+ },
+ {
+  "phrase": "liste mes programmes en cours",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "Check-up D10"
+ },
+ {
+  "phrase": "liste les applications en cours",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "Check-up D10"
+ },
+ {
+  "phrase": "montre les processus en cours",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "Check-up D10"
+ },
+ {
+  "phrase": "quels programmes sont en cours ?",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "Check-up D10"
+ },
+ {
+  "phrase": "liste les processus en cours d'execution",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "Check-up D10"
+ },
+ {
+  "phrase": "fais un diagnostic du pc",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "get_diagnostics"
+  }
+ },
+ {
+  "phrase": "diagnostique mon ordinateur",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "get_diagnostics"
+  }
+ },
+ {
+  "phrase": "vérifie mon pc",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "get_diagnostics"
+  }
+ },
+ {
+  "phrase": "tue notepad",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "kill_process",
+   "cible": "notepad"
+  }
+ },
+ {
+  "phrase": "arrête le processus notepad",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "kill_process",
+   "cible": "notepad"
+  }
+ },
+ {
+  "phrase": "retiens que mon code portail est 4521",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_save",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "souviens-toi que mon code portail est 4521",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_save",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "note que mon code portail est 4521",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_save",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "retiens que mon essai de check-up porte le numéro 7",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_save",
+   "cible": "check-up"
+  }
+ },
+ {
+  "phrase": "tu te souviens de Discord ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "tu te souviens de discord",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "discord"
+  }
+ },
+ {
+  "phrase": "quel est le numéro de mon essai de check-up ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "check-up"
+  },
+  "origine": "Check-up D5"
+ },
+ {
+  "phrase": "c'est quoi le numéro de mon essai de check-up",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "check-up"
+  },
+  "origine": "Check-up D5"
+ },
+ {
+  "phrase": "quel est mon code portail ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "c'est quoi mon code portail ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "rappelle-toi mon code portail",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "tu te rappelles mon code portail ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "oublie mon code portail",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_forget",
+   "cible": "code portail"
+  }
+ },
+ {
+  "phrase": "refais",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "redo_last_action"
+  }
+ },
+ {
+  "phrase": "refais ça",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "redo_last_action"
+  }
+ },
+ {
+  "phrase": "encore une fois",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "redo_last_action"
+  }
+ },
+ {
+  "phrase": "refoit",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "redo_last_action"
+  }
+ },
+ {
+  "phrase": "lance le mode gaming",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_describe",
+   "cible": "gaming"
+  }
+ },
+ {
+  "phrase": "active le mode gaming",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_describe",
+   "cible": "gaming"
+  }
+ },
+ {
+  "phrase": "lance le mode travail",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_run",
+   "cible": "travail"
+  }
+ },
+ {
+  "phrase": "il consiste à quoi le mode gaming ?",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_describe",
+   "cible": "gaming"
+  }
+ },
+ {
+  "phrase": "c'est quoi le mode gaming ?",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_describe",
+   "cible": "gaming"
+  }
+ },
+ {
+  "phrase": "c'est quoi le mode travail ?",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_describe",
+   "cible": "travail"
+  }
+ },
+ {
+  "phrase": "liste mes workflows",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_list"
+  }
+ },
+ {
+  "phrase": "liste les tâches planifiées",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "Check-up D22"
+ },
+ {
+  "phrase": "liste mes tâches planifiées",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "Check-up D22"
+ },
+ {
+  "phrase": "liste mes taches planifiees",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "Check-up D22"
+ },
+ {
+  "phrase": "montre mes tâches planifiées",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "Check-up D22"
+ },
+ {
+  "phrase": "quelles sont mes tâches planifiées ?",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "Check-up D22"
+ },
+ {
+  "phrase": "liste mes taches",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "Check-up D22"
+ },
+ {
+  "phrase": "planifie de boire de l'eau tous les jours à 15h",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_add",
+   "cible": "eau"
+  },
+  "origine": "Check-up D24"
+ },
+ {
+  "phrase": "rappelle-moi de boire de l'eau tous les jours à 15h",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_add",
+   "cible": "eau"
+  },
+  "origine": "Check-up D24"
+ },
+ {
+  "phrase": "rappelle moi de boire de l'eau a 15h",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_add",
+   "cible": "eau"
+  },
+  "origine": "Check-up D24"
+ },
+ {
+  "phrase": "rappelle-moi de boire de l'eau à 15 h",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_add",
+   "cible": "eau"
+  },
+  "origine": "Check-up D24"
+ },
+ {
+  "phrase": "rappelle-moi d'appeler maman à 18h",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_add",
+   "cible": "maman"
+  }
+ },
+ {
+  "phrase": "lis l'écran",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "lis l'ecran",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "qu'est-ce qu'il y a à l'écran ?",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "que vois-tu ?",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "résume cette page",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "lis-moi l'écran stp",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "lis moi ce qui est a l ecran",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "résume l'écran",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "qu'est-ce qui est affiché",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "que fais-je actuellement ?",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  }
+ },
+ {
+  "phrase": "tu peux faire quoi ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "tu sais faire quoi ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "qu'est-ce que tu sais faire ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "qu'est-ce que tu peux faire ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "aide",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "tes capacités",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "AH ok ok et donc tu peux faire quoi ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "que sais-tu faire avec les fenêtres ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "toi fais le",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "fais-le",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "vas-y fais-le",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "tu peux le faire ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "sessions d'Alexis (G-ter)"
+ },
+ {
+  "phrase": "quelle est la capitale de l'Italie ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "combien font 12 fois 8 ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "explique la photosynthèse en une phrase",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "raconte-moi une blague",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "qui a écrit Les Misérables ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "quelle est la différence entre la RAM et le disque dur ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "traduis bonjour en anglais",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "donne-moi un conseil pour mieux dormir",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "que signifie CPU ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "quand a été construite la tour Eiffel ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "qu'est-ce qu'un trou noir ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "conseille-moi un film",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "comment vider la corbeille sous Windows ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "comment baisser le volume sur Windows ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "résume l'histoire de Rome",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "résume l'histoire de Rome en deux phrases",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "quel est le plus grand océan ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "pourquoi le ciel est bleu ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "c'est quoi un processeur ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "donne-moi trois idées de cadeaux pour un ami",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "il fait beau aujourd'hui",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "merci beaucoup",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "salut atlas ça va",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "je suis fatigué ce soir",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "je suis encore fatigué",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  }
+ },
+ {
+  "phrase": "baisse le volume",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "monte le son",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "envoie un message à Paul",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "coupe le wifi",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "vide la corbeille",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "supprime mes fichiers temporaires",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "mets de la musique",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "baisse la luminosité de l'écran",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "règle la luminosité au maximum",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "envoie un mail à ma mère",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "éteins l'écran",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "commande une pizza",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "mets un rappel dans mon téléphone",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "appelle mon frère",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "mets le son à 50 %",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "désactive le bluetooth",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "allume la lumière du salon",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "mets la musique en pause",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "passe à la chanson suivante",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "réserve une table pour ce soir",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "achète du lait sur Amazon",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "imprime ce document",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "partage ce fichier avec Léa",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "télécharge le dernier épisode de ma série",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "change le fond d'écran",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "réponds à mon dernier mail",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "mets un minuteur de 10 minutes",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "ajoute du lait à ma liste de courses",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "tu peux baisser le volume ?",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "peux-tu vider la corbeille s'il te plaît",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "envoie ce fichier par mail",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "nettoie mon bureau",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "GB1 (34 demandes d'action)"
+ },
+ {
+  "phrase": "active le mode avion",
+  "famille": "honnete",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_describe",
+   "cible": "avion"
+  }
+ },
+ {
+  "phrase": "active le mode sombre",
+  "famille": "honnete",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_describe",
+   "cible": "sombre"
+  }
+ },
+ {
+  "phrase": "lance moi spotify stp",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "spotify"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "ouvre discord s'il te plait",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "discord"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "demarre word",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "word"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "ferme spotify stp",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_close",
+   "cible": "spotify"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "reduis la fenetre discord",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_minimize",
+   "cible": "discord"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "agrandis chrome stp",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_maximize",
+   "cible": "chrome"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "liste les fenetres ouvertes",
+  "famille": "fenetres",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_list"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "ecris coucou dans discord",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_type",
+   "cible": "coucou"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "clique sur magasin dans steam",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "ui_click_element",
+   "cible": "magasin"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "clique sur parametres dans discord",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "ui_click_element",
+   "cible": "parametres"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "cherche une recette de pizza",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "pizza"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "recherche les horaires de la poste",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "horaires"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "résume l'article https://www.lemonde.fr/article",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "lemonde"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "lis moi https://example.com",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "read_url",
+   "cible": "example.com"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "quels processus tournent en ce moment",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "montre moi les programmes ouverts",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "affiche les applis en cours",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "list_processes"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "fais un diagnostic de mon ordi",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "get_diagnostics"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "retiens que mon anniversaire est le 3 mai",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_save",
+   "cible": "anniversaire"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "c'est quand mon anniversaire ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "anniversaire"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "quel est le mot de passe de mon wifi ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "wifi"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "quelle est la couleur de ma voiture",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "voiture"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "tu te rappelles le nom de mon dentiste ?",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall",
+   "cible": "dentiste"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "montre moi mes taches",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "quelles taches sont planifiees ?",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_list"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "rappelle moi d'acheter du pain a 17h",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_add",
+   "cible": "pain"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "rappelle-moi de prendre mes médicaments tous les jours à 8h",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "schedule_add",
+   "cible": "medicaments"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "active le mode travail stp",
+  "famille": "modes_planification",
+  "attendu": {
+   "route": "outil",
+   "outil": "workflow_run",
+   "cible": "travail"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "que vois tu",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "lis moi l'ecran stp",
+  "famille": "ecran",
+  "attendu": {
+   "route": "outil",
+   "outil": "screen_read"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "tu sais faire quoi exactement ?",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "qu'est ce que tu sais faire",
+  "famille": "aide",
+  "attendu": {
+   "route": "fixe"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "résume-moi la révolution française",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "quelle est la capitale de l'Espagne",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "comment je peux voir les processus sous windows ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "c'est quoi mon horoscope du jour ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "eteins la lumiere",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "baisse le son stp",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "envoie un sms a maman",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "redemarre le pc",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "hors corpus (FI2)"
+ }
+]

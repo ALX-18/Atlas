@@ -55,10 +55,12 @@ class TestP1SettingsRouting:
         assert pt is not None and pt["icon"] == "parametres"
 
     def test_settings_via_foreground_when_app_implicit(self):
-        # "ouvre les paramètres" sans nommer l'app → app via foreground Discord
+        # Sprint Fiabilité (changement de décision, signalé au superviseur) : sans application
+        # nommée, ce sont les paramètres de Windows, jamais ceux de l'application au premier plan.
+        # Au rejeu réel, « ouvre les paramètres » cliquait dans VS Code ; même règle que B1-bis.
         i, r = self._route("ouvre les paramètres", {"foreground_window": {"title": "Discord"}})
-        assert r.tool == "ui_click_element"
-        assert r.params.get("app_title") == "discord"
+        assert r.tool == "launch_app"
+        assert "param" in r.params.get("name", "")
 
 
 # --------------------------------------------------------------------------- #

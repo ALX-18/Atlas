@@ -24,8 +24,16 @@ logger = logging.getLogger("atlas.trigger_engine")
 DATA_DIR = pathlib.Path(__file__).resolve().parent.parent / "data"
 TRIGGERS_FILE = DATA_DIR / "triggers.json"
 
-MAX_ACTIVE_TRIGGERS = 20
-MIN_COOLDOWN_SECONDS = 60
+# Sprint Fiabilité / FI4 : limites lues dans config/settings.json (automation), appliquées à la
+# création, au chargement du fichier, à la réactivation et à chaque évaluation. Avant, elles
+# n'étaient appliquées qu'à la création : un triggers.json édité à la main y échappait.
+try:
+    _AUTO_CFG = json.loads((pathlib.Path(__file__).resolve().parent.parent / "config" / "settings.json")
+                           .read_text(encoding="utf-8")).get("automation", {})
+except Exception:
+    _AUTO_CFG = {}
+MAX_ACTIVE_TRIGGERS = int(_AUTO_CFG.get("max_active_triggers", 20))
+MIN_COOLDOWN_SECONDS = int(_AUTO_CFG.get("min_cooldown_seconds", 60))
 
 
 @dataclass
@@ -170,9 +178,12 @@ class TriggerEngine:
             logger.warning("Déclencheur refusé à la création '%s' : %s", trigger.name, reason)
             raise ValueError(f"Déclencheur '{trigger.name}' refusé : {reason}")
         # Enforce limits
-        active_count = sum(1 for t in self._triggers.values() if t.enabled)
-        if active_count >= MAX_ACTIVE_TRIGGERS:
-            raise ValueError(f"Maximum de {MAX_ACTIVE_TRIGGERS} triggers actifs atteint.")
+        if self._actifs() >= MAX_ACTIVE_TRIGGERS:
+            raison = f"limite de {MAX_ACTIVE_TRIGGERS} déclencheurs actifs atteinte"
+            from core.validator import report_automation_block
+
+            report_automation_block(_SOURCE, trigger.name, f"création refusée : {raison}")
+            raise ValueError(f"Déclencheur '{trigger.name}' refusé : {raison}.")
 
         if not trigger.id:
             trigger.id = str(uuid.uuid4())[:8]
@@ -195,10 +206,19 @@ class TriggerEngine:
         logger.info("➖ Trigger supprimé : %s", trigger_id)
         return True
 
+    def _actifs(self) -> int:
+        return sum(1 for t in self._triggers.values() if t.enabled and not t.invalid_reason)
+
     async def toggle_trigger(self, trigger_id: str, enabled: bool) -> bool:
         """Active/désactive un trigger."""
         trigger = self._triggers.get(trigger_id)
         if not trigger:
+            return False
+        if enabled and not trigger.enabled and self._actifs() >= MAX_ACTIVE_TRIGGERS:
+            from core.validator import report_automation_block
+
+            report_automation_block(_SOURCE, trigger.name, f"réactivation refusée : limite de "
+                                                           f"{MAX_ACTIVE_TRIGGERS} déclencheurs actifs atteinte")
             return False
         trigger.enabled = enabled
         if not enabled:
@@ -238,7 +258,8 @@ class TriggerEngine:
                 try:
                     last = datetime.fromisoformat(trigger.last_triggered)
                     elapsed = (datetime.now() - last).total_seconds()
-                    if elapsed < trigger.cooldown_seconds:
+                    # FI4 : jamais sous le minimum, même si le fichier dit moins
+                    if elapsed < max(MIN_COOLDOWN_SECONDS, trigger.cooldown_seconds):
                         continue
                 except (ValueError, TypeError):
                     pass
@@ -370,6 +391,9 @@ class TriggerEngine:
             reason = self._validate(trigger)
             if reason:
                 self._block(trigger, reason)
+            elif trigger.enabled and self._actifs() > MAX_ACTIVE_TRIGGERS:
+                # FI4 : au-delà du maximum, bloqué et signalé ; le fichier n'est pas modifié.
+                self._block(trigger, f"limite de {MAX_ACTIVE_TRIGGERS} déclencheurs actifs atteinte")
         logger.info("📂 %d trigger(s) chargé(s) depuis triggers.json", len(self._triggers))
 
     def _save_triggers(self):

@@ -9,6 +9,7 @@ Fallback LLM uniquement si confidence < 0.85.
 import json
 import logging
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -159,6 +160,7 @@ INTENT_CATEGORIES = {
         "verbs_map": {
             # FR
             "souviens": "remember", "souvenir": "remember", "retiens": "remember",
+            "note que": "remember", "note bien que": "remember",   # FI2
             "oublie": "forget", "oublier": "forget",
             "rappelle": "recall", "rappeler": "recall",
             "refais": "redo", "refaire": "redo", "encore": "redo",
@@ -359,7 +361,7 @@ _QUOTED = re.compile(r'^\s*(?:«\s*(?P<a>.+?)\s*»|"(?P<b>.+?)"|“(?P<c>.+?)”
 # GT1 — « tu peux faire quoi ? », « qu'est-ce que tu sais faire ? », « aide », « tes capacités »…
 _HELP_RE = re.compile(
     r"^(?:atlas[\s,]*)?(?:(?:ah\s+)?(?:ok\s*)*(?:et\s+)?(?:donc\s+)?)?(?:"
-    r"(?:tu\s+(?:peux|sais)\s+faire\s+quoi)|(?:qu'est-ce\s+que\s+tu\s+(?:sais|peux)\s+faire)|"
+    r"(?:tu\s+(?:peux|sais)\s+faire\s+quoi)|(?:qu'est[- ]ce\s+que\s+tu\s+(?:sais|peux)\s+faire)|"
     r"(?:que\s+(?:sais|peux)-tu\s+faire)|(?:tu\s+sers\s+à\s+quoi)|(?:quelles?\s+sont\s+tes\s+capacités)|"
     r"(?:tes\s+capacités)|(?:aide(?:-moi)?)|(?:à\s+l'aide)|(?:help)"
     r")(?:\s+(?:d'autre|pour\s+moi|exactement))?\s*[?!.]*\s*$",
@@ -525,6 +527,50 @@ def _levenshtein(a: str, b: str) -> int:
     return prev[-1]
 
 
+# --------------------------------------------------------------------------- #
+#  Sprint Fiabilité / FI2 — routes justes sur un corpus de demandes naturelles
+#  (tests/fixtures/corpus_routes.json). Règles déterministes, appliquées au texte SANS
+#  accents : « tâches » et « taches », « démarre » et « demarre » se valent.
+# --------------------------------------------------------------------------- #
+
+def _sans_accents(texte: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", texte) if unicodedata.category(c) != "Mn")
+
+
+# « liste les programmes en cours », « montre les processus », « quels programmes tournent ? »
+_PROCESSUS_RE = re.compile(
+    r"\b(?:liste|lister|montre|affiche|donne|quels?|quelles?)\b.*?"
+    r"\b(?:processus|(?:programmes?|applications?|applis?|logiciels?)\b.*?\b(?:en cours|ouverts?|tournent|actifs?))"
+)
+# « liste mes tâches planifiées », « quelles sont mes taches », « montre mes tâches »
+_TACHES_LISTE_RE = re.compile(
+    r"\b(?:liste|lister|montre|affiche|donne|voir|quelles?)\b.*?\btaches?\b(?!.*\b(?:ajoute|cree|planifie)\b)"
+)
+# « rappelle-moi de boire de l'eau à 15h » : un rappel à planifier (≠ « rappelle-toi », mémoire)
+_RAPPEL_RE = re.compile(r"^(?:atlas[\s,]*)?(?:tu peux\s+|peux-tu\s+)?rappelle[- ]moi\s+(?:de\s+|d'|que\s+|qu')(?P<quoi>.+)$")
+# Une question sur un fait retenu : « quel est mon code portail ? », « quel est le numéro de mon essai »
+_QUESTION_FAIT_RE = re.compile(
+    r"^(?:et\s+)?(?:quel(?:le)?s?\s+(?:est|sont|etait|etaient)|c'?\s*est\s+(?:quoi|quand|qui|ou)|c est (?:quoi|quand)|"
+    r"quand\s+est)\b(?P<reste>.*\b(?:mon|ma|mes)\b.*)$"
+)
+# … sauf ce qui concerne l'ordinateur lui-même, ses tâches ou ses fenêtres : d'autres outils.
+_PAS_UN_FAIT_RE = re.compile(
+    r"\b(?:ordinateur|ordi|pc|ram|memoire vive|processeur|cpu|gpu|carte graphique|ecran|disque|ip|batterie|"
+    r"etat|taches?|fenetres?|processus|programmes?|applications?|navigateur|connexion|version)\b"
+)
+# Une phrase qui nomme une page web à ouvrir (et non à lire)
+_OUVRIR_PAGE_RE = re.compile(r"^(?:atlas[\s,]*)?(?:ouvre|va sur|vas sur|navigue|aller sur|affiche)\b")
+
+
+def _heure(texte: str) -> Optional[tuple[int, int]]:
+    """« à 15h », « a 15 h 30 », « 18h » → (15, 0), (15, 30), (18, 0)."""
+    m = re.search(r"\b(?:a\s+)?(\d{1,2})\s*h\s*(\d{2})?\b", texte)
+    if not m:
+        return None
+    h, mn = int(m.group(1)), int(m.group(2) or 0)
+    return (h, mn) if h < 24 and mn < 60 else None
+
+
 class IntentClassifier:
     """Classifie les intentions utilisateur de manière déterministe."""
 
@@ -556,7 +602,7 @@ class IntentClassifier:
             "que vois-tu", "que vois tu", "qu'est-ce que tu vois", "quest-ce que tu vois",
             "qu'est-ce qu'il y a à l'écran", "ce qui est affiché", "ce qui est affiche",
         ]
-        if any(p in normalized for p in screen_read_markers):
+        if any(p in normalized for p in screen_read_markers) and not self._detect_url(raw):
             return IntentResult(
                 category="vision", verb="read_screen", target=None,
                 params={"mode": "read", "summarize": True},
@@ -585,13 +631,15 @@ class IntentClassifier:
                 if app in normalized:
                     app_found = app
                     break
-            if app_found is None:
-                fg = (context or {}).get("foreground_window", {}) or {}
-                fg_title = (fg.get("title", "") or "").lower()
-                for app in _KNOWN_APP_NAMES:
-                    if app in fg_title:
-                        app_found = app
-                        break
+            # Sprint Fiabilité : plus de repli sur la fenêtre au premier plan. « ouvre les paramètres »
+            # cliquait dans VS Code ou Discord s'ils étaient devant (trouvé au rejeu réel). Sans
+            # application nommée, ce sont les paramètres de Windows.
+            if app_found is None and re.match(r"^\s*(?:atlas[\s,]*)?(?:ouvre|ouvrir|lance|affiche|montre)\b",
+                                               _sans_accents(normalized)):
+                return IntentResult(
+                    category="window_mgmt", verb="open", target="paramètres",
+                    params={"name": "paramètres"}, confidence=0.93, is_complex=False, raw_input=raw,
+                )
             if app_found:
                 return IntentResult(
                     category="interaction", verb="click", target="paramètres",
@@ -615,7 +663,11 @@ class IntentClassifier:
             )
 
         # --- Automation fast-paths for stable workflow/schedule commands ---
-        if any(k in normalized for k in ["mode gaming", "mode travail", "nettoie", "nettoyage", "demarrage du matin", "démarrage du matin"]):
+        # FI2 : « nettoie mon bureau » n'est pas le nettoyage du système.
+        _nettoyage = re.search(r"\bnettoi(?:e|er)\s+(?:le\s+|mon\s+|l')?(?:systeme|système|pc|ordinateur|ordi)\b",
+                               normalized) or "nettoyage" in normalized
+        if any(k in normalized for k in ["mode gaming", "mode travail", "demarrage du matin", "démarrage du matin"]) \
+                or _nettoyage:
             # GT2 : « il consiste à quoi le mode gaming ? » proposait de LANCER le mode.
             wf_verb = "workflow_describe" if _is_question_about_mode(raw) else "workflow"
             return IntentResult(
@@ -672,12 +724,18 @@ class IntentClassifier:
                 raw_input=raw,
             )
 
-        # --- Détection spéciale : URL → web/read ---
+        # --- Détection spéciale : URL → web/read (FI2 : ou l'ouvrir, si c'est ce qui est demandé) ---
         url = self._detect_url(raw)
         if url:
+            plain_url = _sans_accents(normalized)
+            verbe = "read"
+            if "onglet" in plain_url:
+                verbe = "open_tab"
+            elif _OUVRIR_PAGE_RE.match(plain_url):
+                verbe = "navigate"
             return IntentResult(
                 category="web",
-                verb="read",
+                verb=verbe,
                 target=url,
                 params={"url": url},
                 confidence=0.95,
@@ -690,6 +748,8 @@ class IntentClassifier:
         if hotkey_match and any(v in normalized for v in ["fais", "appuie", "press", "tape"]):
             keys = self._parse_hotkey(hotkey_match.group())
             target = self._extract_target_after_keyword(normalized, ["dans", "sur", "in"])
+            if target and _HOTKEY_PATTERN.search(target):
+                target = None        # FI2 : « appuie sur ctrl+s » — « ctrl+s » n'est pas une fenêtre
             return IntentResult(
                 category="interaction",
                 verb="hotkey",
@@ -744,6 +804,12 @@ class IntentClassifier:
                 raw_input=raw,
             )
 
+        # --- Sprint Fiabilité / FI2 : règles prioritaires (texte sans accents) ---
+        plain = _sans_accents(normalized).replace("’", "'")
+        prioritaire = self._regles_fiabilite(raw, plain)
+        if prioritaire is not None:
+            return prioritaire
+
         # --- Détection multi-step ---
         is_complex = self._detect_sequence_keywords(normalized)
 
@@ -754,13 +820,22 @@ class IntentClassifier:
         for cat_name, cat_data in INTENT_CATEGORIES.items():
             verbs_map = cat_data["verbs_map"]
             for trigger, verb in verbs_map.items():
-                if trigger in normalized:
+                texte = normalized
+                if trigger not in texte:
+                    # FI2 : « demarre », « reduis », « taches » — accents absents (transcriptions, frappe)
+                    trigger, texte = _sans_accents(trigger), plain
+                if trigger in texte:
+                    pos = texte.find(trigger)
+                    # FI2 : un déclencheur court ne compte qu'en mot entier — « lis » n'est pas
+                    # dans « liste », « tue » pas dans « statue ».
+                    if len(trigger.strip()) <= 4 and not self._is_word_boundary(texte, trigger.strip(),
+                                                                                texte.find(trigger.strip())):
+                        continue
                     # Calcul de confidence basé sur la position et la précision
-                    pos = normalized.find(trigger)
                     # Verbe en début de phrase → plus confiant
                     confidence = 0.90 if pos < 5 else 0.85
                     # Bonus si le trigger est un mot complet
-                    if self._is_word_boundary(normalized, trigger, pos):
+                    if self._is_word_boundary(texte, trigger, pos):
                         confidence += 0.05
                     # Strong bonus for longer/more specific triggers
                     # "diagnostic" (10 chars) beats "fais" (4 chars)
@@ -768,7 +843,7 @@ class IntentClassifier:
 
                     if confidence > best_confidence:
                         best_confidence = confidence
-                        target = self._extract_target(normalized, trigger, cat_name)
+                        target = self._extract_target(texte, trigger, cat_name)
                         if cat_name == "window_mgmt":
                             # GT3 : « Fermes, Steam. » (transcription) donnait la cible « fermes, steam ».
                             target = _clean_action_target(target)
@@ -802,6 +877,19 @@ class IntentClassifier:
                     r"\b(tu te souviens|te souviens[- ]tu|vous vous souvenez|est-ce que tu te souviens)\b",
                     normalized):
                 best_match.verb = "recall"
+
+        # FI2 : « résume l'histoire de Rome » n'est pas une page à lire. Sans adresse, une demande
+        # de lecture ou de résumé est une question pour le modèle (la lecture d'écran a ses phrases).
+        if best_match and best_match.category == "web" and best_match.verb == "read" and not self._detect_url(raw):
+            return IntentResult(category="conversation", verb="chat", target=None,
+                                confidence=0.8, is_complex=False, raw_input=raw)
+
+        # FI2 : réglages, extinction, redémarrage, veille : aucune phrase n'en donne les paramètres
+        # (system_config reçoit une action qu'il ne connaît pas). « éteins l'écran » éteignait le PC.
+        if best_match and best_match.category == "system" and best_match.verb in ("configure", "shutdown",
+                                                                                 "restart", "sleep"):
+            return IntentResult(category="unsupported", verb="action", target=None,
+                                confidence=0.9, is_complex=False, raw_input=raw)
 
         if best_match and best_match.confidence >= 0.85:
             return best_match
@@ -846,6 +934,50 @@ class IntentClassifier:
             is_complex=False,
             raw_input=raw,
         )
+
+    def _regles_fiabilite(self, raw: str, plain: str) -> Optional[IntentResult]:
+        """FI2 — routes que la table des verbes donnait fausses (corpus FI1, rapport Check-up §6.1)."""
+        if self._detect_url(raw):
+            return None
+        # « comment je peux voir les processus sous windows ? » demande COMMENT faire : une
+        # question pour le modèle, pas une commande.
+        if re.match(r"^(?:et\s+)?comment\b", plain.strip()):
+            return IntentResult(category="conversation", verb="chat", target=None,
+                                confidence=0.85, is_complex=False, raw_input=raw)
+        if _PROCESSUS_RE.search(plain):
+            return IntentResult(category="process", verb="list", target=None, params={},
+                                confidence=0.95, is_complex=False, raw_input=raw)
+        if _TACHES_LISTE_RE.search(plain):
+            return IntentResult(category="automation", verb="schedule_list", target=None, params={},
+                                confidence=0.95, is_complex=False, raw_input=raw)
+        m = _RAPPEL_RE.match(plain.strip().rstrip(" .!?"))
+        if m:
+            quoi = raw.strip().rstrip(" .!?")
+            quoi = quoi[len(quoi) - len(m.group("quoi")):] if len(quoi) >= len(m.group("quoi")) else m.group("quoi")
+            return IntentResult(category="automation", verb="schedule", target=quoi,
+                                params=self._params_rappel(quoi, plain),
+                                confidence=0.95, is_complex=False, raw_input=raw)
+        m = _QUESTION_FAIT_RE.match(plain.strip())
+        if m and not _PAS_UN_FAIT_RE.search(m.group("reste")):
+            return IntentResult(category="memory", verb="recall", target=None, params={},
+                                confidence=0.93, is_complex=False, raw_input=raw)
+        return None
+
+    @staticmethod
+    def _params_rappel(quoi: str, plain: str) -> dict:
+        """« boire de l'eau tous les jours à 15h » → une notification, chaque jour à 15 h 00."""
+        texte = re.sub(r"\s*(?:tous les jours|chaque jour|quotidiennement)\b", "", quoi, flags=re.IGNORECASE)
+        texte = re.sub(r"\s*\b(?:a|à)?\s*\d{1,2}\s*h\s*(?:\d{2})?\b", "", texte, flags=re.IGNORECASE).strip(" ,.")
+        heure = _heure(plain)
+        params = {"name": f"Rappel : {texte}"[:80],
+                  "actions": [{"action": "notify", "params": {"message": f"Rappel : {texte}", "title": "Atlas"}}]}
+        if heure:
+            params["trigger_type"] = "cron"
+            params["trigger_config"] = {"hour": heure[0], "minute": heure[1]}
+        else:
+            params["trigger_type"] = "interval"
+            params["trigger_config"] = {"hours": 24}
+        return params
 
     def _detect_url(self, text: str) -> Optional[str]:
         """Détecte une URL dans le texte."""

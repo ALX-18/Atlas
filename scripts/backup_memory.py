@@ -74,7 +74,21 @@ def embed(text: str):
     return emb.embed_query(text)
 
 
-def summarize(path: Path) -> dict:
+def summarize(path: Path, essais: int = 3) -> dict:
+    """Décomptes et 40 requêtes sur une copie jetable. Sprint Fiabilité : ChromaDB 1.5.1 cesse
+    parfois de lire l'index d'une collection pour toute la vie d'un client (« hnsw segment
+    reader: Nothing found on disk », 1 relevé sur 15 environ) ; le relevé est alors refait
+    entièrement avec un client neuf. Lecture seule."""
+    for essai in range(1, essais + 1):
+        try:
+            return _summarize(path)
+        except Exception as e:
+            if "hnsw segment reader" not in str(e) or essai == essais:
+                raise
+            log(f"Index illisible ({str(e)[:80]}) : relevé refait avec un client neuf ({essai + 1}/{essais}).")
+
+
+def _summarize(path: Path) -> dict:
     """Collections, décomptes, dimensions et résultats des 40 requêtes, sur une COPIE jetable."""
     from garde_fou_rappels import REQUETES
 

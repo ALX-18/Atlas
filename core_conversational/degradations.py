@@ -47,6 +47,14 @@ CATALOGUE: dict[str, dict] = {
         "vecue": True,
         "message": "Ma mémoire est indisponible : je ne retiens rien pour le moment.",
     },
+    "memoire_partielle": {
+        "composant": "Mémoire (ChromaDB)",
+        "declencheur": "une collection reste illisible après 3 ouvertures (défaut de ChromaDB 1.5.1 à l'ouverture)",
+        "perte": "les rappels de cette partie de la mémoire échouent pour toute la session",
+        "vecue": True,
+        "message": "Une partie de ma mémoire est illisible pour le moment : mes rappels seront incomplets. "
+                   "Redémarre-moi pour réessayer.",
+    },
     "tesseract": {
         "composant": "Tesseract",
         "declencheur": "binaire tesseract introuvable",
@@ -107,6 +115,14 @@ CATALOGUE: dict[str, dict] = {
         "perte": "transcription sur processeur : environ 5 s par phrase au lieu de 0,1 s",
         "vecue": True,
         "message": "Ma transcription tourne sur le processeur : je mettrai quelques secondes de plus à te comprendre.",
+    },
+    "stt_absent": {
+        "composant": "Transcription (faster-whisper)",
+        "declencheur": "le paquet faster-whisper est absent ou ne s'importe pas",
+        "perte": "chaque phrase dite échoue : on ne peut plus parler à Atlas, seulement lui écrire",
+        "vecue": True,
+        "message": "Ma transcription (faster-whisper) est absente : je ne comprends pas ce que tu me dis "
+                   "à voix haute, seulement ce que tu écris. pip install -r requirements.txt",
     },
     "tts_piper": {
         "composant": "Synthèse (Piper)",

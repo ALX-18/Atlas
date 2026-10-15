@@ -342,16 +342,66 @@ def _find_app_path(name: str) -> str | None:
     return None
 
 
+# Sprint Fiabilité / FI3 — les applications dont le processus ne porte pas le nom qu'on leur
+# donne : applications Windows modernes (processus à elles, fenêtre tenue par
+# ApplicationFrameHost, titre localisé) et Bloc-notes.
+_APP_PROCESSES: dict[str, set[str]] = {
+    "calculatrice": {"calculatorapp"}, "calculator": {"calculatorapp"},
+    "parametres": {"systemsettings"}, "settings": {"systemsettings"},
+    "bloc notes": {"notepad"}, "blocnotes": {"notepad"}, "notepad": {"notepad"},
+}
+_APP_TITLES: dict[str, tuple[str, ...]] = {
+    "calculatrice": ("calculatrice", "calculator"), "calculator": ("calculatrice", "calculator"),
+    "parametres": ("parametres", "settings"), "settings": ("parametres", "settings"),
+}
+
+
+def _processus_de(name: str) -> set[str]:
+    base = _normalize_app_name(name)
+    return _APP_PROCESSES.get(base, set()) | _APP_PROCESSES.get(base.replace(" ", ""), set())
+
+
 def _is_process_running(name: str) -> bool:
-    """Vérifie si un processus est en cours d'exécution."""
+    """Vérifie si un processus est en cours d'exécution (FI3 : par son vrai nom de processus aussi)."""
     name_lower = name.lower()
+    vrais = _processus_de(name)
     for p in psutil.process_iter(["name"]):
         try:
-            if name_lower in (p.info["name"] or "").lower():
+            pname = (p.info["name"] or "").lower()
+            if name_lower in pname or pname.removesuffix(".exe") in vrais:
                 return True
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     return False
+
+
+def instantane() -> dict:
+    """Processus et fenêtres visibles, juste avant un lancement (FI3)."""
+    from tools import window_controller as wc
+
+    return {"pids": set(psutil.pids()), "hwnds": {w["hwnd"] for w in wc._list_visible_windows()}}
+
+
+def apparu_depuis(avant: dict, name: str) -> str | None:
+    """Ce qui est apparu depuis `avant` et montre que le lancement a eu lieu, ou None.
+
+    Une nouvelle fenêtre visible, ou un nouveau processus qui porte le nom de l'application.
+    Sert à ne JAMAIS relancer : « ouvre la calculatrice » en ouvrait trois (Check-up, D26).
+    """
+    from tools import window_controller as wc
+
+    for w in wc._list_visible_windows():
+        if w["hwnd"] not in avant.get("hwnds", set()):
+            return f"fenêtre « {w['title']} »"
+    vrais = _processus_de(name) | {_normalize_app_name(name).replace(" ", "")}
+    for pid in set(psutil.pids()) - avant.get("pids", set()):
+        try:
+            pname = psutil.Process(pid).name().lower().removesuffix(".exe")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        if pname in vrais or any(v and v in pname for v in vrais):
+            return f"processus {pname}"
+    return None
 
 
 # --------------------------------------------------------------------------- #
@@ -384,12 +434,15 @@ def _app_windows(name: str) -> list[dict]:
     from tools import window_controller as wc
 
     base = _normalize_app_name(name).replace(" ", "")
-    procs = _WINDOW_PROCESSES.get(base, {base})
+    procs = _WINDOW_PROCESSES.get(base, {base}) | _processus_de(name)
+    titres = _APP_TITLES.get(_normalize_app_name(name), ())
     found = []
     for w in wc._list_visible_windows():
         proc = (w.get("process") or "").lower().removesuffix(".exe").replace(" ", "")
         if proc and proc in procs:
             found.append(w)
+        elif titres and _normalize_app_name(w["title"]) in titres:
+            found.append(w)      # FI3 : fenêtre d'une application Windows moderne (ApplicationFrameHost)
     # « Steam » avant « Liste de contacts » : la fenêtre principale porte le nom de l'application.
     found.sort(key=lambda w: (w["title"].strip().lower() != base, w["title"]))
     return found
