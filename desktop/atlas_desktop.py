@@ -273,6 +273,8 @@ class AtlasDesktop:
         "workflow_create": "Créer le workflow",
         "workflow_run": "Lancer le workflow",
         "apprentissage_oublier": "Oublier ce que j'ai appris",   # Apprentissage 1
+        "fichier_lancer_programme": "Lancer un programme ou un script",   # Index des fichiers
+        "index_oublier": "Oublier l'index de tes fichiers",
     }
 
     def show_confirmation_dialog(self, data: dict):

@@ -162,10 +162,10 @@ CATALOGUE: dict[str, dict] = {
     },
     "file_indexer": {
         "composant": "Index des fichiers",
-        "declencheur": "l'indexation passive ne démarre pas",
-        "perte": "la recherche de fichiers et l'ouverture par nom de fichier ne voient plus les nouveautés",
+        "declencheur": "l'index des fichiers ne démarre pas, ou sa base (data/file_index.db) est illisible",
+        "perte": "ouvrir un fichier par son nom, dire où il est, les récents et la recherche dans le contenu",
         "vecue": True,
-        "message": "Mon index de fichiers ne démarre pas : je risque de ne pas trouver tes fichiers récents.",
+        "message": "Mon index des fichiers est indisponible : je ne peux pas chercher dans tes fichiers pour le moment.",
     },
     "systray": {
         "composant": "Icône de la zone de notification (pystray)",

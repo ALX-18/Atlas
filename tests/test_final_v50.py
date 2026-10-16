@@ -88,7 +88,9 @@ def test_03_window_focus_retry_x3_without_crash(monkeypatch):
 
     monkeypatch.setattr(wc, "HAS_WIN32", False)
     monkeypatch.setattr(wc, "HAS_PYWINAUTO", False)
-    monkeypatch.setattr(wc.gw, "getWindowsWithTitle", _always_fail)
+    # Index des fichiers (IX4.3) : les méthodes visent la fenêtre résolue (hwnd), plus un titre.
+    monkeypatch.setattr(wc, "_list_visible_windows", lambda: [{"hwnd": 7, "title": "Notepad", "process": "notepad.exe"}])
+    monkeypatch.setattr(wc.gw, "Win32Window", _always_fail, raising=False)
 
     res = wc.window_focus("Notepad")
     assert res["success"] is False

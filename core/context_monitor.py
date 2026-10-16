@@ -8,6 +8,7 @@ import asyncio
 import ctypes
 import json
 import logging
+import os
 import pathlib
 import sqlite3
 import sys
@@ -350,7 +351,8 @@ _habit_cfg = _load_habit_config()
 HABIT_THRESHOLD: int = _habit_cfg.get("habit_detection_threshold", 3)
 
 # SQLite DB path
-_DB_PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "habits.db"
+# Index des fichiers (17/10) : un Atlas d'essai écrit ses habitudes ailleurs (ATLAS_HABITS_DB).
+_DB_PATH = pathlib.Path(os.environ.get("ATLAS_HABITS_DB") or pathlib.Path(__file__).resolve().parent.parent / "data" / "habits.db")
 
 # RAM cache : {process_name: detection_count}
 _process_session_counts: dict[str, int] = {}

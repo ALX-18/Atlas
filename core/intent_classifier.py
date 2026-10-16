@@ -183,6 +183,13 @@ INTENT_CATEGORIES = {
             "forget": "memory_forget",
         },
     },
+    # Sprint Index des fichiers : tes fichiers (règles dédiées dans classify, _regles_fichiers)
+    "fichiers": {
+        "verbs_map": {},
+        "tools": {"ouvrir": "fichier_ouvrir", "ou": "fichier_ou", "ouvrir_dossier": "fichier_ouvrir_dossier",
+                  "recents": "fichier_recents", "contenu": "fichier_contenu", "index_etat": "index_etat",
+                  "index_oublier": "index_oublier"},
+    },
     # Sprint Apprentissage 1 : ce qu'Atlas a appris (règles dédiées dans classify)
     "apprentissage": {
         "verbs_map": {},
@@ -576,6 +583,132 @@ def _heure(texte: str) -> Optional[tuple[int, int]]:
     return (h, mn) if h < 24 and mn < 60 else None
 
 
+
+# --------------------------------------------------------------------------- #
+#  Sprint Index des fichiers — « ouvre mon CV », « où est… », « le dernier PDF téléchargé »,
+#  « le document où je parle de budget ». Règles déterministes ; un nom d'application connu
+#  (« ouvre Discord »), un menu ou les paramètres restent hors de cette famille.
+# --------------------------------------------------------------------------- #
+
+_MOTS_DOCUMENT = (r"fichiers?|documents?|docs?|rapports?|cv|curriculum|factures?|devis|contrats?|lettres?|memoires?|"
+                  r"presentations?|diaporamas?|tableaux?|tableurs?|releves?|attestations?|fiches?|bulletins?|photos?|"
+                  r"images?|pdf|notes?|cours|exposes?|dossiers? de|bilans?|comptes rendus?|compte rendu|budgets?|"
+                  r"certificats?|justificatifs?|quittances?|recus?|billets?|ordonnances?|plannings?|emplois? du temps")
+_EXTENSION = re.compile(r"\.[a-z0-9]{2,5}$")
+_PAS_UN_FICHIER = re.compile(r"^(?:le |la |les |l'|un |une |mon |ma |mes )?(?:menu|parametres?|reglages|onglet|nouvel onglet|"
+                             r"navigateur|explorateur|terminal|page|site|lien|application|appli|jeu|session|"
+                             r"gestionnaire|panneau|centre|barre)\b")
+_DOSSIERS_CONNUS = {"mes documents": "Documents", "mes telechargements": "Downloads", "mon bureau": "Desktop",
+                    "mes images": "Pictures", "mes photos": "Pictures", "mes videos": "Videos", "ma musique": "Music",
+                    "le dossier telechargements": "Downloads", "le dossier documents": "Documents"}
+_TYPES_RECENTS = {"pdf": "pdf", "fichier": None, "fichiers": None, "document": "document", "documents": "document",
+                  "photo": "photo", "photos": "photo", "image": "image", "images": "image", "video": "video",
+                  "videos": "video", "word": "word", "excel": "excel", "tableur": "tableur", "tableurs": "tableur",
+                  "presentation": "presentation", "presentations": "presentation", "telechargement": None,
+                  "telechargements": None}
+_PERIODES = {"d'hier": "hier", "hier": "hier", "d'aujourd'hui": "aujourdhui", "aujourd'hui": "aujourdhui",
+             "du jour": "aujourdhui", "de cette semaine": "semaine", "cette semaine": "semaine",
+             "de la semaine derniere": "semaine_derniere", "la semaine derniere": "semaine_derniere",
+             "de ce mois": "mois", "de ce mois-ci": "mois", "ce mois": "mois", "ce mois-ci": "mois"}
+
+
+def _est_une_application(x: str) -> bool:
+    try:
+        from tools import app_launcher as al
+
+        n = x.strip().lower()
+        n = re.sub(r"^(?:le |la |les |l'|mon |ma |mes )", "", n)
+        return n in al.KNOWN_APPS or n in {_sans_accents(k) for k in al._UWP_APPS}
+    except Exception:
+        return False
+
+
+def _ressemble_a_un_fichier(x: str) -> bool:
+    if _PAS_UN_FICHIER.match(x) or _est_une_application(x):
+        return False
+    return bool(re.match(r"^(?:mon|ma|mes)\s+\w", x) or re.search(rf"\b(?:{_MOTS_DOCUMENT})\b", x)
+                or _EXTENSION.search(x))
+
+
+def _fichier(verb: str, raw: str, **params) -> IntentResult:
+    return IntentResult(category="fichiers", verb=verb, target=params.get("requete") or params.get("mots"),
+                        params=params, confidence=0.95, is_complex=False, raw_input=raw)
+
+
+def _morceau_brut(raw: str, plain: str, groupe_plain: str) -> str:
+    """Le même morceau, pris dans la phrase d'origine (accents et majuscules gardés)."""
+    t = raw.strip().rstrip(" .!?")
+    return t[len(t) - len(groupe_plain):] if len(t) >= len(groupe_plain) else groupe_plain
+
+
+def _regles_fichiers(raw: str, plain: str) -> Optional[IntentResult]:
+    if re.search(r"https?://|www\.", plain):
+        return None
+    if re.search(r"\b(?:ou en est|ou en es|avancement de|etat de) (?:l'?index|l index)\b", plain):
+        return _fichier("index_etat", raw)
+    if re.match(r"^(?:oublie|efface|supprime|vide)\s+(?:l'?index|l index)(?:\s+de (?:tous )?mes fichiers|\s+des fichiers)?$", plain):
+        return _fichier("index_oublier", raw)
+    m = re.match(r"^ouvre le fichier (?P<c>[a-z]:\\.+)$", plain)
+    if m:                                   # un choix dans une liste : le chemin exact, tel quel
+        return _fichier("ouvrir", raw, chemin=raw.strip()[len("ouvre le fichier "):].strip())
+    if re.match(r"^(?:ouvre|montre)(?:-| )?(?:moi )?(?:le|son|ce) dossier(?: ou (?:il|elle) est)?$", plain):
+        return _fichier("ouvrir_dossier", raw)
+    m = re.match(r"^(?:ouvre|ouvrir)(?:-| )?(?:moi )?(?P<x>.+)$", plain)
+    if m and m.group("x") in _DOSSIERS_CONNUS:
+        import os
+
+        return _fichier("ouvrir_dossier", raw, dossier=os.path.join(os.path.expandvars("%USERPROFILE%"),
+                                                                     _DOSSIERS_CONNUS[m.group("x")]))
+    # Contenu : « le document où je parle de budget »
+    m = re.match(r"^(?:(?:trouve|cherche|retrouve|montre|donne)(?:-| )?(?:moi )?)?(?:le|les|un|des|mon|mes|ce|ces)\s+"
+                 r"(?:document|fichier|texte|pdf|note|doc)s?\s+"
+                 r"(?:(?:ou je parle|ou j'ai parle|ou il est question|ou on parle|ou je parlais|qui parlent|qui parle|"
+                 r"dans lequel je parle|dans lesquels je parle)\s+(?:de\s+|du\s+|des\s+|d')|"
+                 r"(?:qui contiennent|qui contient|qui mentionnent|qui mentionne|ou j'ai ecrit|ou figurent|ou figure)\s+)"
+                 r"(?P<m>.+)$", plain)
+    if not m:
+        m = re.match(r"^cherche\s+(?:dans|parmi)\s+mes\s+(?:documents|fichiers)\s+(?P<m>.+)$", plain)
+    if m:
+        return _fichier("contenu", raw, mots=_morceau_brut(raw, plain, m.group("m")))
+    # Récents : « le dernier PDF téléchargé », « mes fichiers d'hier », « ce que j'ai modifié cette semaine »
+    m = re.match(r"^(?P<v>(?:ouvre|montre|affiche|liste|donne)(?:-| )?(?:moi )?)?(?P<det>le|la|mon|ma|les|mes)\s+"
+                 r"(?P<n>dernier|derniere|derniers|dernieres|plus recent|plus recente|plus recents)\s+"
+                 r"(?P<t>pdf|fichiers?|documents?|photos?|images?|videos?|telechargements?|word|excel|tableurs?|presentations?)"
+                 r"(?:\s+(?P<tel>telecharges?|telechargees?|recus?))?(?:\s+(?P<p>d'hier|d'aujourd'hui|de cette semaine))?$", plain)
+    if m:
+        singulier = m.group("det") in ("le", "la", "mon", "ma") and not m.group("n").endswith("s")
+        telecharge = bool(m.group("tel")) or m.group("t").startswith("telechargement")
+        return _fichier("recents", raw, type=_TYPES_RECENTS.get(m.group("t")), telecharge=telecharge,
+                        periode=_PERIODES.get(m.group("p") or ""), limite=1 if singulier else 10,
+                        ouvrir=bool(m.group("v") and m.group("v").startswith("ouvre") and singulier),
+                        libelle=m.group(0))
+    m = re.match(r"^(?:(?:montre|affiche|liste|donne)(?:-| )?(?:moi )?)?(?:mes|les)\s+"
+                 r"(?P<t>pdf|fichiers?|documents?|photos?|images?|videos?|telechargements?)\s+(?P<p>"
+                 + "|".join(re.escape(k) for k in _PERIODES) + r")$", plain)
+    if m:
+        return _fichier("recents", raw, type=_TYPES_RECENTS.get(m.group("t")), periode=_PERIODES[m.group("p")],
+                        telecharge=m.group("t").startswith("telechargement"), limite=20)
+    m = re.match(r"^(?:(?:montre|affiche|liste|donne)(?:-| )?(?:moi )?)?ce que j'ai (?:modifie|telecharge|enregistre|cree|"
+                 r"change)\s+(?P<p>" + "|".join(re.escape(k) for k in _PERIODES) + r")$", plain)
+    if m:
+        return _fichier("recents", raw, periode=_PERIODES[m.group("p")], telecharge="telecharge" in m.group(0),
+                        limite=20)
+    # Où : « où est mon rapport de stage ? »
+    m = re.match(r"^(?:ou est|ou sont|ou se trouve|ou se trouvent|ou j'ai mis|ou ai-je mis|ou ai je mis)\s+(?P<x>.+)$", plain)
+    if m and not _ressemble_a_un_fichier(m.group("x")) and re.match(r"^ou (?:est|sont|se trouve|se trouvent)\s", plain):
+        # « où se trouve le Japon ? » est une question, pas une action (ni une recherche web).
+        return IntentResult(category="conversation", verb="chat", target=None, confidence=0.85,
+                            is_complex=False, raw_input=raw)
+    if not m:
+        m = re.match(r"^(?:trouve|retrouve|cherche)(?:-| )?(?:moi )?(?P<x>(?:le fichier|le document|mon|ma|mes)\s+.+)$", plain)
+    if m and _ressemble_a_un_fichier(m.group("x")):
+        return _fichier("ou", raw, requete=_morceau_brut(raw, plain, m.group("x")))
+    # Ouvrir par le nom : « ouvre mon CV », « ouvre le rapport de stage », « ouvre budget.xlsx »
+    m = re.match(r"^(?:ouvre|ouvrir)(?:-| )?(?:moi )?(?P<x>.+)$", plain)
+    if m and _ressemble_a_un_fichier(m.group("x")):
+        return _fichier("ouvrir", raw, requete=_morceau_brut(raw, plain, m.group("x")))
+    return None
+
 class IntentClassifier:
     """Classifie les intentions utilisateur de manière déterministe."""
 
@@ -821,6 +954,11 @@ class IntentClassifier:
                      r"\bce que tu as appris\b|\btu as appris quoi\b", _plain_ap):
             return IntentResult(category="apprentissage", verb="lister", target=None, params={},
                                 confidence=0.95, is_complex=False, raw_input=raw)
+
+        # --- Sprint Index des fichiers : tes fichiers (texte sans accents) ---
+        fichiers = _regles_fichiers(raw, _plain_ap.strip().rstrip(" .!?"))
+        if fichiers is not None:
+            return fichiers
 
         # --- Sprint Fiabilité / FI2 : règles prioritaires (texte sans accents) ---
         plain = _sans_accents(normalized).replace("’", "'")

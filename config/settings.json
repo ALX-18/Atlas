@@ -104,18 +104,28 @@
         "min_cooldown_seconds": 60
     },
     "filesystem_assistant": {
-        "enabled": false,
-        "scan_interval_seconds": 600,
-        "max_files_per_scan": 10000,
+        "_note": "Sprint Index des fichiers : tous les disques fixes ('*') hors exclusions ; index local data/file_index.db (docs/CONFIGURATION.md)",
+        "enabled": true,
+        "scan_interval_seconds": 1800,
+        "max_files_per_scan": 3000000,
         "scan_roots": [
-            "%USERPROFILE%\\Desktop",
-            "%USERPROFILE%\\Documents",
-            "%USERPROFILE%\\Downloads"
+            "*"
+        ],
+        "exclude_names": [
+            "Windows", "Program Files", "Program Files (x86)", "ProgramData", "AppData", "$Recycle.Bin",
+            "System Volume Information", "Recovery", "PerfLogs", "WindowsApps", "Config.Msi",
+            "node_modules", ".git", ".svn", ".hg", ".venv", "venv", "__pycache__", ".cache", ".pytest_cache",
+            ".mypy_cache", ".gradle", ".m2", ".nuget", ".npm", ".idea", ".vs", "site-packages",
+            "steamapps", "SteamLibrary", "Epic Games", "Riot Games"
         ],
         "exclude_dirs": [
             "%USERPROFILE%\\AppData",
             "%USERPROFILE%\\.cache"
-        ]
+        ],
+        "contenu_taille_max_mo": 20,
+        "contenu_caracteres_max": 50000,
+        "cpu_max_pourcent": 25,
+        "pause_en_jeu": true
     },
     "grounding": {
         "vision_enabled": false,

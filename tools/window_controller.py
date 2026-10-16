@@ -77,61 +77,98 @@ def _resolve_aliases(title: str) -> list[str]:
     return [title]
 
 
-def _premier_plan_pywinauto(alias: str) -> Optional[dict]:
-    # GB4 : titre échappé (« | » devenait une alternative), casse ignorée.
+# Sprint Index des fichiers / IX4.3 : les trois méthodes visent la fenêtre EXACTE (son hwnd, résolu
+# par resolve_app_window). Plus de « le titre contient » à cette étape : au rejeu du 15/10,
+# « AtlasEssaiPyw » ramenait « AtlasEssaiPyw outils » (le premier homonyme de pygetwindow).
+
+def _premier_plan_pywinauto(titre: str, hwnd: int) -> Optional[dict]:
     if not HAS_PYWINAUTO:
         return None
     try:
-        app = PywinautoApplication(backend="uia").connect(title_re=f"(?i).*{re.escape(alias)}.*", timeout=1)
-        window = app.top_window()
+        app = PywinautoApplication(backend="uia").connect(handle=hwnd, timeout=1)
+        window = app.window(handle=hwnd)
         window.set_focus()
         time.sleep(0.2)
         return {"success": True, "message": f"Fenêtre '{window.window_text()}' mise au premier plan (pywinauto).",
                 "title": window.window_text()}
     except Exception as e:
-        logger.debug("pywinauto focus failed for '%s': %s", alias, e)
+        logger.debug("pywinauto focus failed for '%s': %s", titre, e)
         return None
 
 
-def _premier_plan_pygetwindow(alias: str) -> Optional[dict]:
+def _premier_plan_pygetwindow(titre: str, hwnd: int) -> Optional[dict]:
     try:
-        windows = gw.getWindowsWithTitle(alias)
-        if windows:
-            w = windows[0]
-            if w.isMinimized:
-                w.restore()
-                time.sleep(0.2)
-            w.activate()
+        w = gw.Win32Window(hwnd)
+        if w.isMinimized:
+            w.restore()
             time.sleep(0.2)
-            return {"success": True, "message": f"Fenêtre '{w.title}' mise au premier plan (pygetwindow).",
-                    "title": w.title}
+        w.activate()
+        time.sleep(0.2)
+        return {"success": True, "message": f"Fenêtre '{w.title}' mise au premier plan (pygetwindow).",
+                "title": w.title}
     except Exception as e:
-        logger.debug("pygetwindow focus failed for '%s': %s", alias, e)
+        logger.debug("pygetwindow focus failed for '%s': %s", titre, e)
     return None
 
 
-def _premier_plan_win32(alias: str) -> Optional[dict]:
+def forcer_premier_plan(hwnd: int, technique: str) -> bool:
+    """IX4.4 — contourner le refus de premier plan de Windows (un processus d'arrière-plan ne peut
+    pas prendre le premier plan). MESURÉ par scripts/mesure_premier_plan.py ; n'est utilisé par
+    aucune méthode tant que la mesure n'a pas montré qu'il est fiable et sans effet de bord.
+
+    - « attach » : AttachThreadInput entre ce fil et celui de la fenêtre au premier plan, le temps
+      de SetForegroundWindow, puis détaché ;
+    - « alt » : une pression de la touche Alt (déverrouille SetForegroundWindow), puis la demande.
+    """
+    if not HAS_WIN32:
+        return False
+    import ctypes
+
+    u32, k32 = ctypes.windll.user32, ctypes.windll.kernel32
+    try:
+        if technique == "attach":
+            devant = u32.GetForegroundWindow()
+            fil_devant = u32.GetWindowThreadProcessId(devant, None)
+            fil_moi = k32.GetCurrentThreadId()
+            attache = fil_devant and fil_devant != fil_moi and u32.AttachThreadInput(fil_moi, fil_devant, True)
+            try:
+                u32.BringWindowToTop(hwnd)
+                u32.SetForegroundWindow(hwnd)
+            finally:
+                if attache:
+                    u32.AttachThreadInput(fil_moi, fil_devant, False)
+        elif technique == "alt":
+            VK_MENU, KEYUP = 0x12, 0x0002
+            u32.keybd_event(VK_MENU, 0, 0, 0)
+            u32.keybd_event(VK_MENU, 0, KEYUP, 0)
+            u32.SetForegroundWindow(hwnd)
+        else:
+            u32.SetForegroundWindow(hwnd)
+        time.sleep(0.2)
+        return u32.GetForegroundWindow() == hwnd
+    except Exception as e:
+        logger.debug("forcer_premier_plan(%s) : %s", technique, e)
+        return False
+
+
+def _premier_plan_win32(titre: str, hwnd: int) -> Optional[dict]:
     if not HAS_WIN32:
         return None
     try:
-        trouves = _enum_windows_by_title(alias)
-        if trouves:
-            hwnd = trouves[0]["hwnd"]
-            if win32gui.IsIconic(hwnd):
-                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
-            win32gui.SetForegroundWindow(hwnd)
-            time.sleep(0.2)
-            return {"success": True, "message": f"Fenêtre '{trouves[0]['title']}' mise au premier plan (Win32).",
-                    "title": trouves[0]["title"]}
+        if win32gui.IsIconic(hwnd):
+            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+        win32gui.ShowWindow(hwnd, win32con.SW_SHOW)
+        win32gui.SetForegroundWindow(hwnd)
+        time.sleep(0.2)
+        return {"success": True, "message": f"Fenêtre '{titre}' mise au premier plan (Win32).", "title": titre}
     except Exception as e:
-        logger.debug("Win32 focus fallback failed for '%s': %s", alias, e)
+        logger.debug("Win32 focus fallback failed for '%s': %s", titre, e)
     return None
 
 
-_METHODES_PREMIER_PLAN = {"pywinauto": lambda a: _premier_plan_pywinauto(a),
-                          "pygetwindow": lambda a: _premier_plan_pygetwindow(a),
-                          "win32": lambda a: _premier_plan_win32(a)}
+_METHODES_PREMIER_PLAN = {"pywinauto": lambda t, h: _premier_plan_pywinauto(t, h),
+                          "pygetwindow": lambda t, h: _premier_plan_pygetwindow(t, h),
+                          "win32": lambda t, h: _premier_plan_win32(t, h)}
 _PREMIER_PLAN_ATTENTES = [0.2, 0.5, 1.0]
 
 
@@ -364,7 +401,10 @@ class WindowController:
         resolved, ambiguity = resolve_app_window(title)
         if resolved is None and ambiguity and ambiguity.startswith("plusieurs"):
             return _refused(ambiguity)
-        candidates = [resolved["title"]] if resolved else _resolve_aliases(title)
+        if resolved is None or not resolved.get("hwnd"):
+            # IX4.3 : sans fenêtre résolue, aucune recherche « le titre contient » (elle visait
+            # le premier homonyme venu).
+            return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'.", "tentatives": []}
         # Sprint Apprentissage 1 / AP1 : trois méthodes nommées ; celle qui a marché pour cette
         # fenêtre est tentée en premier ; chaque tentative est rendue (pour l'apprentissage).
         from core.apprentissage import appliquer_ordre
@@ -372,12 +412,11 @@ class WindowController:
         ordre = appliquer_ordre(list(_METHODES_PREMIER_PLAN), appris)
         tentatives: list[dict] = []
         for attempt, delay in enumerate(_PREMIER_PLAN_ATTENTES, start=1):
-            for alias in candidates:
-                for nom in ordre:
-                    res = _METHODES_PREMIER_PLAN[nom](alias)
-                    tentatives.append({"methode": nom, "resultat": "success" if res else "failure"})
-                    if res:
-                        return {**res, "methode": nom, "tentatives": tentatives}
+            for nom in ordre:
+                res = _METHODES_PREMIER_PLAN[nom](resolved["title"], resolved["hwnd"])
+                tentatives.append({"methode": nom, "resultat": "success" if res else "failure"})
+                if res:
+                    return {**res, "methode": nom, "tentatives": tentatives}
             if attempt < len(_PREMIER_PLAN_ATTENTES):
                 time.sleep(delay)
 
@@ -692,9 +731,10 @@ def window_close(title: str) -> dict[str, Any]:
             windows = gw.getWindowsWithTitle(alias)
             if windows:
                 w = windows[0]
+                titre = w.title                    # lu AVANT : une fenêtre fermée n'a plus de titre
                 w.close()
                 time.sleep(0.5)
-                return {"success": True, "message": f"Fenêtre '{w.title}' fermée."}
+                return {"success": True, "message": f"Fenêtre '{titre}' fermée."}
         except Exception:
             pass
         # Fallback Win32

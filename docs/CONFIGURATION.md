@@ -19,7 +19,7 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 | `browser_bridge` | port et activation du pont vers l'extension du navigateur | `tools/browser_bridge.py`, `main.py` |
 | `powershell_allowlist`, `powershell_denylist` | commandes PowerShell permises et interdites | `tools/system_config.py` |
 | `automation` | fréquence de vérification des déclencheurs ; `max_active_triggers` et `min_cooldown_seconds`, limites appliquées à la création, au chargement, à la réactivation et à chaque évaluation (sprint Fiabilité) | `main.py`, `core/trigger_engine.py` |
-| `filesystem_assistant` | index des fichiers : activation, dossiers, exclusions | `core/file_indexer.py` |
+| `filesystem_assistant` | index des fichiers : activation, disques (`*` = tous les disques fixes), exclusions, plafonds (détail ci-dessous) | `core/file_indexer.py` |
 | `grounding` | vision (désactivée), délai d'arrêt du processus EasyOCR inactif | `tools/grounding.py` |
 | `voice` | micro, mot d'éveil, transcription (`stt_device` : `cuda` ou `cpu`), voix Piper | `core/voice_engine.py`, `main.py` |
 
@@ -44,6 +44,29 @@ actions d'Alexis comptent (entrées du journal avec une origine bureau, fenêtre
 | `jours_min` (D) | 3 | Trois jours différents : une seule soirée où l'on ouvre et ferme dix fois la même chose ne fait pas une habitude. |
 | `tranche_minutes` | 60 | Tranche d'une heure pour l'habitude « heure » : « vers 9 h ». Plus fin, les horaires réels (9 h 05, 9 h 40) ne se regrouperaient plus. |
 | `max_propositions_par_heure` (X) | 2 | Au total, toutes habitudes confondues. Avec « une fois par habitude et par jour », Atlas ne devient pas envahissant. |
+
+## `filesystem_assistant` : l'index des fichiers (sprint Index des fichiers)
+
+L'index est **local** (`data/file_index.db`, ignoré par Git) et **n'est pas une mémoire** : il se
+reconstruit, il n'entre pas dans les sauvegardes, il s'efface par « oublie l'index de mes fichiers »
+(avec confirmation).
+
+| Clé | Valeur | Rôle |
+|---|---|---|
+| `enabled` | `true` | l'index tourne en arrière-plan au lancement d'Atlas |
+| `scan_roots` | `["*"]` | `*` = tous les disques **fixes** (jamais amovibles, réseau ni optiques) ; on peut donner des dossiers |
+| `exclude_names` | système, programmes, `AppData`, corbeille, dossiers techniques (`node_modules`, `.git`, `.venv`, caches…), bibliothèques de jeux | un dossier de ce nom n'est jamais parcouru, où qu'il soit ; tout nom commençant par `$` aussi |
+| `exclude_dirs` | `%USERPROFILE%\AppData`, `%USERPROFILE%\.cache` | chemins exclus ; les profils des **autres** utilisateurs le sont toujours |
+| `scan_interval_seconds` | 1800 | un passage incrémental toutes les 30 minutes (taille et date de modification) |
+| `max_files_per_scan` | 3 000 000 | plafond de sécurité d'un passage |
+| `contenu_taille_max_mo` | 20 | au-delà, le nom est indexé, pas le texte |
+| `contenu_caracteres_max` | 50 000 | texte lu par document, au plus (une vingtaine de pages) ; à 200 000, la base pesait 650 Mo sur ce PC, surtout des `.txt` de journaux |
+| `cpu_max_pourcent` | 25 | part d'**un** cœur ; le fil est aussi en priorité basse (processeur et disque) |
+| `pause_en_jeu` | `true` | pause tant qu'une fenêtre couvre tout l'écran (jeu en plein écran) |
+
+Texte indexé : PDF, `.docx`, `.odt`, `.txt`, `.md`, `.rtf`, et les tableurs et présentations `.xlsx`,
+`.pptx`, `.ods`, `.odp`. Ouvrir un programme, un script ou un raccourci vers l'un d'eux demande
+**toujours** une confirmation qui montre le chemin complet (`fichier_lancer_programme`).
 
 ## Exception justifiée (clé conservée, lue par personne)
 

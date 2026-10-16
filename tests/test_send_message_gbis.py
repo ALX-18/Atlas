@@ -120,7 +120,8 @@ def test_gb4_plusieurs_fenetres_atlas_demande_laquelle(bureau):
 
 
 def test_gb4_un_titre_avec_des_caracteres_speciaux_ne_casse_pas_la_recherche(monkeypatch):
-    """« | » dans un titre devenait une alternative dans l'expression de pywinauto."""
+    """« | » dans un titre devenait une alternative dans l'expression de pywinauto. Depuis le sprint
+    Index des fichiers (IX4.3), pywinauto vise la fenêtre résolue par son hwnd : plus d'expression."""
     from tools import window_controller as wc
 
     vus = []
@@ -129,18 +130,23 @@ def test_gb4_un_titre_avec_des_caracteres_speciaux_ne_casse_pas_la_recherche(mon
         def __init__(self, backend=None):
             pass
 
-        def connect(self, title_re=None, timeout=None):
-            vus.append(title_re)
+        def connect(self, title_re=None, handle=None, timeout=None):
+            vus.append({"title_re": title_re, "handle": handle})
             raise RuntimeError("simulé")
+
+    def refus(hwnd):
+        raise RuntimeError("simulé")
 
     monkeypatch.setattr(wc, "PywinautoApplication", FauxPywinauto, raising=False)
     monkeypatch.setattr(wc, "HAS_PYWINAUTO", True)
     monkeypatch.setattr(wc, "HAS_WIN32", False)
     monkeypatch.setattr(wc.gw, "getWindowsWithTitle", lambda t: [])
-    monkeypatch.setattr(wc, "_list_visible_windows", lambda: [])
+    monkeypatch.setattr(wc.gw, "Win32Window", refus, raising=False)
+    monkeypatch.setattr(wc, "_list_visible_windows",
+                        lambda: [{"hwnd": 5, "title": "#général | Atlas - Discord", "process": "Discord.exe"}])
     monkeypatch.setattr(wc, "time", SimpleNamespace(sleep=lambda s: None))
     wc._controller.focus_window("#général | Atlas - Discord")
-    assert vus and all("\\|" in r for r in vus), vus
+    assert vus and all(v["title_re"] is None and v["handle"] == 5 for v in vus), vus
 
 
 # --------------------------------------------------------------------------- #

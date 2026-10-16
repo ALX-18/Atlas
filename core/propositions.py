@@ -28,12 +28,32 @@ _NON = {"non", "nan", "non c est bon", "pas maintenant", "non pas maintenant", "
 
 _en_attente: Optional[dict] = None
 
+_ORDINAUX = {"premier": 0, "premiere": 0, "deuxieme": 1, "second": 1, "seconde": 1, "troisieme": 2, "quatrieme": 3,
+             "cinquieme": 4, "un": 0, "une": 0, "deux": 1, "trois": 2, "quatre": 3, "cinq": 4}
 
-def proposer(phrase: str, sorte: str, origine: Optional[str], cle: Optional[str] = None) -> None:
-    """Retient la demande à faire si Alexis répond « oui » (une seule question à la fois)."""
+
+def _rang(n: str) -> Optional[int]:
+    """« le 2 », « 2 », « le deuxième », « numéro 3 », « ouvre le 1 » → l'indice ; sinon None."""
+    import re
+
+    m = re.fullmatch(r"(?:ouvre\s+)?(?:le\s+|la\s+|l\s+)?(?:numero\s+|n\s+)?(\w+)(?:\s+fichier)?", n)
+    if not m:
+        return None
+    mot = m.group(1)
+    if mot.isdigit():
+        return int(mot) - 1
+    return _ORDINAUX.get(mot)
+
+
+def proposer(phrase: Optional[str], sorte: str, origine: Optional[str], cle: Optional[str] = None,
+             options: Optional[list[str]] = None) -> None:
+    """Retient la demande à faire si Alexis répond « oui » (une seule question à la fois).
+
+    options (Index des fichiers) : un CHOIX ; « le 2 », « le deuxième », « 2 » route options[1]."""
     global _en_attente
-    _en_attente = {"phrase": phrase, "sorte": sorte, "origine": origine, "cle": cle, "quand": time.monotonic()}
-    logger.info("[PROPOSITION] %s : « %s »", sorte, phrase)
+    _en_attente = {"phrase": phrase, "sorte": sorte, "origine": origine, "cle": cle, "options": options or [],
+                   "quand": time.monotonic()}
+    logger.info("[PROPOSITION] %s : « %s »%s", sorte, phrase, f" ({len(options)} choix)" if options else "")
 
 
 def en_attente() -> Optional[dict]:
@@ -60,7 +80,14 @@ def repondre(message: str, origine: Optional[str]) -> Optional[dict]:
     if not question or question["origine"] != origine:
         return None
     n = normaliser(message).replace("'", " ").replace("-", " ").strip(" !.?,")
-    if n in _OUI:
+    if question.get("options"):
+        k = _rang(n)
+        if k is not None and 0 <= k < len(question["options"]):
+            return {"oui": True, **question, "phrase": question["options"][k]}
+        if k is not None or n in _NON:
+            return {"oui": False, **question} if n in _NON else None
+        return None
+    if n in _OUI and question.get("phrase"):
         return {"oui": True, **question}
     if n in _NON:
         return {"oui": False, **question}

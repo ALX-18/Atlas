@@ -86,7 +86,11 @@ def data(tmp_path, monkeypatch):
     monkeypatch.setattr(trigger_mod, "TRIGGERS_FILE", d / "triggers.json")
     monkeypatch.setattr(workflow_mod, "DATA_DIR", d)
     monkeypatch.setattr(workflow_mod, "WORKFLOWS_DIR", d / "workflows")
-    return d
+    yield d
+    # Sprint Index des fichiers : un test recharge le moteur PARTAGÉ depuis ce dossier jetable ; sans
+    # ceci, « mode travail » disparaissait pour la suite de la session (corpus de routes à 99,0 %).
+    monkeypatch.undo()
+    workflow_mod.get_workflow_engine().load_workflows()
 
 
 @pytest.fixture

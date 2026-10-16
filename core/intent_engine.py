@@ -59,6 +59,8 @@ CONFIRMATION_TTL_S = 60.0
 
 
 def _confirmation_target(tool_name: str, args: dict) -> str:
+    if tool_name == "fichier_lancer_programme":          # le chemin COMPLET de ce qui serait exécuté
+        return str((args or {}).get("cible") or (args or {}).get("chemin") or "")
     for key in ("title", "name", "url", "workflow_id", "job_id", "command", "action", "libelle"):
         value = (args or {}).get(key)
         if value:
@@ -406,6 +408,15 @@ TOOL_HANDLERS = {
 
     # --- Sprint Apprentissage 1 : ce qu'Atlas a appris se voit et s'efface --- #
     "apprentissage_lister": lambda args: _run_apprentissage_lister(args),
+    # Sprint Index des fichiers
+    "fichier_ouvrir": lambda args: _fichiers().ouvrir(args),
+    "fichier_lancer_programme": lambda args: _fichiers().lancer_programme(args),
+    "fichier_ou": lambda args: _fichiers().ou(args),
+    "fichier_ouvrir_dossier": lambda args: _fichiers().ouvrir_dossier(args),
+    "fichier_recents": lambda args: _fichiers().recents(args),
+    "fichier_contenu": lambda args: _fichiers().contenu(args),
+    "index_etat": lambda args: _fichiers().index_etat(args),
+    "index_oublier": lambda args: _fichiers().index_oublier(args),
     "apprentissage_oublier": lambda args: _run_apprentissage_oublier(args),
 }
 
@@ -452,6 +463,14 @@ TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "memory_forget": ("Mémoire", "l'oublier"),
     "redo_last_action": ("Mémoire", "refaire la dernière action"),
     "apprentissage_lister": ("Mémoire", "dire ce que j'ai appris de tes corrections"),
+    "fichier_ouvrir": ("Fichiers", "ouvrir un de tes documents par son nom"),
+    "fichier_lancer_programme": ("Fichiers", "lancer un programme ou un script trouvé sur ton PC (avec confirmation)"),
+    "fichier_ou": ("Fichiers", "dire où est un fichier"),
+    "fichier_ouvrir_dossier": ("Fichiers", "ouvrir le dossier d'un fichier"),
+    "fichier_recents": ("Fichiers", "retrouver tes fichiers récents"),
+    "fichier_contenu": ("Fichiers", "chercher dans le contenu de tes documents"),
+    "index_etat": ("Fichiers", "dire où en est l'index de tes fichiers"),
+    "index_oublier": ("Fichiers", "oublier l'index de tes fichiers"),
     "apprentissage_oublier": ("Mémoire", "oublier ce que j'ai appris"),
     "workflow_run": ("Modes et automatisations", "lancer un mode"),
     "workflow_describe": ("Modes et automatisations", "décrire un mode"),
@@ -582,6 +601,12 @@ def _run_screen_read(args: dict):
     """Wrapper async → lecture d'écran (F2 v6.0)."""
     from tools.screen_reader import read_screen
     return read_screen(mode=args.get("mode", "read"), summarize=args.get("summarize", True))
+
+
+def _fichiers():
+    from tools import fichiers
+
+    return fichiers
 
 
 def _run_redo(args: dict):
@@ -1073,6 +1098,23 @@ class ExecutionEngine:
 
             return {"status": "unsupported", "message": UNSUPPORTED_REPLY,
                     "result": {"success": False, "message": UNSUPPORTED_REPLY}}
+
+        # Sprint Index des fichiers : « ouvre mon CV » est résolu AVANT la confirmation. Plusieurs
+        # fichiers → la liste et la question ; aucun → dit ; un programme ou un script (ou un raccourci
+        # vers l'un d'eux) devient fichier_lancer_programme : confirmation « toujours », chemin complet.
+        if tool_name.startswith("fichier_") or tool_name.startswith("index_"):
+            params = {**params, "_origine": context.get("origine")}
+        if tool_name == "fichier_ouvrir":
+            from tools import fichiers as _fichiers
+
+            res = _fichiers.resoudre(params)
+            if "resultat" in res:
+                r = res["resultat"]
+                return {"status": "success" if r.get("success") else "error", "message": r["message"], "result": r}
+            tool_name, params = res["outil"], {**res["params"], "_origine": context.get("origine")}
+            if tool_name == "fichier_lancer_programme":
+                reason = confirmation_reason(tool_name, interactive=True) or "exécuter un programme"
+                return request_confirmation(tool_name, params, context, reason)
 
         # F2 : le moteur honore la décision du validateur, pour TOUTES les actions. Avant,
         # il n'appliquait qu'une liste à lui (trois outils) : fermer une fenêtre ou créer
