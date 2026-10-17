@@ -107,6 +107,7 @@ def _isolate_data() -> pathlib.Path:
     apprentissage_store.DB_PATH = data / "apprentissage.db"      # Apprentissage 2 : jamais le vrai
     context_monitor._DB_PATH = data / "habits.db"
     file_indexer.DATA_DIR, file_indexer.INDEX_FILE = data, data / "file_index.json"
+    file_indexer.DB_PATH = data / "file_index.db"       # Index des fichiers : jamais le vrai
     file_organizer.DATA_DIR, file_organizer.HISTORY_FILE = data, data / "file_reorg_history.jsonl"
     scheduler.DATA_DIR, scheduler.SCHEDULES_FILE = data, data / "schedules.json"
     trigger_engine.DATA_DIR, trigger_engine.TRIGGERS_FILE = data, data / "triggers.json"

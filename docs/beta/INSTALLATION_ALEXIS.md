@@ -8,14 +8,20 @@
 
 ## 1. Pré-vérification, AVANT d'installer quoi que ce soit
 
-Elle répond en une ligne à la question : ce PC peut-il faire tourner Atlas ? Elle n'a besoin que d'un Python nu (3.9 ou plus récent), sans aucun paquet. Elle a été testée avec `python -S`, et lancée pour de vrai avec le Python 3.14 nu de ton PC.
+Elle répond en une ligne à la question : ce PC peut-il faire tourner Atlas ?
 
-1. Si le PC n'a pas Python : installe **Python 3.12** (python.org, 64 bits, cocher « Add python.exe to PATH »). Il servira de toute façon à Atlas.
-2. Copie `scripts\doctor.py` sur le PC (clé USB ou dépôt cloné), puis :
+**C'est la toute première étape chez un proche, et elle ne demande rien d'installé** (sprint Index des fichiers, 16/10/2026) :
+
+1. Copie `scripts\precheck_atlas.bat` et `scripts\precheck_atlas.ps1` **dans le même dossier** sur le PC (clé USB).
+2. Double-clique sur `precheck_atlas.bat`. Il lance le PowerShell de Windows (5.1), en lecture seule : rien n'est installé, modifié ni envoyé sur internet.
+3. Lis le verdict. Les seuils sont **les mêmes** que ceux de `doctor.py --precheck` ; un test les garde identiques (`tests/test_index_fichiers.py`).
+
+Si le PC a déjà Python, la même vérification existe en Python : elle n'a besoin que d'un Python nu (3.9 ou plus récent), sans aucun paquet.
    ```powershell
    py scripts\doctor.py --precheck
    ```
-3. Lis la première ligne :
+
+Le verdict :
 
 | Verdict | Ce que tu fais |
 |---|---|

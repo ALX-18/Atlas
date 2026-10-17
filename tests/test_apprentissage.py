@@ -163,7 +163,7 @@ def test_ap1_premier_plan_la_methode_qui_marche_est_tentee_en_premier(memoire_ap
     essais = []
 
     def methode(nom, ok):
-        def f(alias):
+        def f(alias, hwnd=None):              # Index des fichiers : les méthodes reçoivent le hwnd résolu
             essais.append(nom)
             return {"success": True, "message": f"Fenêtre '{alias}' mise au premier plan ({nom}).",
                     "title": alias} if ok else None

@@ -10,11 +10,15 @@ script refuse, et la copie est donc toujours cohérente.
     python scripts/backup_memory.py restore <dossier_de_sauvegarde> --vers data/chromadb --oui
 
 - backup : copie horodatée chromadb_<AAAAMMJJ_HHMMSS>/data, empreintes SHA-256 de chaque fichier
-  (SHA256SUMS), manifeste : collections, décomptes, dimensions, et les résultats des 40 requêtes
-  du garde-fou (scripts/garde_fou_rappels.py), relevés sur une copie jetable de la sauvegarde.
-- verify : empreintes revérifiées, puis la sauvegarde est ouverte dans un dossier JETABLE :
-  décomptes et dimensions, et les 40 requêtes rejouées (mêmes résultats, même ordre, distances à
-  1e-3). Rapport verify_<horodatage>.json. Rien n'est modifié.
+  (SHA256SUMS), manifeste : collections, décomptes, dimensions, l'EMPREINTE DE CHAQUE ÉLÉMENT
+  (identifiant, texte, métadonnées, vecteur en float32 tel que stocké), et les résultats des 40
+  requêtes du garde-fou (scripts/garde_fou_rappels.py), relevés sur une copie jetable.
+- verify : empreintes des fichiers revérifiées, puis la sauvegarde est ouverte dans un dossier
+  JETABLE : décomptes, dimensions et chaque élément relu à l'identique. Les 40 requêtes sont
+  rejouées À TITRE INDICATIF (sprint Index des fichiers, décision du superviseur, 16/10/2026) : la
+  recherche par ressemblance de ChromaDB est approchée et son ordre varie d'une ouverture à
+  l'autre sur des fichiers identiques ; un écart est signalé, il ne fait pas échouer.
+  Rapport verify_<horodatage>.json. Rien n'est modifié.
 - restore : exige un verify réussi et --oui. La base en place n'est jamais effacée : elle est
   mise de côté (<dossier>.avant_restauration_<horodatage>), puis la sauvegarde est copiée et
   revérifiée sur place.
@@ -97,8 +101,32 @@ def summarize(path: Path, essais: int = 3) -> dict:
             log(f"Index illisible ({str(e)[:80]}) : relevé refait avec un client neuf ({essai + 1}/{essais}).")
 
 
+def _empreinte_element(i: str, doc, meta, vecteur) -> str:
+    """Identifiant, texte, métadonnées (clés triées) et vecteur float32 tel que stocké."""
+    import numpy as np
+
+    h = hashlib.sha256()
+    h.update(json.dumps([i, doc, meta or {}], ensure_ascii=False, sort_keys=True, default=str).encode("utf-8"))
+    if vecteur is not None:
+        h.update(np.asarray(vecteur, dtype=np.float32).tobytes())
+    return h.hexdigest()
+
+
+def _releve_donnees(col, count: int, lot: int = 200) -> dict:
+    elements = {}
+    for debut in range(0, count, lot):
+        r = col.get(include=["documents", "metadatas", "embeddings"], limit=lot, offset=debut)
+        embs = r.get("embeddings")
+        for k, i in enumerate(r["ids"]):
+            elements[i] = _empreinte_element(i, (r.get("documents") or [None] * len(r["ids"]))[k],
+                                             (r.get("metadatas") or [None] * len(r["ids"]))[k],
+                                             embs[k] if embs is not None and len(embs) > k else None)
+    return {"count": len(elements), "elements": elements}
+
+
 def _summarize(path: Path) -> dict:
-    """Collections, décomptes, dimensions et résultats des 40 requêtes, sur une COPIE jetable."""
+    """Collections, décomptes, dimensions, empreinte de chaque élément, et résultats des 40
+    requêtes (indicatifs), sur une COPIE jetable."""
     from garde_fou_rappels import REQUETES
 
     work = Path(tempfile.mkdtemp(prefix="atlas_sauvegarde_"))
@@ -112,17 +140,22 @@ def _summarize(path: Path) -> dict:
             emb_ = first.get("embeddings")
             dim = len(emb_[0]) if emb_ is not None and len(emb_) else None
             cols[c.name] = {"count": col.count(), "dim": dim}
-        requetes = []
-        for q in REQUETES:
-            v = embed(q)
-            ligne = {"requete": q}
-            for n in QUERY_COLLECTIONS:
-                if n in cols and cols[n]["count"]:
-                    r = client.get_collection(n).query(query_embeddings=[v], n_results=min(10, cols[n]["count"]))
-                    ligne[n] = [[i, round(float(d), 6)] for i, d in zip(r["ids"][0], r["distances"][0])]
-            requetes.append(ligne)
+        donnees = {n: _releve_donnees(client.get_collection(n), cols[n]["count"]) for n in cols}
+        requetes, requetes_erreur = [], None
+        try:
+            for q in REQUETES:
+                v = embed(q)
+                ligne = {"requete": q}
+                for n in QUERY_COLLECTIONS:
+                    if n in cols and cols[n]["count"]:
+                        r = client.get_collection(n).query(query_embeddings=[v], n_results=min(10, cols[n]["count"]))
+                        ligne[n] = [[i, round(float(d), 6)] for i, d in zip(r["ids"][0], r["distances"][0])]
+                requetes.append(ligne)
+        except Exception as e:          # indicatives : une recherche approchée qui échoue est signalée
+            requetes_erreur = f"{type(e).__name__}: {str(e)[:160]}"
+            log(f"40 requêtes interrompues (indicatives) : {requetes_erreur}")
         del client
-        return {"collections": cols, "requetes": requetes}
+        return {"collections": cols, "donnees": donnees, "requetes": requetes, "requetes_erreur": requetes_erreur}
     finally:
         import gc
 
@@ -242,12 +275,31 @@ def verify_dir(backup: Path, data: Path | None = None, sqlite_dir: Path | None =
     empreintes_ok = all(actuelles.get(p) == h for p, h in sums.items())
     now = summarize(data)
     cols_ok = now["collections"] == manifest["collections"]
-    ordres, ecart = _compare_requetes(manifest["requetes"], now["requetes"])
+    donnees_ok, donnees = _donnees_verifier(manifest.get("donnees"), now["donnees"])
+    ordres, ecart = _compare_requetes(manifest.get("requetes", []), now["requetes"])
     sqlite_ok, sqlite = _sqlite_verifier(manifest.get("sqlite", {}), sqlite_dir or backup / "sqlite")
-    ok = empreintes_ok and cols_ok and ordres == 0 and ecart <= 1e-3 and sqlite_ok
+    ok = empreintes_ok and cols_ok and donnees_ok and sqlite_ok
     return {"ok": ok, "empreintes_identiques": empreintes_ok, "collections_identiques": cols_ok,
-            "collections": now["collections"], "requetes_40": {"ordres_differents": ordres, "ecart_distance_max": ecart},
+            "collections": now["collections"], "donnees_identiques": donnees_ok, "donnees": donnees,
+            "requetes_40": {"indicatif": True, "ordres_differents": ordres, "ecart_distance_max": ecart,
+                            "erreur": now.get("requetes_erreur")},
             "sqlite_identiques": sqlite_ok, "sqlite": sqlite}
+
+
+def _donnees_verifier(attendu: dict | None, relu: dict) -> tuple[bool, dict]:
+    """Chaque élément relu à l'identique (identifiant, texte, métadonnées, vecteur)."""
+    if attendu is None:
+        return False, {"_": "manifeste d'avant le 16/10/2026 sans empreinte des éléments : refaire une sauvegarde"}
+    res, ok = {}, True
+    for n in sorted(set(attendu) | set(relu)):
+        a = (attendu.get(n) or {}).get("elements", {})
+        b = (relu.get(n) or {}).get("elements", {})
+        differents = sorted(i for i in set(a) & set(b) if a[i] != b[i])
+        manquants = sorted(set(a) - set(b))
+        en_trop = sorted(set(b) - set(a))
+        res[n] = {"count": len(b), "differents": differents, "manquants": manquants, "en_trop": en_trop}
+        ok = ok and not (differents or manquants or en_trop)
+    return ok, res
 
 
 def _sqlite_verifier(attendu: dict, dossier: Path) -> tuple[bool, dict]:
@@ -276,7 +328,8 @@ def cmd_verify(args) -> int:
         log(f"  {n:22} {c['count']:5} éléments  dim={c['dim']}")
     log(f"Empreintes : {'identiques' if res['empreintes_identiques'] else 'DIFFÉRENTES'} ; "
         f"collections : {'identiques' if res['collections_identiques'] else 'DIFFÉRENTES'} ; "
-        f"40 requêtes : {res['requetes_40']['ordres_differents']} ordre(s) différent(s), "
+        f"éléments : {'identiques' if res['donnees_identiques'] else 'DIFFÉRENTS'} ; "
+        f"40 requêtes (indicatives) : {res['requetes_40']['ordres_differents']} ordre(s) différent(s), "
         f"écart {res['requetes_40']['ecart_distance_max']:.1e} ; "
         f"bases SQLite : {'identiques' if res['sqlite_identiques'] else 'DIFFÉRENTES'} {list(res['sqlite'])}")
     log("RESTAURATION PROUVÉE." if res["ok"] else "ÉCHEC : cette sauvegarde n'est pas fiable.")

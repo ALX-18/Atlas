@@ -44,7 +44,8 @@ def copies_journal_et_apprentissage(copie: pathlib.Path) -> dict:
     """Apprentissage 2 : un Atlas d'essai écrit son journal des actions et ce qu'il apprend à côté de
     la copie de la mémoire — jamais dans data/ (le journal d'Alexis est la source de ses habitudes)."""
     return {"ATLAS_ACTIONS_LOG": str(pathlib.Path(copie).parent / "atlas_actions.jsonl"),
-            "ATLAS_APPRENTISSAGE_DB": str(pathlib.Path(copie).parent / "apprentissage.db")}
+            "ATLAS_APPRENTISSAGE_DB": str(pathlib.Path(copie).parent / "apprentissage.db"),
+            "ATLAS_HABITS_DB": str(pathlib.Path(copie).parent / "habits.db")}
 
 
 PROTEGES = ["schedules.json", "triggers.json", "workflows", "habits.db", "file_index.json"]

@@ -162,6 +162,9 @@ CONFIRMATION_POLICY: dict[str, tuple[str, str]] = {
     "workflow_run":    ("interactif", "lancer un workflow, soit plusieurs actions d'un coup"),
     # Sprint Apprentissage 1 : oublier ce qui a été appris efface, comme toute suppression.
     "apprentissage_oublier": ("toujours", "oublier ce que j'ai appris"),
+    # Sprint Index des fichiers : ouvrir un programme ou un script, c'est exécuter du code.
+    "fichier_lancer_programme": ("toujours", "lancer un programme ou un script exécute du code sur ton PC"),
+    "index_oublier": ("toujours", "effacer l'index de tes fichiers (il se reconstruit ensuite)"),
 }
 
 
@@ -649,6 +652,19 @@ class Validator:
             )
 
         # --- Sprint Apprentissage 1 : lister, oublier ce qui a été appris ---
+        # --- Sprint Index des fichiers : la résolution du fichier se fait dans le moteur ---
+        if category == "fichiers":
+            outils = {"ouvrir": "fichier_ouvrir", "ou": "fichier_ou", "ouvrir_dossier": "fichier_ouvrir_dossier",
+                      "recents": "fichier_recents", "contenu": "fichier_contenu", "index_etat": "index_etat",
+                      "index_oublier": "index_oublier"}
+            outil = outils.get(verb)
+            if outil:
+                if verb == "recents" and (intent.params or {}).get("ouvrir"):
+                    outil = "fichier_ouvrir"
+                return ResolvedAction(tool=outil, params=dict(intent.params or {}),
+                                      confirmation_required=confirmation_reason(outil, interactive=True) is not None,
+                                      intent=intent)
+
         if category == "apprentissage":
             from core import apprentissage
 

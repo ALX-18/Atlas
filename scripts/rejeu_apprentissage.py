@@ -73,7 +73,8 @@ class Atlas:
         # avant, les rejeux écrivaient dans le journal d'Alexis (la source de ses habitudes).
         env = {**os.environ, "ATLAS_MEMORY": "real", "ATLAS_CHROMA_PATH": str(copie), "PYTHONIOENCODING": "utf-8",
                "ATLAS_APPRENTISSAGE_DB": str(copie.parent / "apprentissage.db"),
-               "ATLAS_ACTIONS_LOG": str(copie.parent / "atlas_actions.jsonl")}
+               "ATLAS_ACTIONS_LOG": str(copie.parent / "atlas_actions.jsonl"),
+               "ATLAS_HABITS_DB": str(copie.parent / "habits.db")}
         if neutralise:
             env["ATLAS_APPRENTISSAGE"] = "off"
         self.journal = open(journal, "w", encoding="utf-8")

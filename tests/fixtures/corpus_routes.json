@@ -2012,5 +2012,542 @@
    "route": "honnete"
   },
   "origine": "hors corpus (FI2)"
+ },
+ {
+  "phrase": "ouvre mon CV",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "cv"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre mon rapport de stage",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "rapport de stage"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre le rapport de stage",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "rapport de stage"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre ma facture EDF",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "facture"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre mes notes de cours",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "notes de cours"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre le fichier budget.xlsx",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "budget.xlsx"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre le document contrat de location",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "contrat de location"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre ma lettre de motivation",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "lettre de motivation"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre mon mémoire",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "memoire"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre la présentation du projet",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "presentation du projet"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre-moi mon CV",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "cv"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre le pdf de la facture",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "facture"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre mon attestation de sécurité sociale",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "attestation"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre vacances.jpg",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "vacances.jpg"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "où est mon rapport de stage ?",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "rapport de stage"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "où est mon CV ?",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "cv"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "où se trouve ma facture EDF ?",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "facture"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "où j'ai mis mon contrat ?",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "contrat"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "où sont mes photos de vacances ?",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "photos de vacances"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "trouve mon CV",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "cv"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "cherche le fichier budget",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "budget"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "retrouve mon rapport de stage",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "rapport de stage"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "où est le fichier budget.xlsx ?",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ou",
+   "cible": "budget.xlsx"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre le dernier PDF téléchargé",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir",
+   "cible": "pdf"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "le dernier PDF téléchargé",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "pdf"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "mes fichiers d'hier",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "hier"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "mes documents de cette semaine",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "semaine"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ce que j'ai modifié cette semaine",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "semaine"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ce que j'ai téléchargé aujourd'hui",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "aujourdhui"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "montre-moi mes derniers fichiers",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "les derniers documents",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "document"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "mes photos de la semaine dernière",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "semaine_derniere"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "mes téléchargements d'aujourd'hui",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "aujourdhui"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "la dernière photo",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "photo"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "liste mes fichiers d'hier",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_recents",
+   "cible": "hier"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "le document où je parle de budget",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_contenu",
+   "cible": "budget"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "trouve le fichier qui parle de la réunion",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_contenu",
+   "cible": "réunion"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "cherche dans mes documents le mot facture",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_contenu",
+   "cible": "facture"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "le pdf qui contient mon numéro client",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_contenu",
+   "cible": "numéro client"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "les documents qui parlent de Python",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_contenu",
+   "cible": "python"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "mes notes où je parle du stage",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_contenu",
+   "cible": "stage"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre le dossier",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir_dossier"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre mes téléchargements",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir_dossier",
+   "cible": "downloads"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre mes documents",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "fichier_ouvrir_dossier",
+   "cible": "documents"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "où en est l'index ?",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "index_etat"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "oublie l'index de mes fichiers",
+  "famille": "fichiers",
+  "attendu": {
+   "route": "outil",
+   "outil": "index_oublier"
+  },
+  "origine": "Index des fichiers (IX3)"
+ },
+ {
+  "phrase": "ouvre Discord",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "discord"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "ouvre word",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "word"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "ouvre mon navigateur",
+  "famille": "applications",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "ouvre mes paramètres",
+  "famille": "systeme",
+  "attendu": {
+   "route": "outil",
+   "outil": "launch_app",
+   "cible": "param"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "où est la tour Eiffel ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "où se trouve le Japon ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "cherche un bon restaurant à Lyon",
+  "famille": "internet",
+  "attendu": {
+   "route": "outil",
+   "outil": "web_search",
+   "cible": "restaurant"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "mes notes de musique préférées ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "le dernier film que j'ai vu était bien",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Index des fichiers (IX3) — négatif"
  }
 ]

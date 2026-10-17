@@ -282,17 +282,40 @@ def get_app_type(name: str | None) -> str:
     return "win32"
 
 
+def _raccourcis_du_bureau_indexes() -> list[dict]:
+    """Sprint Index des fichiers : l'index couvre tout le PC, mais une application ne se lance par
+    son nom que depuis un raccourci du BUREAU (le sien ou le Bureau public) — comme avant."""
+    try:
+        from core import file_indexer as fi
+
+        bureaux = [os.path.join(os.path.expandvars("%USERPROFILE%"), "Desktop"),
+                   os.path.join(os.path.expandvars("%PUBLIC%"), "Desktop")]
+        c = fi.connexion()
+        try:
+            rows = []
+            for b in bureaux:
+                rows += c.execute("SELECT nom, chemin, ext FROM fichiers WHERE ext IN ('.lnk', '.url') AND chemin LIKE ?",
+                                  (os.path.join(b, "") + "%",)).fetchall()
+        finally:
+            c.close()
+        return [{"name": n, "path": p, "ext": e} for n, p, e in rows]
+    except Exception:
+        return []
+
+
 def _resolve_from_file_index(query_normalized: str) -> tuple[str | None, str | None]:
     """Use passive file index to find launchable shortcuts/executables by fuzzy name."""
-    if not FILE_INDEX_PATH.exists() or not query_normalized:
+    if not query_normalized:
         return None, None
-    try:
-        with open(FILE_INDEX_PATH, encoding="utf-8") as f:
-            payload = json.load(f)
-    except Exception:
-        return None, None
-
-    files = payload.get("files", []) if isinstance(payload, dict) else []
+    if FILE_INDEX_PATH.exists():
+        try:
+            with open(FILE_INDEX_PATH, encoding="utf-8") as f:
+                payload = json.load(f)
+        except Exception:
+            return None, None
+        files = payload.get("files", []) if isinstance(payload, dict) else []
+    else:
+        files = _raccourcis_du_bureau_indexes()
     candidates: dict[str, str] = {}
     for item in files:
         path = str(item.get("path", ""))
