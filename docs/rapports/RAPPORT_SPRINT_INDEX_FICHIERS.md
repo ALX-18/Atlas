@@ -63,9 +63,7 @@ Après le rejeu :
 
 ## 1. Résumé exécutif
 
-**Statut global : PARTIELLEMENT VALIDÉ.** Tout est fait et prouvé, sauf deux points :
-- le retrait des lignes d'essais du journal attend le « oui » d'Alexis sur la liste (décision du brief) ;
-- le refus de premier plan de Windows n'a pas pu être reproduit, donc aucune technique n'est appliquée (§7).
+**Statut global : VALIDÉ, avec une réserve.** Tout est fait et prouvé. La réserve : le refus de premier plan de Windows n'a pas pu être reproduit, donc aucune technique n'est appliquée (§7). Les lignes d'essais du journal sont retirées, après le « oui » d'Alexis du 17/10 (§6.5).
 
 **Runtime :**
 - Ollama 0.40.5, mis à jour tout seul : même version mineure, `doctor.py` l'accepte ;
@@ -108,7 +106,7 @@ Après le rejeu :
 | IX3.5 — ≥ 40 demandes au corpus, négatifs ; ≥ 99,6 %, 0 à tort | 46 demandes et 10 négatifs ; 99,7 %, 0 à tort. | PASS |
 | IX3.6 — exécutables et scripts : confirmation « toujours », chemin complet ; rouge d'abord | `fichier_lancer_programme` (CONFIRMATION_POLICY « toujours »). Couvre `.exe`, `.bat`, `.ps1`, `.vbs`, `.msi`… les documents à macros, et un `.lnk` dont la cible en est un. Rouge d'abord. Réel : confirmation avec le chemin complet. | PASS |
 | IX4.1 — sauvegarde vérifiée par les données ; collections vides retirées | Rouge d'abord. Vérification réussie sur la vraie mémoire, puis retrait des 3 collections, puis nouvelle sauvegarde vérifiée. | PASS |
-| IX4.2 — lignes d'essais du journal : sauvegarde, liste, « oui », retrait | Liste envoyée le 16/10 : 312 lignes sur 1 069. **« oui » pas encore reçu → rien retiré.** Script prêt et testé. | FAIL (en attente) |
+| IX4.2 — lignes d'essais du journal : sauvegarde, liste, « oui », retrait | Liste envoyée le 16/10 (312 lignes sur 1 069) ; « oui » d'Alexis le 17/10 ; journal sauvegardé et vérifié, puis **312 retirées : 1 069 → 757**. Plus aucune ligne `AtlasEssai…` ; plus aucune habitude détectée, même toutes origines confondues. | PASS |
 | IX4.3 — premier plan sur la fenêtre exacte ; recherches par morceau listées | Rouge d'abord. Les trois méthodes visent le hwnd résolu, sans repli « le titre contient ». Liste §4.6. | PASS |
 | IX4.4 — refus de premier plan : mesurer une technique, l'appliquer si fiable | Deux techniques mesurées (§6.4) : le refus n'est **pas reproduit** par le montage (15 / 15 pour les trois façons, dont la simple). Rien d'appliqué. | PARTIEL |
 | IX4.5 — « Fenêtre '' fermée. » | Rouge d'abord, corrigé : le titre est lu avant la fermeture. | PASS |
@@ -338,7 +336,7 @@ Une première mesure, mal montée, donnait 1 / 20 pour la façon simple : la fen
 |---|---|---|
 | Mémoire (memory_e5 / memory / errors / conversations / documents) | 276 / 489 / 20 / 19 / 8 | 276 / 489 / 20 / 19 / 8 |
 | Collections vides | 3 | **0** (retirées, §6.2 — décision du brief) |
-| `data/atlas_actions.jsonl` | 1 069 lignes | 1 069 lignes (rien retiré : « oui » attendu) |
+| `data/atlas_actions.jsonl` | 1 069 lignes | **757 lignes** : 312 lignes d'essais retirées après le « oui » d'Alexis ; copie d'avant dans `Atlas_backups\journaltlas_actions_20261017_111300.jsonl` |
 | `data/apprentissage.db` | absent | absent |
 | `data/habits.db` | 142 lignes (sauvegarde vérifiée du 16/10) | **152**, puis **142** après retrait C3 |
 | `data/file_index.db` | absent | 486 Mo (l'index, voulu) |
@@ -352,14 +350,9 @@ Une première mesure, mal montée, donnait 1 / 20 pour la façon simple : la fen
 
 ## 7. Limites et risques identifiés
 
-1. **Lignes d'essais du journal : pas encore retirées.**
-   - Sévérité : **Moyen**.
-   - 312 lignes sur 1 069, liste envoyée le 16/10.
-   - Elles ne comptent pas pour les habitudes (pas d'origine d'Alexis), mais elles brouillent le journal.
-   - Mitigation : sur le « oui » d'Alexis :
-     ```
-     python scripts/nettoyer_journal.py retirer --plan <plan> --oui
-     ```
+1. **Lignes d'essais du journal : retirées** (757 lignes restent).
+   - Sévérité : **Faible**.
+   - 17 demandes de sessions d'essai, impossibles à attribuer sans doute à un script, sont gardées (§4.4).
 2. **Les autres recherches de fenêtre par morceau de nom (§4.6).**
    - Sévérité : **Élevé** pour `window_close`, Moyen pour le reste.
    - Fermer « Rapport » quand deux fenêtres en contiennent le mot ferme la première.
@@ -394,7 +387,7 @@ Une première mesure, mal montée, donnait 1 / 20 pour la façon simple : la fen
 - [x] Exécutables et scripts : jamais ouverts sans confirmation montrant le chemin complet (scénario 6, tests IX3)
 - [x] Corpus ≥ 99,6 % avec les nouvelles demandes ; 0 action à tort ; GB1 à 0 (§5.2)
 - [x] Sauvegarde vérifiée par les données ; collections vides retirées (§6.2)
-- [ ] Lignes d'essais retirées du journal **après le « oui » d'Alexis** → liste envoyée, « oui » pas encore reçu : rien retiré.
+- [x] Lignes d'essais retirées du journal après le « oui » d'Alexis (1 069 → 757, §6.5)
 - [x] Premier plan sur la fenêtre exacte ; recherches par morceau de nom listées (§4.5, §4.6)
 - [x] Aucun nom de fichier personnel dans le rapport
 - [x] `precheck_atlas.bat` testé sur le PC d'Alexis, même verdict que `doctor.py --precheck`, seuils gardés identiques par un test (§6.3)
@@ -403,8 +396,6 @@ Une première mesure, mal montée, donnait 1 / 20 pour la façon simple : la fen
 ---
 
 ## 9. Recommandations pour le sprint suivant
-
-**À faire par Alexis :** dire « oui » (ou non) à la liste des 312 lignes du journal.
 
 **P1 — fiabilité**
 - Fermer, réduire, agrandir, ancrer : sur la fenêtre résolue, refus si plusieurs correspondent (§4.6, risque 2). Commencer par `window_close`.
