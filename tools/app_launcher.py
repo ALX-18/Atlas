@@ -422,7 +422,7 @@ def apparu_depuis(avant: dict, name: str) -> str | None:
             pname = psutil.Process(pid).name().lower().removesuffix(".exe")
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
-        if pname in vrais or any(v and v in pname for v in vrais):
+        if pname in vrais:                   # AR1 : nom exact (règle GB3), plus un morceau de nom
             return f"processus {pname}"
     return None
 

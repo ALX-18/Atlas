@@ -772,6 +772,14 @@ def composants() -> list[dict]:
     ligne("cuBLAS / cuDNN", "transcription sur GPU (paquets pip)", len(cu) == 2, ", ".join(cu) or None, "GPU",
           "transcription sur processeur (dit par Atlas)", ("stt_gpu",))
 
+    # Documents (sprint Artefacts) : sans Word ni LibreOffice installés
+    ligne("Documents Word (python-docx)", "rapports, résumés et comptes rendus en .docx",
+          _pkg_version("python-docx") is not None, _pkg_version("python-docx"), "processeur",
+          "pas de document Word : Atlas le dit (bascule « documents »)", ("documents",))
+    ligne("Documents PDF (fpdf2)", "rapports, résumés et comptes rendus en .pdf",
+          _pkg_version("fpdf2") is not None, _pkg_version("fpdf2"), "processeur (polices de Windows)",
+          "pas de document PDF : Atlas le dit (bascule « documents »)", ("documents",))
+
     # Internet
     ligne("Recherche web (ddgs)", "DuckDuckGo", _pkg_version("ddgs") is not None, _pkg_version("ddgs"), "réseau",
           "recherche impossible (dit à chaque demande)")

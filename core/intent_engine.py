@@ -58,7 +58,12 @@ BROWSER_PROCESSES = [
 CONFIRMATION_TTL_S = 60.0
 
 
+_OUTILS_FENETRE_EXACTE = {"window_close": "ferme", "window_minimize": "réduis", "window_maximize": "agrandis"}
+
+
 def _confirmation_target(tool_name: str, args: dict) -> str:
+    if tool_name in _OUTILS_FENETRE_EXACTE and (args or {}).get("hwnd"):      # AR1 : titre exact et programme
+        return f"« {args.get('title')} » ({args.get('processus') or 'programme inconnu'})"
     if tool_name == "fichier_lancer_programme":          # le chemin COMPLET de ce qui serait exécuté
         return str((args or {}).get("cible") or (args or {}).get("chemin") or "")
     for key in ("title", "name", "url", "workflow_id", "job_id", "command", "action", "libelle"):
@@ -330,13 +335,13 @@ TOOL_HANDLERS = {
         target=args.get("target"),
     ),
     "window_close": lambda args: window_controller.window_close(
-        title=args.get("title", ""),
+        title=args.get("title", ""), hwnd=args.get("hwnd"),
     ),
     "window_minimize": lambda args: window_controller.window_minimize(
-        title=args.get("title", ""),
+        title=args.get("title", ""), hwnd=args.get("hwnd"),
     ),
     "window_maximize": lambda args: window_controller.window_maximize(
-        title=args.get("title", ""),
+        title=args.get("title", ""), hwnd=args.get("hwnd"),
     ),
     # Dépôt + Ollama / C2 : le classifieur l'annonçait depuis longtemps, le moteur ne l'avait pas.
     "window_restore": lambda args: window_controller.window_restore(
@@ -408,6 +413,8 @@ TOOL_HANDLERS = {
 
     # --- Sprint Apprentissage 1 : ce qu'Atlas a appris se voit et s'efface --- #
     "apprentissage_lister": lambda args: _run_apprentissage_lister(args),
+    # Sprint Artefacts
+    "artefact_creer": lambda args: _artefacts().creer(args),
     # Sprint Index des fichiers
     "fichier_ouvrir": lambda args: _fichiers().ouvrir(args),
     "fichier_lancer_programme": lambda args: _fichiers().lancer_programme(args),
@@ -463,6 +470,7 @@ TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "memory_forget": ("Mémoire", "l'oublier"),
     "redo_last_action": ("Mémoire", "refaire la dernière action"),
     "apprentissage_lister": ("Mémoire", "dire ce que j'ai appris de tes corrections"),
+    "artefact_creer": ("Documents", "rédiger un rapport, un résumé ou un compte rendu en Word ou en PDF"),
     "fichier_ouvrir": ("Fichiers", "ouvrir un de tes documents par son nom"),
     "fichier_lancer_programme": ("Fichiers", "lancer un programme ou un script trouvé sur ton PC (avec confirmation)"),
     "fichier_ou": ("Fichiers", "dire où est un fichier"),
@@ -607,6 +615,12 @@ def _fichiers():
     from tools import fichiers
 
     return fichiers
+
+
+def _artefacts():
+    from core import artefacts
+
+    return artefacts
 
 
 def _run_redo(args: dict):
@@ -1102,8 +1116,29 @@ class ExecutionEngine:
         # Sprint Index des fichiers : « ouvre mon CV » est résolu AVANT la confirmation. Plusieurs
         # fichiers → la liste et la question ; aucun → dit ; un programme ou un script (ou un raccourci
         # vers l'un d'eux) devient fichier_lancer_programme : confirmation « toujours », chemin complet.
-        if tool_name.startswith("fichier_") or tool_name.startswith("index_"):
+        if tool_name.startswith(("fichier_", "index_", "artefact_")):
             params = {**params, "_origine": context.get("origine")}
+        # Sprint Artefacts / AR1 : fermer, réduire, agrandir visent LA fenêtre désignée. Elle est
+        # résolue ici, avant la confirmation : plusieurs → la question « laquelle ? » (titre exact
+        # et programme de chacune) ; une → la confirmation montre son titre et son programme, et
+        # c'est ce hwnd-là qui est touché.
+        if tool_name in _OUTILS_FENETRE_EXACTE and not params.get("hwnd"):
+            cands = window_controller.fenetres_correspondantes(params.get("title", ""))
+            if len(cands) > 1:
+                from core import propositions
+
+                verbe = _OUTILS_FENETRE_EXACTE[tool_name]
+                options = cands[:5]
+                propositions.proposer(None, "choix_fenetre", context.get("origine"),
+                                      options=[f"{verbe} la fenêtre #{w['hwnd']}" for w in options])
+                lignes = "\n".join(f"{k + 1}. « {w['title']} » ({w['process'] or '?'})" for k, w in enumerate(options))
+                message = (f"Plusieurs fenêtres correspondent à « {params.get('title')} » :\n{lignes}\n"
+                           "Laquelle ? Dis « la 1 », « la 2 »…")
+                return {"status": "success", "message": message, "result": {"success": True, "message": message}}
+            if len(cands) == 1:
+                w = cands[0]
+                params = {**params, "title": w["title"], "hwnd": w["hwnd"], "processus": w["process"]}
+
         if tool_name == "fichier_ouvrir":
             from tools import fichiers as _fichiers
 

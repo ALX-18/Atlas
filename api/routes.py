@@ -566,6 +566,14 @@ def _refuser_si_autre_origine(request: Request | None) -> None:
                             detail="Les confirmations ne se donnent que depuis Atlas.")
 
 
+@router.get("/annonces")
+async def api_annonces():
+    """Sprint Artefacts : ce qu'Atlas annonce de lui-même (un document prêt). Relevé par la fenêtre."""
+    from core import annonces
+
+    return {"annonces": annonces.lire()}
+
+
 @router.get("/confirmations")
 async def list_confirmations(request: Request = None):
     """Confirmations en attente, y compris celles demandées à la voix (F2).

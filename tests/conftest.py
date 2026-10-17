@@ -101,7 +101,10 @@ def _isolate_data() -> pathlib.Path:
     import tools.system_config as system_config
     import api.routes as routes
 
+    import core.annonces as annonces
     import core.apprentissage_store as apprentissage_store
+
+    annonces.NOTIFIER = False                                    # Artefacts : pas de notification Windows en test
 
     atlas_logger.LOG_FILE = data / "atlas_actions.jsonl"
     apprentissage_store.DB_PATH = data / "apprentissage.db"      # Apprentissage 2 : jamais le vrai

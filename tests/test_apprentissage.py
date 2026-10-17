@@ -173,6 +173,8 @@ def test_ap1_premier_plan_la_methode_qui_marche_est_tentee_en_premier(memoire_ap
                                                        "pygetwindow": methode("pygetwindow", False),
                                                        "win32": methode("win32", True)})
     monkeypatch.setattr(wc, "resolve_app_window", lambda t: ({"title": "AtlasTemoin", "hwnd": 1}, None))
+    # Sprint Artefacts / AR1 : la vérification « fenêtre visible » regarde vraiment la liste des fenêtres.
+    monkeypatch.setattr(wc, "_list_visible_windows", lambda: [{"hwnd": 1, "title": "AtlasTemoin", "process": "python.exe"}])
     monkeypatch.setattr(wc, "_PREMIER_PLAN_ATTENTES", [0.0])
     _chat("mets AtlasTemoin au premier plan")
     assert essais == ["pywinauto", "pygetwindow", "win32"], essais
@@ -252,7 +254,11 @@ def premier_plan(monkeypatch):
     """« mets … au premier plan » compté, jamais exécuté."""
     import core.intent_engine as ie
 
+    import tools.window_controller as wc
+
     faits = []
+    # Sprint Artefacts / AR1 : la vérification « fenêtre visible » regarde vraiment la liste des fenêtres.
+    monkeypatch.setattr(wc, "_list_visible_windows", lambda: [{"hwnd": 9, "title": "AtlasTemoin", "process": "python.exe"}])
     monkeypatch.setitem(ie.TOOL_HANDLERS, "window_focus",
                         lambda args: faits.append(args.get("title")) or
                         {"success": True, "message": f"Fenêtre '{args.get('title')}' mise au premier plan."})

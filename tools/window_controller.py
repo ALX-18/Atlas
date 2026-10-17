@@ -231,6 +231,79 @@ def resolve_app_window(name: str) -> tuple[dict | None, str | None]:
     return matches[0], None
 
 
+# --------------------------------------------------------------------------- #
+#  Sprint Artefacts / AR1 — agir sur la fenêtre EXACTE
+#
+#  Avant : fermer, réduire, agrandir, ancrer prenaient getWindowsWithTitle(nom)[0], la PREMIÈRE
+#  fenêtre dont le titre contient le nom (rapport Index des fichiers, §4.6). La confirmation
+#  disait « fermer Rapport » et pouvait fermer une autre fenêtre que celle qu'Alexis croyait.
+#  Maintenant : la fenêtre est résolue (même règle que resolve_app_window ; plusieurs →
+#  on demande laquelle), la confirmation montre son titre exact et son programme, et c'est
+#  CETTE fenêtre, par son hwnd, qui est touchée — après avoir vérifié qu'elle n'a pas changé.
+# --------------------------------------------------------------------------- #
+
+def fenetres_correspondantes(name: str) -> list[dict]:
+    """Les fenêtres que désigne ce nom : une seule si le titre exact est unique, sinon toutes
+    celles dont le titre contient le nom (ou dont le programme porte ce nom). « #123 » : hwnd."""
+    wanted = (name or "").strip().lower()
+    if not wanted:
+        return []
+    windows = _list_visible_windows()
+    m = re.fullmatch(r"#(\d+)", wanted)
+    if m:
+        return [w for w in windows if w["hwnd"] == int(m.group(1))]
+    exact = [w for w in windows if w["title"].lower() == wanted]
+    if len(exact) == 1:
+        return exact
+    aliases = [a.lower() for a in _resolve_aliases(name)] or [wanted]
+    return [w for w in windows
+            if any(a in w["title"].lower() for a in aliases)
+            or any(w["process"].lower().removesuffix(".exe") == a.removesuffix(".exe") for a in aliases)]
+
+
+def _cible_exacte(title: str, hwnd: Optional[int] = None) -> tuple[Optional[dict], Optional[dict]]:
+    """(fenêtre, None) ou (None, refus). Avec un hwnd (décidé avant la confirmation) : la fenêtre
+    doit exister encore et porter le même titre — sinon on ne touche à rien."""
+    if hwnd:
+        w = next((x for x in _list_visible_windows() if x["hwnd"] == int(hwnd)), None)
+        if w is None:
+            return None, _refused(f"la fenêtre « {title} » n'est plus ouverte : rien n'a été fait")
+        if title and not title.startswith("#") and w["title"].lower() != title.strip().lower():
+            return None, _refused(f"la fenêtre a changé de titre depuis (« {w['title']} ») : rien n'a été fait")
+        return w, None
+    cands = fenetres_correspondantes(title)
+    if not cands:
+        return None, {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
+    if len(cands) > 1:
+        titres = " ; ".join(f"« {w['title']} » ({w['process']})" for w in cands[:6])
+        return None, _refused(f"plusieurs fenêtres correspondent à « {title} » : {titres}. Précise laquelle")
+    return cands[0], None
+
+
+def _agir_sur_hwnd(action: str, hwnd: int, **k) -> bool:
+    """fermer | reduire | agrandir | ancrer (x, y, l, h). Rien d'autre que ce hwnd n'est touché."""
+    if not HAS_WIN32:
+        return False
+    try:
+        if action == "fermer":
+            win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
+        elif action == "reduire":
+            win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+        elif action == "agrandir":
+            win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        elif action == "ancrer":
+            if win32gui.IsIconic(hwnd) or win32gui.GetWindowPlacement(hwnd)[1] == win32con.SW_SHOWMAXIMIZED:
+                win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
+                time.sleep(0.2)
+            win32gui.MoveWindow(hwnd, k["x"], k["y"], k["l"], k["h"], True)
+        else:
+            return False
+        return True
+    except Exception as e:
+        logger.debug("_agir_sur_hwnd(%s, %s) : %s", action, hwnd, e)
+        return False
+
+
 def _enum_windows_by_title(title_fragment: str) -> list[dict]:
     """Enumère toutes les fenêtres dont le titre contient le fragment (Win32)."""
     if not HAS_WIN32:
@@ -355,36 +428,11 @@ class WindowController:
 
     @staticmethod
     def find_window(title: str) -> dict[str, Any]:
-        """
-        Recherche une fenêtre par titre (partiel).
-        Retourne les fenêtres correspondantes.
-        """
-        for alias in _resolve_aliases(title):
-            # Essai avec pygetwindow
-            try:
-                windows = gw.getWindowsWithTitle(alias)
-                if windows:
-                    matches = []
-                    for w in windows:
-                        matches.append({
-                            "title": w.title,
-                            "left": w.left,
-                            "top": w.top,
-                            "width": w.width,
-                            "height": w.height,
-                            "visible": w.visible,
-                            "minimized": w.isMinimized,
-                        })
-                    return {"success": True, "windows": matches, "count": len(matches)}
-            except Exception as e:
-                logger.debug("pygetwindow find failed for '%s', trying Win32: %s", alias, e)
-
-            # Fallback Win32
-            win32_results = _enum_windows_by_title(alias)
-            if win32_results:
-                return {"success": True, "windows": win32_results, "count": len(win32_results)}
-
-        return {"success": False, "message": f"Aucune fenêtre trouvée contenant '{title}'.", "windows": []}
+        """Les fenêtres que désigne ce titre (AR1 : même règle que fermer ou ancrer)."""
+        cands = fenetres_correspondantes(title)
+        if not cands:
+            return {"success": False, "message": f"Aucune fenêtre trouvée contenant '{title}'.", "windows": []}
+        return {"success": True, "windows": cands, "count": len(cands)}
 
     @staticmethod
     def focus_window(title: str, appris: Optional[dict] = None) -> dict[str, Any]:
@@ -416,7 +464,7 @@ class WindowController:
                 res = _METHODES_PREMIER_PLAN[nom](resolved["title"], resolved["hwnd"])
                 tentatives.append({"methode": nom, "resultat": "success" if res else "failure"})
                 if res:
-                    return {**res, "methode": nom, "tentatives": tentatives}
+                    return {**res, "methode": nom, "tentatives": tentatives, "hwnd": resolved["hwnd"]}
             if attempt < len(_PREMIER_PLAN_ATTENTES):
                 time.sleep(delay)
 
@@ -538,10 +586,10 @@ class WindowController:
         """
         try:
             if title:
-                windows = gw.getWindowsWithTitle(title)
-                if not windows:
-                    return {"success": False, "message": f"Fenêtre '{title}' non trouvée pour la capture."}
-                w = windows[0]
+                fen, refus = _cible_exacte(title)        # AR1 : la fenêtre exacte, pas un homonyme
+                if refus:
+                    return {**refus, "message": refus["message"] + " (capture)"}
+                w = gw.Win32Window(fen["hwnd"])
                 if w.isMinimized:
                     w.restore()
                     time.sleep(0.5)
@@ -603,8 +651,12 @@ def _focus_and_verify(target: str, appris: Optional[dict] = None):
         active = None
     active_title = (getattr(active, "title", "") or "") if active else ""
     focused_title = (focus_result.get("title") or "").lower()
-    if not ((focused_title and active_title.lower() == focused_title)
-            or any(alias.lower() in active_title.lower() for alias in _resolve_aliases(target))):
+    active_hwnd = int(getattr(active, "_hWnd", 0) or 0) if active else 0
+    # AR1 : c'est la fenêtre visée (son hwnd) qui doit être devant ; à défaut de hwnd, son titre
+    # exact. Plus « un alias contenu dans le titre » : un homonyme passait pour la bonne.
+    bonne = (active_hwnd == focus_result["hwnd"]) if focus_result.get("hwnd") else \
+        bool(focused_title and active_title.lower() == focused_title)
+    if not bonne:
         return None, _refused(
             f"la fenêtre '{target}' n'est pas passée au premier plan "
             f"(premier plan : '{active_title or '?'}'), aucune action effectuée"
@@ -721,81 +773,46 @@ def window_get_active() -> dict[str, Any]:
     return _controller.get_active_window()
 
 
-def window_close(title: str) -> dict[str, Any]:
-    """Ferme la fenêtre correspondant au titre."""
+def window_close(title: str, hwnd: Optional[int] = None) -> dict[str, Any]:
+    """Ferme LA fenêtre désignée (AR1) : résolue, ou ce hwnd décidé avant la confirmation."""
     title, error = check_window_title(title)
     if error:
         return _refused(error)
-    for alias in _resolve_aliases(title):
-        try:
-            windows = gw.getWindowsWithTitle(alias)
-            if windows:
-                w = windows[0]
-                titre = w.title                    # lu AVANT : une fenêtre fermée n'a plus de titre
-                w.close()
-                time.sleep(0.5)
-                return {"success": True, "message": f"Fenêtre '{titre}' fermée."}
-        except Exception:
-            pass
-        # Fallback Win32
-        if HAS_WIN32:
-            win32_results = _enum_windows_by_title(alias)
-            if win32_results:
-                hwnd = win32_results[0]["hwnd"]
-                win32gui.PostMessage(hwnd, win32con.WM_CLOSE, 0, 0)
-                time.sleep(0.5)
-                return {"success": True, "message": f"Fenêtre '{win32_results[0]['title']}' fermée (Win32)."}
-    return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
+    w, refus = _cible_exacte(title, hwnd)
+    if refus:
+        return refus
+    if not _agir_sur_hwnd("fermer", w["hwnd"]):
+        return {"success": False, "message": f"Je n'ai pas pu fermer « {w['title']} »."}
+    time.sleep(0.5)
+    return {"success": True, "message": f"Fenêtre '{w['title']}' fermée."}
 
 
-def window_minimize(title: str) -> dict[str, Any]:
-    """Minimise la fenêtre correspondant au titre."""
+def window_minimize(title: str, hwnd: Optional[int] = None) -> dict[str, Any]:
+    """Réduit LA fenêtre désignée (AR1)."""
     title, error = check_window_title(title)
     if error:
         return _refused(error)
-    for alias in _resolve_aliases(title):
-        try:
-            windows = gw.getWindowsWithTitle(alias)
-            if windows:
-                w = windows[0]
-                w.minimize()
-                time.sleep(0.3)
-                return {"success": True, "message": f"Fenêtre '{w.title}' minimisée."}
-        except Exception:
-            pass
-        if HAS_WIN32:
-            win32_results = _enum_windows_by_title(alias)
-            if win32_results:
-                hwnd = win32_results[0]["hwnd"]
-                win32gui.ShowWindow(hwnd, win32con.SW_MINIMIZE)
-                time.sleep(0.3)
-                return {"success": True, "message": f"Fenêtre '{win32_results[0]['title']}' minimisée (Win32)."}
-    return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
+    w, refus = _cible_exacte(title, hwnd)
+    if refus:
+        return refus
+    if not _agir_sur_hwnd("reduire", w["hwnd"]):
+        return {"success": False, "message": f"Je n'ai pas pu réduire « {w['title']} »."}
+    time.sleep(0.3)
+    return {"success": True, "message": f"Fenêtre '{w['title']}' minimisée."}
 
 
-def window_maximize(title: str) -> dict[str, Any]:
-    """Maximise la fenêtre correspondant au titre."""
+def window_maximize(title: str, hwnd: Optional[int] = None) -> dict[str, Any]:
+    """Agrandit LA fenêtre désignée (AR1)."""
     title, error = check_window_title(title)
     if error:
         return _refused(error)
-    for alias in _resolve_aliases(title):
-        try:
-            windows = gw.getWindowsWithTitle(alias)
-            if windows:
-                w = windows[0]
-                w.maximize()
-                time.sleep(0.3)
-                return {"success": True, "message": f"Fenêtre '{w.title}' maximisée."}
-        except Exception:
-            pass
-        if HAS_WIN32:
-            win32_results = _enum_windows_by_title(alias)
-            if win32_results:
-                hwnd = win32_results[0]["hwnd"]
-                win32gui.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
-                time.sleep(0.3)
-                return {"success": True, "message": f"Fenêtre '{win32_results[0]['title']}' maximisée (Win32)."}
-    return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
+    w, refus = _cible_exacte(title, hwnd)
+    if refus:
+        return refus
+    if not _agir_sur_hwnd("agrandir", w["hwnd"]):
+        return {"success": False, "message": f"Je n'ai pas pu agrandir « {w['title']} »."}
+    time.sleep(0.3)
+    return {"success": True, "message": f"Fenêtre '{w['title']}' maximisée."}
 
 
 def _restore_hwnd(hwnd) -> bool:
@@ -888,27 +905,9 @@ def window_snap(title: str, position: str = "left") -> dict[str, Any]:
 
     x, y, w, h = snap_positions[position]
 
-    for alias in _resolve_aliases(title):
-        try:
-            windows = gw.getWindowsWithTitle(alias)
-            if windows:
-                win = windows[0]
-                if win.isMinimized:
-                    win.restore()
-                    time.sleep(0.3)
-                win.moveTo(x, y)
-                win.resizeTo(w, h)
-                return {"success": True, "message": f"Fenêtre '{win.title}' snappée en position '{position}'."}
-        except Exception:
-            pass
-        if HAS_WIN32:
-            win32_results = _enum_windows_by_title(alias)
-            if win32_results:
-                hwnd = win32_results[0]["hwnd"]
-                if win32gui.IsIconic(hwnd):
-                    win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-                    time.sleep(0.3)
-                win32gui.MoveWindow(hwnd, x, y, w, h, True)
-                return {"success": True, "message": f"Fenêtre snappée en position '{position}' (Win32)."}
-
-    return {"success": False, "message": f"Aucune fenêtre trouvée pour '{title}'."}
+    fen, refus = _cible_exacte(title)
+    if refus:
+        return refus
+    if not _agir_sur_hwnd("ancrer", fen["hwnd"], x=x, y=y, l=w, h=h):
+        return {"success": False, "message": f"Je n'ai pas pu ancrer « {fen['title']} »."}
+    return {"success": True, "message": f"Fenêtre '{fen['title']}' snappée en position '{position}'."}

@@ -467,6 +467,11 @@ class AtlasDesktop:
                     if c.status_code == 200:
                         for item in c.json().get("pending", []):
                             self._messages.put(("confirmation", item))
+                    # Sprint Artefacts : un document rédigé en arrière-plan est prêt (ou a échoué).
+                    a = client.get(f"{base}/api/annonces")
+                    if a.status_code == 200:
+                        for item in a.json().get("annonces", []):
+                            self._messages.put(("atlas", item.get("message", "")))
             except Exception:
                 self._messages.put(("voice", None))   # backend pas encore prêt : silence
 

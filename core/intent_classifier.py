@@ -183,6 +183,8 @@ INTENT_CATEGORIES = {
             "forget": "memory_forget",
         },
     },
+    # Sprint Artefacts : rédiger un document Word ou PDF (règles dédiées, _regles_artefacts)
+    "artefact": {"verbs_map": {}, "tools": {"creer": "artefact_creer"}},
     # Sprint Index des fichiers : tes fichiers (règles dédiées dans classify, _regles_fichiers)
     "fichiers": {
         "verbs_map": {},
@@ -709,6 +711,74 @@ def _regles_fichiers(raw: str, plain: str) -> Optional[IntentResult]:
         return _fichier("ouvrir", raw, requete=_morceau_brut(raw, plain, m.group("x")))
     return None
 
+
+# --------------------------------------------------------------------------- #
+#  Sprint Artefacts — rédiger un document. Une demande d'artefact contient un MOT DE DOCUMENT
+#  (document, Word, PDF, rapport, compte rendu, fichier) : sans lui, « résume-moi la révolution
+#  française » reste une conversation.
+# --------------------------------------------------------------------------- #
+
+_MOT_DE_DOCUMENT = re.compile(r"\b(?:documents?|word|pdf|docx|rapports?|compte[ -]rendus?|fichiers?|doc)\b")
+_FORMATS = re.compile(r"\s+(?:en|dans un|dans une|sous forme d'un|sous forme de|au format|format)\s+"
+                      r"(?:fichier\s+)?(?P<a>word|pdf|docx)(?:\s+(?:et|ou)\s+(?:en\s+|un\s+)?(?P<b>word|pdf|docx))?\b",
+                      re.IGNORECASE)
+
+
+def _formats_demandes(plain: str) -> list[str]:
+    pdf = bool(re.search(r"\bpdf\b", plain))
+    word = bool(re.search(r"\b(?:word|docx)\b", plain))
+    return ["docx", "pdf"] if (pdf and word) else (["pdf"] if pdf else ["docx"])
+
+
+def _artefact(raw: str, **params) -> IntentResult:
+    return IntentResult(category="artefact", verb="creer", target=params.get("sujet") or params.get("source"),
+                        params={"phrase": raw.strip().rstrip(" .!?"), **params}, confidence=0.95, is_complex=False,
+                        raw_input=raw)
+
+
+def _regles_artefacts(raw: str, plain: str) -> Optional[IntentResult]:
+    if re.search(r"https?://|www\.", plain) or not _MOT_DE_DOCUMENT.search(plain):
+        return None
+    formats = _formats_demandes(plain)
+    brut = raw.strip().rstrip(" .!?")
+    # Un choix dans une liste, ou un complément : le chemin exact du fichier source.
+    m = re.match(r"^(?:resume le fichier|redige un compte rendu du fichier)\s+(?P<c>[a-z]:\\.+?)"
+                 r"(?:\s+(?:et\s+)?en\s+pdf)?(?:\s+—\s+details\s*:\s*(?P<d>.+))?$", plain)
+    if m:
+        chemin = re.search(r"[A-Za-z]:\\.+?(?=\s+(?:et\s+)?en\s+PDF|\s+—\s+|$)", brut, re.IGNORECASE).group(0).strip()
+        details = brut.split("— détails :", 1)[1].strip() if "— détails :" in brut else None
+        nature = "compte_rendu" if plain.startswith("redige un compte rendu") else "resume"
+        return _artefact(raw, type=nature, source_chemin=chemin, formats=formats, details=details)
+    sans_fmt_plain = _FORMATS.sub("", plain).strip()
+    sans_fmt_brut = _FORMATS.sub("", brut).strip()
+    # Résumé : « résume mon rapport de stage dans un Word », « fais un résumé en PDF de mon rapport… »
+    m = re.match(r"^(?:resume|resumer|fais(?:-| )moi un resume|fais un resume|redige un resume|ecris un resume|"
+                 r"fais(?:-| )moi une synthese|fais une synthese)(?:-moi| moi)?\s+(?:de |du |des |d')?(?P<x>.+)$",
+                 sans_fmt_plain)
+    if m:
+        x = m.group("x")
+        x_brut = _morceau_brut(sans_fmt_brut, sans_fmt_plain, x)
+        if x.startswith("le fichier "):
+            return _artefact(raw, type="resume", source=x_brut[len("le fichier "):], formats=formats)
+        if _ressemble_a_un_fichier(x):
+            return _artefact(raw, type="resume", source=x_brut, formats=formats)
+        return _artefact(raw, type="rapport", sujet=x_brut, formats=formats)
+    # Rapport, document, compte rendu : « fais-moi un rapport sur la photosynthèse »
+    m = re.match(r"^(?:fais|fait|redige|rediger|ecris|prepare|prepares|genere|cree|produis)(?:-| )?(?:moi |nous )?"
+                 r"(?:un |une )(?P<t>rapport|compte[ -]rendu|document)"
+                 r"(?:\s+(?:word|pdf|docx))?(?:\s+(?:sur|de|du|des|d'|a propos d(?:e|u|es)|au sujet d(?:e|u|es)|"
+                 r"concernant)\s*(?P<x>.+))?$",
+                 sans_fmt_plain)
+    if m:
+        x = m.group("x") or ""
+        x_brut = _morceau_brut(sans_fmt_brut, sans_fmt_plain, x) if x else ""
+        if m.group("t").startswith("compte"):
+            return _artefact(raw, type="compte_rendu", source=x_brut or None, formats=formats)
+        if x and _ressemble_a_un_fichier(x):
+            return _artefact(raw, type="resume", source=x_brut, formats=formats)
+        return _artefact(raw, type="rapport", sujet=x_brut, formats=formats)
+    return None
+
 class IntentClassifier:
     """Classifie les intentions utilisateur de manière déterministe."""
 
@@ -720,6 +790,12 @@ class IntentClassifier:
         """
         raw = user_input.strip()
         normalized = raw.lower()
+
+        # --- Sprint Artefacts : « fais-moi un rapport sur… », « résume mon rapport de stage dans un Word ».
+        # En premier : « écris un rapport sur… » n'est pas « écris X dans une fenêtre ».
+        artefact = _regles_artefacts(raw, _sans_accents(normalized).replace("’", "'").strip().rstrip(" .!?"))
+        if artefact is not None:
+            return artefact
 
         # --- F2 v6.0 — Lecture d'écran (CU-1/3/4/5) ---
         # CU-3 "que fais-je actuellement" → mode activity
@@ -954,6 +1030,13 @@ class IntentClassifier:
                      r"\bce que tu as appris\b|\btu as appris quoi\b", _plain_ap):
             return IntentResult(category="apprentissage", verb="lister", target=None, params={},
                                 confidence=0.95, is_complex=False, raw_input=raw)
+
+        # --- Sprint Artefacts / AR1 : un choix dans la liste des fenêtres homonymes ---
+        m = re.fullmatch(r"(ferme|reduis|agrandis) la fenetre (#\d+)", _plain_ap.strip().rstrip(" .!?"))
+        if m:
+            verbe = {"ferme": "close", "reduis": "minimize", "agrandis": "maximize"}[m.group(1)]
+            return IntentResult(category="window_mgmt", verb=verbe, target=m.group(2), params={"title": m.group(2)},
+                                confidence=0.97, is_complex=False, raw_input=raw)
 
         # --- Sprint Index des fichiers : tes fichiers (texte sans accents) ---
         fichiers = _regles_fichiers(raw, _plain_ap.strip().rstrip(" .!?"))
