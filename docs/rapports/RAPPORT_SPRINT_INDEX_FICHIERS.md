@@ -336,7 +336,7 @@ Une première mesure, mal montée, donnait 1 / 20 pour la façon simple : la fen
 |---|---|---|
 | Mémoire (memory_e5 / memory / errors / conversations / documents) | 276 / 489 / 20 / 19 / 8 | 276 / 489 / 20 / 19 / 8 |
 | Collections vides | 3 | **0** (retirées, §6.2 — décision du brief) |
-| `data/atlas_actions.jsonl` | 1 069 lignes | **757 lignes** : 312 lignes d'essais retirées après le « oui » d'Alexis ; copie d'avant dans `Atlas_backups\journaltlas_actions_20261017_111300.jsonl` |
+| `data/atlas_actions.jsonl` | 1 069 lignes | **757 lignes** : 312 lignes d'essais retirées après le « oui » d'Alexis ; copie d'avant dans `Atlas_backups\journal\atlas_actions_20261017_111300.jsonl` |
 | `data/apprentissage.db` | absent | absent |
 | `data/habits.db` | 142 lignes (sauvegarde vérifiée du 16/10) | **152**, puis **142** après retrait C3 |
 | `data/file_index.db` | absent | 486 Mo (l'index, voulu) |
