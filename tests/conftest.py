@@ -79,6 +79,16 @@ def _isolate_chroma() -> pathlib.Path:
     return path
 
 
+class MaterielInterdit:
+    """Remplace le vrai matériel pendant les tests : toute utilisation échoue, bruyamment."""
+
+    def __init__(self, nom: str):
+        self._nom = nom
+
+    def __getattr__(self, attribut):
+        raise RuntimeError(f"tests : le vrai matériel est interdit ({self._nom}.MATERIEL.{attribut})")
+
+
 def _isolate_data() -> pathlib.Path:
     root = pathlib.Path(tempfile.mkdtemp(prefix="atlas_tests_root_"))
     _state["dirs"].append(root)
@@ -105,6 +115,19 @@ def _isolate_data() -> pathlib.Path:
     import core.apprentissage_store as apprentissage_store
 
     annonces.NOTIFIER = False                                    # Artefacts : pas de notification Windows en test
+
+    # Compétences 1 : la base des rappels est jetable ; le VRAI matériel (son, écrans, Bluetooth,
+    # lecteurs) est interdit — un test qui l'oublierait changerait le volume ou éteindrait les écrans
+    # d'Alexis. Les tests installent leurs doubles (monkeypatch de MATERIEL).
+    import core.rappels as rappels
+    import tools.affichage as affichage
+    import tools.bluetooth as bluetooth
+    import tools.musique as musique
+    import tools.son as son
+
+    rappels.DB_PATH = data / "rappels.db"
+    for module in (son, affichage, bluetooth, musique):
+        module.MATERIEL = MaterielInterdit(module.__name__)
 
     atlas_logger.LOG_FILE = data / "atlas_actions.jsonl"
     apprentissage_store.DB_PATH = data / "apprentissage.db"      # Apprentissage 2 : jamais le vrai

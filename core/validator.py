@@ -656,6 +656,15 @@ class Validator:
         if category == "artefact":
             return ResolvedAction(tool="artefact_creer", params=dict(intent.params or {}), intent=intent)
 
+        # --- Sprint Compétences 1 : l'outil est nommé par la règle ; ce qui manque est demandé par l'outil,
+        # et le Bluetooth éteint avec un clavier ou une souris connecté passe par une confirmation (moteur).
+        if category == "competence":
+            outil = INTENT_CATEGORIES["competence"]["tools"].get(verb)
+            if outil:
+                return ResolvedAction(tool=outil, params=dict(intent.params or {}),
+                                      confirmation_required=confirmation_reason(outil, interactive=True) is not None,
+                                      intent=intent)
+
         # --- Sprint Index des fichiers : la résolution du fichier se fait dans le moteur ---
         if category == "fichiers":
             outils = {"ouvrir": "fichier_ouvrir", "ou": "fichier_ou", "ouvrir_dossier": "fichier_ouvrir_dossier",

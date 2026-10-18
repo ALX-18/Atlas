@@ -322,7 +322,7 @@ def mesure_atlas(copie: str, duree_melange_s: int = 600) -> dict:
                # Apprentissage 2 : jamais le journal d'Alexis ni ce qu'il a appris
                "ATLAS_ACTIONS_LOG": str(work / "atlas_actions.jsonl"),
                "ATLAS_APPRENTISSAGE_DB": str(work / "apprentissage.db"),
-               "ATLAS_HABITS_DB": str(work / "habits.db")}
+               "ATLAS_HABITS_DB": str(work / "habits.db"), "ATLAS_RAPPELS_DB": str(work / "rappels.db")}
         t0 = time.perf_counter()
         atlas = subprocess.Popen([PY, "main.py"], cwd=ROOT, env=env, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL)

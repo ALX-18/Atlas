@@ -76,6 +76,9 @@ $py = Get-Command py -ErrorAction SilentlyContinue
 $ol = Get-Command ollama -ErrorAction SilentlyContinue
 Write-Host ("Python    : {0}" -f $(if ($py) { "lanceur py present" } else { "absent (l'installation s'en chargera)" }))
 Write-Host ("Ollama    : {0}" -f $(if ($ol) { "deja installe" } else { "absent (l'installation s'en chargera)" }))
+# Competences 1 : le Bluetooth (Atlas sait l'allumer et l'eteindre). Sans lui, Atlas le dit ; le verdict n'en depend pas.
+$bt = @(Get-PnpDevice -Class Bluetooth -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq "OK" })
+Write-Host ("Bluetooth : {0}" -f $(if ($bt.Count -gt 0) { "present" } else { "absent ou desactive (Atlas le dira ; sans effet sur le verdict)" }))
 
 # --- Verdict ---
 Write-Host ""

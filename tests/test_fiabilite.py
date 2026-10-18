@@ -86,7 +86,8 @@ def test_fi2_le_taux_ne_peut_que_monter(mesure):
     ("résume la page https://example.com", "read_url"),
     ("liste les programmes en cours", "list_processes"),
     ("liste mes tâches planifiées", "schedule_list"),
-    ("rappelle-moi de boire de l'eau tous les jours à 15h", "schedule_add"),
+    # Compétences 1 / CP2 : un vrai rappel répété (rappels.db), plus une tâche planifiée quotidienne (P2).
+    ("rappelle-moi de boire de l'eau tous les jours à 15h", "rappel_creer"),
 ])
 def test_fi2_les_5_phrases_du_checkup(phrase, outil):
     from mesure_routes import route
@@ -95,13 +96,16 @@ def test_fi2_les_5_phrases_du_checkup(phrase, outil):
     assert (r["route"], r.get("outil")) == ("outil", outil), r
 
 
-def test_fi2_planifier_par_rappelle_moi_demande_confirmation():
+def test_fi2_rappelle_moi_est_un_rappel_et_plus_une_tache_planifiee():
+    """Compétences 1 / CP2 remplace FI2 : « rappelle-moi » créait une tâche planifiée (confirmée, et
+    QUOTIDIENNE quel que soit le moment dit). C'est maintenant un rappel, à l'heure dite."""
     from core.intent_classifier import get_classifier
-    from core.validator import confirmation_reason, get_validator
+    from core.validator import get_validator
 
     intent = get_classifier().classify("rappelle-moi de boire de l'eau tous les jours à 15h", {})
     res = get_validator().resolve(intent, {})
-    assert res.tool == "schedule_add" and confirmation_reason("schedule_add", interactive=True)
+    assert res.tool == "rappel_creer" and not res.confirmation_required
+    assert res.params["texte"] == "boire de l'eau"
 
 
 @pytest.mark.parametrize("phrase", ["ajoute du lait à ma liste de courses", "résume l'histoire de Rome"])

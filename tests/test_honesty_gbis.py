@@ -178,7 +178,8 @@ def test_gb1_api_chat_reponse_fixe_sans_appeler_le_modele(monde, monkeypatch):
 
     import api.routes as routes
     monkeypatch.setattr(routes, "chat_stream", stream)
-    r = asyncio.run(chat_endpoint(ChatRequest(message="baisse le volume", history=[])))
+    # Compétences 1 : « baisse le volume » a maintenant un outil ; « coupe le wifi » reste impossible.
+    r = asyncio.run(chat_endpoint(ChatRequest(message="coupe le wifi", history=[])))
     assert r["message"] == REPONSE_FIXE, r
     assert appels == [], "le modèle a été appelé pour une action qu'aucun outil ne sait faire"
     assert executed == [] and mem.ingeres == []

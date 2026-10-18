@@ -52,7 +52,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 DEFAULT_SOURCE = ROOT / "data" / "chromadb"
 DEFAULT_DEST = Path.home() / "Atlas_backups" / "memoire"
 QUERY_COLLECTIONS = ("atlas_memory_e5", "atlas_conversations", "atlas_documents")
-SQLITE_FICHIERS = ("apprentissage.db", "habits.db")      # voisins du dossier de la mémoire (data/)
+SQLITE_FICHIERS = ("apprentissage.db", "habits.db", "rappels.db")   # voisins du dossier de la mémoire (data/) ; rappels : Compétences 1
 SQLITE_VERROUILLES = ("apprentissage.db",)               # tenus par Atlas comme la mémoire
 
 

@@ -534,7 +534,6 @@ def test_ck7_requirements_sans_paquet_mort_et_avec_ceux_qui_servent():
 
 # Paquets déclarés qu'aucun « import » du code ne nomme, mais qui servent (prouvé en CK1).
 DECLARES_INDIRECTS = {
-    "comtypes": "chargé par pywinauto (couche UIA) et pycaw",
     "lxml": "analyseur de BeautifulSoup, désigné par son nom (« lxml ») dans tools/web_reader.py",
 }
 

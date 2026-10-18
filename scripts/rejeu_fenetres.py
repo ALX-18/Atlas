@@ -74,7 +74,7 @@ def main(argv=None) -> int:
         shutil.copy2(DATA / "habits.db", travail / "habits.db")
     env = {**os.environ, "ATLAS_MEMORY": "real", "PYTHONIOENCODING": "utf-8",
            "ATLAS_CHROMA_PATH": str(travail / "chromadb"), "ATLAS_APPRENTISSAGE_DB": str(travail / "apprentissage.db"),
-           "ATLAS_ACTIONS_LOG": str(travail / "atlas_actions.jsonl"), "ATLAS_HABITS_DB": str(travail / "habits.db"),
+           "ATLAS_ACTIONS_LOG": str(travail / "atlas_actions.jsonl"), "ATLAS_HABITS_DB": str(travail / "habits.db"), "ATLAS_RAPPELS_DB": str(travail / "rappels.db"),
            "ATLAS_FILE_INDEX_DB": str(travail / "file_index.db")}
     fen = {t: _fenetre(t, 100 + 420 * k) for k, t in enumerate(TITRES)}
     time.sleep(3)

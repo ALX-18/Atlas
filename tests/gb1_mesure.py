@@ -10,12 +10,18 @@ Joue chaque phrase par la vraie route /api/chat (chat_endpoint, en processus), a
 
 Chaque ligne de sortie : phrase, type de réponse, message transmis, outils exécutés,
 et si l'échange aurait été enregistré dans atlas_conversations.
+
+Compétences 1 : plusieurs des 34 demandes ont maintenant un outil (volume, luminosité, écrans,
+Bluetooth, musique, minuteur). Ces outils s'exécutent pour de bon, sur du matériel SIMULÉ, et le banc
+vérifie que ce qui est annoncé correspond à l'état relu (`annonce_relue`). Les demandes toujours
+impossibles doivent recevoir la réponse honnête (aucune affirmation sans outil).
 """
 
 import asyncio
 import json
 import os
 import pathlib
+import re
 import sys
 import time
 
@@ -73,6 +79,64 @@ class ReadOnlyMemory:
         return getattr(self._real, name)
 
 
+def _materiel_simule():
+    """Compétences 1 : les outils du sprint s'exécutent VRAIMENT, sur du matériel simulé (les doubles des
+    tests) — jamais le son, les écrans, le Bluetooth ou les lecteurs d'Alexis. Les rappels vont dans une
+    base jetable."""
+    import tempfile
+
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+    from test_competences_1 import FauxBluetooth, FauxEcrans, FauxMusique, FauxSon
+
+    import core.rappels as rappels
+    import tools.affichage as affichage
+    import tools.bluetooth as bluetooth
+    import tools.musique as musique
+    import tools.son as son
+
+    faux = {"son": FauxSon(), "ecrans": FauxEcrans(), "bt": FauxBluetooth(),
+            "musique": FauxMusique(session={"appli": "Spotify", "aumid": "Spotify.exe", "statut": "lecture",
+                                            "titre": "Harder, Better, Faster, Stronger", "artiste": "Daft Punk"})}
+    son.MATERIEL, affichage.MATERIEL, bluetooth.MATERIEL, musique.MATERIEL = (faux["son"], faux["ecrans"], faux["bt"],
+                                                                              faux["musique"])
+    rappels.DB_PATH = pathlib.Path(tempfile.mkdtemp(prefix="atlas_gb1_")) / "rappels.db"
+    return faux
+
+
+def annonce_relue(outil: str, message: str, faux: dict) -> tuple[bool, str]:
+    """Ce que le message affirme correspond-il à l'état RELU sur le matériel simulé ?"""
+    from core import horloge, rappels
+
+    s, e, bt, mu = faux["son"], faux["ecrans"], faux["bt"], faux["musique"]
+    if outil == "son_regler":
+        if "coupé" in message:
+            return s.muet, f"muet relu : {s.muet}"
+        return f"à {s.niveau} %" in message, f"volume relu : {s.niveau} %"
+    if outil == "luminosite_regler":
+        n = e.ddc[0]["niveau"]
+        return f"à {n} %" in message or "déjà" in message, f"luminosité relue : {n} %"
+    if outil == "ecrans_veille":
+        return "Je ne peux pas le vérifier" in message, "veille : non relisible, dit tel quel"
+    if outil == "bluetooth_regler":
+        mot = {"allume": "allumé", "eteint": "éteint"}.get(bt.radio, "?")
+        return mot in message, f"radio relue : {bt.radio}"
+    if outil == "musique_commande":
+        sess = mu.session or {}
+        if "Pause" in message:
+            return sess.get("statut") == "pause", f"statut relu : {sess.get('statut')}"
+        if "Morceau" in message:
+            return (sess.get("titre") or "") in message, f"titre relu : {sess.get('titre')}"
+        return sess.get("statut", "") in ("lecture", "pause"), f"statut relu : {sess.get('statut')}"
+    if outil == "musique_chercher":
+        return not re.search(r"\bje (?:joue|lance la lecture)\b", message.lower()), "jamais « je joue »"
+    if outil == "rappel_creer":
+        actifs = rappels.actifs()
+        if not actifs:
+            return "?" in message, "aucun rappel : une question"
+        return horloge.heure_fr(actifs[-1]["echeance"]) in message, f"échéance relue : {actifs[-1]['echeance']}"
+    return True, "—"
+
+
 def main(out_path: str, phrases=None) -> None:
     import core.intent_engine as ie
     import core.memory_manager as mm
@@ -81,8 +145,19 @@ def main(out_path: str, phrases=None) -> None:
 
     mem = ReadOnlyMemory(mm.get_memory_manager())
     mm._instance = mem
+    # Compétences 1 (règle C3) : le banc écrivait chaque demande dans le VRAI journal des actions (la
+    # source des habitudes d'Alexis) — constaté le 18/10. Journal jetable.
+    import tempfile
+
+    import core.atlas_logger as atlas_logger
+
+    atlas_logger.LOG_FILE = pathlib.Path(tempfile.mkdtemp(prefix="atlas_gb1_journal_")) / "atlas_actions.jsonl"
+    faux = _materiel_simule()
     executed = []
     for name in list(ie.TOOL_HANDLERS):
+        if name in ie.OUTILS_COMPETENCES:          # exécutés vraiment, sur le matériel simulé
+            ie.TOOL_HANDLERS[name] = (lambda n, h: lambda args: executed.append(n) or h(args))(name, ie.TOOL_HANDLERS[name])
+            continue
         ie.TOOL_HANDLERS[name] = (lambda n: lambda args: executed.append(n)
                                   or {"success": True, "message": f"[simulé] {n}"})(name)
     ie._save_action_to_memory = lambda *a, **k: None
@@ -110,16 +185,32 @@ def main(out_path: str, phrases=None) -> None:
             ie.purge_expired_confirmations()
             from core import confirmation
             confirmation._pending.clear()
+            message = r.get("message") or ""
+            outil = next((t for t in executed if t in ie.OUTILS_COMPETENCES), None)
+            relue = annonce_relue(outil, message, faux) if outil else None
+            from core.validator import claims_action
+
             rows.append({
                 "kind": kind, "phrase": phrase, "type": r.get("type"),
-                "message": r.get("message") or "", "tools": list(executed),
+                "message": message, "tools": list(executed),
                 "ingested": any(w[0] == "ingest_conversation" for w in mem.writes),
                 "seconds": round(time.monotonic() - t0, 1),
+                # Compétences 1 : outil du sprint → l'annonce correspond-elle à l'état relu ? Sinon (aucun
+                # outil exécuté) → la réponse affirme-t-elle une action ? (la mesure GB1 d'origine)
+                "competence": outil, "annonce_relue": relue[0] if relue else None, "relu": relue[1] if relue else None,
+                "affirmation_sans_outil": bool(not executed and claims_action(message)),
+                "confirmation": r.get("type") == "confirmation_required",
             })
             print(f"[{rows[-1]['seconds']:5.1f}s] {kind:9} {phrase!r:48} → {rows[-1]['type']:22} "
                   f"outils={executed} « {rows[-1]['message'][:110]} »", flush=True)
     pathlib.Path(out_path).write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+    actions = [x for x in rows if x["kind"] == "action"]
+    outillees = [x for x in actions if x["competence"]]
     print(f"\n{len(rows)} réponses → {out_path}")
+    print(f"Demandes d'action : {len(actions)} ; avec un outil du sprint : {len(outillees)} "
+          f"(annonce ≠ relu : {sum(not x['annonce_relue'] for x in outillees)}) ; "
+          f"affirmations sans outil : {sum(x['affirmation_sans_outil'] for x in rows)} ; "
+          f"questions ordinaires remplacées : {sum(x['kind'] == 'ordinaire' and x['type'] == 'unsupported' for x in rows)}")
 
 
 if __name__ == "__main__":

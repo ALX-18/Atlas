@@ -980,42 +980,43 @@
  },
  {
   "phrase": "rappelle-moi de boire de l'eau tous les jours à 15h",
-  "famille": "modes_planification",
+  "famille": "rappels",
   "attendu": {
    "route": "outil",
-   "outil": "schedule_add",
+   "outil": "rappel_creer",
    "cible": "eau"
   },
-  "origine": "Check-up D24"
+  "origine": "Compétences 1 / CP2 : un rappel, plus une tâche planifiée quotidienne (P2)"
  },
  {
   "phrase": "rappelle moi de boire de l'eau a 15h",
-  "famille": "modes_planification",
+  "famille": "rappels",
   "attendu": {
    "route": "outil",
-   "outil": "schedule_add",
+   "outil": "rappel_creer",
    "cible": "eau"
   },
-  "origine": "Check-up D24"
+  "origine": "Compétences 1 / CP2 : un rappel, plus une tâche planifiée quotidienne (P2)"
  },
  {
   "phrase": "rappelle-moi de boire de l'eau à 15 h",
-  "famille": "modes_planification",
+  "famille": "rappels",
   "attendu": {
    "route": "outil",
-   "outil": "schedule_add",
+   "outil": "rappel_creer",
    "cible": "eau"
   },
-  "origine": "Check-up D24"
+  "origine": "Compétences 1 / CP2 : un rappel, plus une tâche planifiée quotidienne (P2)"
  },
  {
   "phrase": "rappelle-moi d'appeler maman à 18h",
-  "famille": "modes_planification",
+  "famille": "rappels",
   "attendu": {
    "route": "outil",
-   "outil": "schedule_add",
+   "outil": "rappel_creer",
    "cible": "maman"
-  }
+  },
+  "origine": "Compétences 1 / CP2 : un rappel, plus une tâche planifiée quotidienne (P2)"
  },
  {
   "phrase": "lis l'écran",
@@ -1370,19 +1371,21 @@
  },
  {
   "phrase": "baisse le volume",
-  "famille": "honnete",
+  "famille": "son",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "son_regler"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "monte le son",
-  "famille": "honnete",
+  "famille": "son",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "son_regler"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "envoie un message à Paul",
@@ -1418,27 +1421,30 @@
  },
  {
   "phrase": "mets de la musique",
-  "famille": "honnete",
+  "famille": "musique",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "musique_chercher"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "baisse la luminosité de l'écran",
-  "famille": "honnete",
+  "famille": "ecrans",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "luminosite_regler"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "règle la luminosité au maximum",
-  "famille": "honnete",
+  "famille": "ecrans",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "luminosite_regler"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "envoie un mail à ma mère",
@@ -1450,11 +1456,12 @@
  },
  {
   "phrase": "éteins l'écran",
-  "famille": "honnete",
+  "famille": "ecrans",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "ecrans_veille"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "commande une pizza",
@@ -1482,19 +1489,21 @@
  },
  {
   "phrase": "mets le son à 50 %",
-  "famille": "honnete",
+  "famille": "son",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "son_regler"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "désactive le bluetooth",
-  "famille": "honnete",
+  "famille": "bluetooth",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "bluetooth_regler"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "allume la lumière du salon",
@@ -1506,19 +1515,21 @@
  },
  {
   "phrase": "mets la musique en pause",
-  "famille": "honnete",
+  "famille": "musique",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "musique_commande"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "passe à la chanson suivante",
-  "famille": "honnete",
+  "famille": "musique",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "musique_commande"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "réserve une table pour ce soir",
@@ -1578,11 +1589,12 @@
  },
  {
   "phrase": "mets un minuteur de 10 minutes",
-  "famille": "honnete",
+  "famille": "rappels",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "rappel_creer"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "ajoute du lait à ma liste de courses",
@@ -1594,11 +1606,12 @@
  },
  {
   "phrase": "tu peux baisser le volume ?",
-  "famille": "honnete",
+  "famille": "son",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "son_regler"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "peux-tu vider la corbeille s'il te plaît",
@@ -1887,23 +1900,23 @@
  },
  {
   "phrase": "rappelle moi d'acheter du pain a 17h",
-  "famille": "modes_planification",
+  "famille": "rappels",
   "attendu": {
    "route": "outil",
-   "outil": "schedule_add",
+   "outil": "rappel_creer",
    "cible": "pain"
   },
-  "origine": "hors corpus (FI2)"
+  "origine": "Compétences 1 / CP2 : un rappel, plus une tâche planifiée quotidienne (P2)"
  },
  {
   "phrase": "rappelle-moi de prendre mes médicaments tous les jours à 8h",
-  "famille": "modes_planification",
+  "famille": "rappels",
   "attendu": {
    "route": "outil",
-   "outil": "schedule_add",
+   "outil": "rappel_creer",
    "cible": "medicaments"
   },
-  "origine": "hors corpus (FI2)"
+  "origine": "Compétences 1 / CP2 : un rappel, plus une tâche planifiée quotidienne (P2)"
  },
  {
   "phrase": "active le mode travail stp",
@@ -1991,11 +2004,12 @@
  },
  {
   "phrase": "baisse le son stp",
-  "famille": "honnete",
+  "famille": "son",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "son_regler"
   },
-  "origine": "hors corpus (FI2)"
+  "origine": "hors corpus (FI2) → Compétences 1 : un outil désormais"
  },
  {
   "phrase": "envoie un sms a maman",
@@ -2961,5 +2975,776 @@
    "route": "conversation"
   },
   "origine": "Artefacts (AR2) — négatif"
+ },
+ {
+  "phrase": "quelle heure est-il ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "il est quelle heure",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "t'as l'heure ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "atlas, quelle heure est-il ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "on est quel jour ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quel jour sommes-nous ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quelle est la date d'aujourd'hui ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "on est le combien ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quelle date dans 3 semaines ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quel jour serons-nous dans 10 jours ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quel jour tombe le 25 décembre ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quel jour on sera demain ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quelle heure est-il à Tokyo ?",
+  "famille": "heure",
+  "attendu": {
+   "route": "outil",
+   "outil": "heure_dire"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "à quelle heure ferme la poste ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "c'est quoi l'heure d'été ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "combien d'heures dans une semaine ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets un minuteur de 5 minutes pour les pâtes",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer",
+   "cible": "pates"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "lance un minuteur de 1 h 30",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "minuteur 20 secondes",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "rappelle-moi dans 20 minutes de sortir le linge",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer",
+   "cible": "linge"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "rappelle-moi de sortir le linge dans 20 minutes",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer",
+   "cible": "linge"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "rappelle-moi demain à 9 h d'appeler le médecin",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer",
+   "cible": "medecin"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "rappelle-moi tous les lundis à 8 h de sortir les poubelles",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer",
+   "cible": "poubelles"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "fais-moi penser à 16 h de rappeler le garage",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer",
+   "cible": "garage"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "préviens-moi dans une demi-heure",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "tu peux me rappeler de payer le loyer lundi à 10 h",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_creer",
+   "cible": "loyer"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quels sont mes rappels ?",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_lister"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "il reste combien de temps au minuteur ?",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_lister"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "annule le rappel du médecin",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_annuler",
+   "cible": "medecin"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "annule le minuteur",
+  "famille": "rappels",
+  "attendu": {
+   "route": "outil",
+   "outil": "rappel_annuler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "rappelle-moi le code du portail",
+  "famille": "memoire",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "coupe le son",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "remets le son",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets le volume au maximum",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "monte un peu le son",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "baisse le son de Spotify",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler",
+   "cible": "spotify"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "coupe le son de Discord",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler",
+   "cible": "discord"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets le son de Spotify à 30 %",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler",
+   "cible": "spotify"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quel est le volume ?",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "plus fort",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets le son en sourdine",
+  "famille": "son",
+  "attendu": {
+   "route": "outil",
+   "outil": "son_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "baisse le son de ta voix",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "parle moins fort",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "le son de la cloche est beau",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets la luminosité à 30 %",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "luminosite_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "augmente la luminosité",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "luminosite_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "baisse un peu la luminosité",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "luminosite_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "quelle est la luminosité ?",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "luminosite_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets la luminosité de l'écran 2 à 50 %",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "luminosite_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets les écrans en veille",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "ecrans_veille"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "éteins les écrans",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "ecrans_veille"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "coupe l'écran",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "ecrans_veille"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets l'écran en veille",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "ecrans_veille"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "éteins l'écran du pc",
+  "famille": "ecrans",
+  "attendu": {
+   "route": "outil",
+   "outil": "ecrans_veille"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "éteins le pc",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets le pc en veille",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "éteins l'ordinateur",
+  "famille": "honnete",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "la lumière du jour",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "pourquoi mon écran est flou ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "active le bluetooth",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "allume le bluetooth",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "coupe le bluetooth",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "éteins le bluetooth",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "tu peux activer le bluetooth ?",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "est-ce que le bluetooth est activé ?",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_regler"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "connecte mon casque",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_connecter",
+   "cible": "casque"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "connecte mon enceinte JBL",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_connecter",
+   "cible": "jbl"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "reconnecte mes écouteurs",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_connecter"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "connecte la manette en bluetooth",
+  "famille": "bluetooth",
+  "attendu": {
+   "route": "outil",
+   "outil": "bluetooth_connecter",
+   "cible": "manette"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "c'est quoi le bluetooth ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "pause",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_commande"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "chanson précédente",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_commande"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "reprends la musique",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_commande"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "qu'est-ce qui passe ?",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_commande"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "c'est quoi cette chanson ?",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_commande"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets du Daft Punk",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_chercher",
+   "cible": "daft punk"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets Daft Punk sur Spotify",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_chercher",
+   "cible": "daft punk"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "joue la playlist chill",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_chercher",
+   "cible": "chill"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "lance l'album Discovery sur Deezer",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_chercher",
+   "cible": "discovery"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mets de la musique de Justice",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_chercher",
+   "cible": "justice"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "j'utilise Deezer maintenant",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_service",
+   "cible": "deezer"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "mon service de musique c'est Spotify",
+  "famille": "musique",
+  "attendu": {
+   "route": "outil",
+   "outil": "musique_service",
+   "cible": "spotify"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "qui chante la Marseillaise ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "c'est quoi la musique classique ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
+ },
+ {
+  "phrase": "joue à Warframe",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 1"
  }
 ]

@@ -21,7 +21,19 @@ _file: list[dict] = []
 NOTIFIER = True            # les tests le coupent (conftest) : aucune notification sur l'écran d'Alexis
 
 
-def publier(message: str, origine: Optional[str] = None, titre: str = "Atlas") -> None:
+def voix_active():
+    """Le moteur vocal s'il tourne, sinon None (sans jamais le créer)."""
+    import sys
+
+    module = sys.modules.get("core.voice_engine")
+    moteur = getattr(module, "_voice_engine", None) if module else None
+    return moteur if getattr(moteur, "_running", False) else None
+
+
+def publier(message: str, origine: Optional[str] = None, titre: str = "Atlas",
+            parole: Optional[str] = None) -> None:
+    """parole (Compétences 1) : la phrase à prononcer si la voix est active, quelle que soit
+    l'origine (un rappel arrive sans demande) ; sinon, prononcé seulement pour une demande vocale."""
     with _verrou:
         _file.append({"message": message, "origine": origine, "quand": time.strftime("%H:%M:%S")})
     logger.info("[ANNONCE] %s", message)
@@ -38,7 +50,14 @@ def publier(message: str, origine: Optional[str] = None, titre: str = "Atlas") -
 
     if NOTIFIER:
         threading.Thread(target=notifier, name="atlas-annonce", daemon=True).start()   # hors de la boucle de l'API
-    if origine == "voix":
+    if parole:
+        moteur = voix_active()
+        if moteur is not None:
+            try:
+                moteur._speak_sync(parole)
+            except Exception as e:
+                logger.debug("Annonce vocale impossible : %s", e)
+    elif origine == "voix":
         try:
             from core.voice_engine import get_voice_engine
 

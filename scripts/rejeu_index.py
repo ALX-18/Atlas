@@ -123,7 +123,7 @@ def main(argv=None) -> int:
     shutil.copytree(DATA / "chromadb", travail / "chromadb", ignore=shutil.ignore_patterns("*.lock"))
     env = {**os.environ, "ATLAS_MEMORY": "real", "PYTHONIOENCODING": "utf-8",
            "ATLAS_CHROMA_PATH": str(travail / "chromadb"), "ATLAS_APPRENTISSAGE_DB": str(travail / "apprentissage.db"),
-           "ATLAS_ACTIONS_LOG": str(travail / "atlas_actions.jsonl"), "ATLAS_HABITS_DB": str(travail / "habits.db")}
+           "ATLAS_ACTIONS_LOG": str(travail / "atlas_actions.jsonl"), "ATLAS_HABITS_DB": str(travail / "habits.db"), "ATLAS_RAPPELS_DB": str(travail / "rappels.db")}
     notepad_avant = _pids("notepad.exe")
     res = {"debut": time.strftime("%Y-%m-%d %H:%M:%S"), "scenarios": []}
     journal = open(dossier / "atlas.log", "w", encoding="utf-8")
