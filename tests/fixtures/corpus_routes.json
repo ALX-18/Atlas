@@ -2549,5 +2549,417 @@
    "route": "conversation"
   },
   "origine": "Index des fichiers (IX3) — négatif"
+ },
+ {
+  "phrase": "fais-moi un rapport sur la photosynthèse",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "photosynthèse"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige un rapport sur l'histoire de Rome",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "Rome"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige un rapport en PDF sur l'histoire de Rome",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "pdf"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un rapport en Word et en PDF sur les volcans",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "volcans"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un document Word sur les volcans",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "volcans"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "prépare un document sur l'intelligence artificielle",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "intelligence artificielle"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "écris un rapport sur le réchauffement climatique",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "réchauffement"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "génère un rapport sur la Révolution française",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "Révolution"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais-moi un rapport",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "rapport"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige-moi un document sur les énergies renouvelables",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "énergies"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "crée un document PDF sur le système solaire",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "système solaire"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un dossier sur les abeilles",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif : « dossier », « note de synthèse » ne sont pas des mots de document (brief)"
+ },
+ {
+  "phrase": "fais une note de synthèse sur le télétravail",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif : « dossier », « note de synthèse » ne sont pas des mots de document (brief)"
+ },
+ {
+  "phrase": "rédige un rapport à propos de la cybersécurité",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "cybersécurité"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un rapport au sujet du sommeil",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "sommeil"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "résume mon rapport de stage dans un Word",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "résume mon rapport de stage en PDF",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un résumé en PDF de mon rapport de stage",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais-moi un résumé de mon mémoire dans un document",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "mémoire"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "résume le fichier budget.xlsx dans un Word",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "budget.xlsx"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "résume ma lettre de motivation dans un document Word",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "lettre de motivation"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "résume mes notes de cours en PDF",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "notes de cours"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais une synthèse de mon rapport annuel en Word",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "rapport annuel"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige un résumé de mon contrat de location dans un PDF",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "contrat"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "résume le document de présentation du projet en Word",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "présentation"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige un compte rendu de mes notes de réunion",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "notes de réunion"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un compte rendu de mes notes de réunion en PDF",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "notes de réunion"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige un compte rendu",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "compte_rendu"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais-moi un compte rendu de mon fichier réunion.txt",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "réunion.txt"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige un compte-rendu de mes notes d'hier en Word",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "notes"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un rapport sur mon rapport de stage",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "rédige un rapport sur le fonctionnement d'un moteur électrique",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "moteur"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "écris un document sur la Seconde Guerre mondiale",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "Seconde Guerre"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un rapport PDF sur la nutrition",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "nutrition"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "prépare-moi un rapport sur les réseaux sociaux",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "réseaux sociaux"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais un document sur les chats",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "chats"
+  },
+  "origine": "Artefacts (AR2)"
+ },
+ {
+  "phrase": "fais-moi un résumé de la guerre de 14",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif"
+ },
+ {
+  "phrase": "c'est quoi un rapport de force ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif"
+ },
+ {
+  "phrase": "raconte-moi l'histoire de Rome",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif"
+ },
+ {
+  "phrase": "explique-moi la photosynthèse",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif"
+ },
+ {
+  "phrase": "quel est le rapport entre la lune et les marées ?",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif"
+ },
+ {
+  "phrase": "j'ai un rapport à rendre demain",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif"
+ },
+ {
+  "phrase": "donne-moi des idées pour mon rapport de stage",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts (AR2) — négatif"
  }
 ]

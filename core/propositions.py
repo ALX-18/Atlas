@@ -46,13 +46,15 @@ def _rang(n: str) -> Optional[int]:
 
 
 def proposer(phrase: Optional[str], sorte: str, origine: Optional[str], cle: Optional[str] = None,
-             options: Optional[list[str]] = None) -> None:
+             options: Optional[list[str]] = None, completer: Optional[str] = None) -> None:
     """Retient la demande à faire si Alexis répond « oui » (une seule question à la fois).
 
     options (Index des fichiers) : un CHOIX ; « le 2 », « le deuxième », « 2 » route options[1]."""
     global _en_attente
+    # completer (Artefacts) : Atlas a POSÉ UNE QUESTION (le sujet, la date…) ; la réponse, quelle qu'elle
+    # soit, complète la demande : « fais-moi un rapport sur » + « la photosynthèse ».
     _en_attente = {"phrase": phrase, "sorte": sorte, "origine": origine, "cle": cle, "options": options or [],
-                   "quand": time.monotonic()}
+                   "completer": completer, "quand": time.monotonic()}
     logger.info("[PROPOSITION] %s : « %s »%s", sorte, phrase, f" ({len(options)} choix)" if options else "")
 
 
@@ -80,6 +82,10 @@ def repondre(message: str, origine: Optional[str]) -> Optional[dict]:
     if not question or question["origine"] != origine:
         return None
     n = normaliser(message).replace("'", " ").replace("-", " ").strip(" !.?,")
+    if question.get("completer"):
+        if n in _NON or n in {"annule", "laisse tomber", "oublie", "rien"} or not n:
+            return {"oui": False, **question}
+        return {"oui": True, **question, "phrase": f"{question['completer']} {message.strip()}"}
     if question.get("options"):
         k = _rang(n)
         if k is not None and 0 <= k < len(question["options"]):

@@ -600,6 +600,35 @@ def par_chemin(chemin: str) -> Optional[dict]:
     return _ligne(r) if r else None
 
 
+def indexer_un_fichier(chemin: str) -> None:
+    """Sprint Artefacts : un document créé par Atlas entre TOUT DE SUITE dans l'index (nom et texte)."""
+    st = os.stat(chemin)
+    nom = os.path.basename(chemin)
+    ext = os.path.splitext(nom)[1].lower()
+    cfg = charger_config()
+    c = connexion()
+    try:
+        passage = _etat_lire(c, "passage", 0) or 0
+        c.execute("INSERT INTO fichiers (chemin, nom, nom_norm, dossier_norm, ext, taille, mtime, racine, passage, contenu_mtime)"
+                  " VALUES (?,?,?,?,?,?,?,?,?,NULL) ON CONFLICT(chemin) DO UPDATE SET taille=excluded.taille,"
+                  " mtime=excluded.mtime, contenu_mtime=NULL",
+                  (chemin, nom, normaliser(os.path.splitext(nom)[0]), normaliser(os.path.dirname(chemin)), ext,
+                   st.st_size, st.st_mtime, os.path.splitdrive(chemin)[0] + os.sep, passage))
+        (i,) = c.execute("SELECT id FROM fichiers WHERE chemin = ?", (chemin,)).fetchone()
+        c.execute("DELETE FROM noms WHERE rowid = ?", (i,))
+        c.execute("INSERT INTO noms (rowid, nom_norm, dossier_norm) VALUES (?, ?, ?)",
+                  (i, normaliser(os.path.splitext(nom)[0]), normaliser(os.path.dirname(chemin))))
+        if ext in EXTENSIONS_DOCUMENTS:
+            texte = extraire_texte(chemin, ext, int(cfg.get("contenu_caracteres_max", 50_000)))
+            c.execute("DELETE FROM contenu WHERE rowid = ?", (i,))
+            if texte.strip():
+                c.execute("INSERT INTO contenu (rowid, texte) VALUES (?, ?)", (i, texte))
+            c.execute("UPDATE fichiers SET contenu_mtime = mtime WHERE id = ?", (i,))
+        c.commit()
+    finally:
+        c.close()
+
+
 def oublier_index() -> int:
     """Vide l'index (« oublie l'index de mes fichiers », confirmé). Retourne le nombre de fichiers."""
     c = connexion()

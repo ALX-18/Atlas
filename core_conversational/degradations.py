@@ -160,6 +160,13 @@ CATALOGUE: dict[str, dict] = {
         "vecue": True,
         "message": "Le pont vers ton navigateur ne démarre pas : je ne peux pas piloter tes onglets.",
     },
+    "documents": {
+        "composant": "Documents Word et PDF (python-docx, fpdf2)",
+        "declencheur": "python-docx ou fpdf2 absent, ou l'écriture d'un document impossible",
+        "perte": "rédiger un rapport, un résumé ou un compte rendu dans ce format",
+        "vecue": True,
+        "message": "Je ne peux pas produire ce document pour le moment : il me manque de quoi écrire ce format.",
+    },
     "file_indexer": {
         "composant": "Index des fichiers",
         "declencheur": "l'index des fichiers ne démarre pas, ou sa base (data/file_index.db) est illisible",

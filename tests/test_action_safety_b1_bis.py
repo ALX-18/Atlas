@@ -93,7 +93,9 @@ class FakeDesktop:
             self.focused.append(title)
             if focus_moves_foreground:
                 self.foreground = f"Sans titre - {title}"
-            return {"success": True, "message": f"focus {title} (simulé)"}
+            # Sprint Artefacts / AR1 : comme le vrai, le focus rend le titre EXACT de la fenêtre visée ;
+            # la vérification compare ce titre (ou le hwnd), plus « un alias contenu dans le titre ».
+            return {"success": True, "message": f"focus {title} (simulé)", "title": f"Sans titre - {title}"}
 
         def active():
             left, top, width, height = self.window_rect

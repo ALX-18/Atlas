@@ -352,7 +352,18 @@ def _find_candidate_windows(app_title: str) -> list[Any]:
             if steam_windows:
                 return steam_windows
 
-        return gw.getWindowsWithTitle(app_title)
+        # Sprint Artefacts / AR1 : la fenêtre que désigne ce nom (même règle que fermer ou ancrer).
+        # Plusieurs homonymes : seulement celui qui est au premier plan, sinon aucun — on ne clique
+        # pas dans un homonyme choisi au hasard.
+        from tools.window_controller import fenetres_correspondantes
+
+        cands = fenetres_correspondantes(app_title)
+        if len(cands) > 1:
+            import win32gui
+
+            devant = win32gui.GetForegroundWindow()
+            cands = [c for c in cands if c["hwnd"] == devant]
+        return [gw.Win32Window(c["hwnd"]) for c in cands]
     except Exception:
         return []
 
@@ -733,8 +744,17 @@ async def _try_uia(app_title: str, element_name: str) -> Optional[dict]:
 
         desktop = Desktop(backend="uia")
 
-        # Find the window
-        windows = desktop.windows(title_re=f".*{app_title}.*", visible_only=True)
+        # AR1 : la fenêtre résolue (son hwnd) ; sinon un titre ÉCHAPPÉ (« | » ou « ( » ne cassent plus rien).
+        from tools.window_controller import fenetres_correspondantes
+
+        cands = fenetres_correspondantes(app_title)
+        if len(cands) == 1:
+            windows = [desktop.window(handle=cands[0]["hwnd"])]
+        elif cands:
+            logger.debug("[UIA] Plusieurs fenêtres « %s » : pas de clic UIA dans un homonyme", app_title)
+            return None
+        else:
+            windows = desktop.windows(title_re=f"(?i).*{re.escape(app_title)}.*", visible_only=True)
         if not windows:
             logger.debug("[UIA] Fenêtre '%s' non trouvée", app_title)
             return None
@@ -1661,6 +1681,14 @@ async def find_and_click(
     candidate_windows = _find_candidate_windows(app_title)
     if not candidate_windows:
         logger.warning("[GROUNDING] Fenêtre '%s' introuvable — aucune couche tentée", app_title)
+        from tools.window_controller import fenetres_correspondantes
+
+        homonymes = fenetres_correspondantes(app_title)
+        if len(homonymes) > 1:
+            titres = " ; ".join(f"« {w['title']} »" for w in homonymes[:5])
+            return {"success": False, "method": "none", "layer_attempts": [],
+                    "message": f"Plusieurs fenêtres correspondent à « {app_title} » : {titres}. "
+                               "Précise laquelle. Aucun clic effectué."}
         return {
             "success": False,
             "method": "app_not_found",

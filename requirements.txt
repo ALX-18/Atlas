@@ -23,6 +23,10 @@ pytesseract>=0.3.13
 easyocr==1.7.2
 # Ingestion de documents PDF dans la mémoire (tools/memory_ingest.py)
 pypdf>=4.0.0
+# Sprint Artefacts : documents Word et PDF produits par Atlas, sans Word ni LibreOffice installés.
+# fpdf2 plutôt que reportlab : pur Python, léger, accents par les polices TrueType de Windows.
+python-docx==1.2.0
+fpdf2==2.8.9
 apscheduler>=3.10.0
 plyer>=2.1.0
 pyyaml>=6.0.1

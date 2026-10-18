@@ -481,13 +481,11 @@ def test_ix4_fenetre_fermee_le_titre_est_rendu(monkeypatch):
 
     import tools.window_controller as wc
 
-    class Fen:
-        title = "AtlasEssaiRefus"
-
-        def close(self):
-            self.title = ""                        # comme une vraie fenêtre fermée
-
-    monkeypatch.setattr(wc.gw, "getWindowsWithTitle", lambda t: [Fen()])
+    # Sprint Artefacts / AR1 : la fenêtre est résolue (liste des fenêtres) et fermée par son hwnd ;
+    # son titre vient de la résolution, lue avant la fermeture.
+    ouvertes = [{"hwnd": 5, "title": "AtlasEssaiRefus", "process": "python.exe"}]
+    monkeypatch.setattr(wc, "_list_visible_windows", lambda: list(ouvertes))
+    monkeypatch.setattr(wc, "_agir_sur_hwnd", lambda action, hwnd, **k: ouvertes.clear() or True)
     monkeypatch.setattr(wc, "time", SimpleNamespace(sleep=lambda s: None))
     r = wc.window_close("AtlasEssaiRefus")
     assert r["message"] == "Fenêtre 'AtlasEssaiRefus' fermée.", r

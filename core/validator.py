@@ -652,6 +652,10 @@ class Validator:
             )
 
         # --- Sprint Apprentissage 1 : lister, oublier ce qui a été appris ---
+        # --- Sprint Artefacts : ce qui manque est demandé par l'outil ; la rédaction en arrière-plan ---
+        if category == "artefact":
+            return ResolvedAction(tool="artefact_creer", params=dict(intent.params or {}), intent=intent)
+
         # --- Sprint Index des fichiers : la résolution du fichier se fait dans le moteur ---
         if category == "fichiers":
             outils = {"ouvrir": "fichier_ouvrir", "ou": "fichier_ou", "ouvrir_dossier": "fichier_ouvrir_dossier",
@@ -780,8 +784,11 @@ class Validator:
                     return self._reject(intent, "fenêtre cible non précisée",
                                         "Précise la fenêtre, par exemple « réduis le bloc-notes ».")
                 params = {"title": title}
+                # Sprint Artefacts / AR1 : la vérification porte sur LA fenêtre nommée. Avec la cible
+                # de l'intention (souvent vide pour « mets X au premier plan »), elle cherchait « » :
+                # toutes les fenêtres, donc toujours « vérifié ».
                 verification = VerificationRule(
-                    type="window_visible", target=target or "",
+                    type="window_visible", target=title,
                 )
 
             elif verb == "snap":
@@ -1045,19 +1052,20 @@ class Validator:
         """Vérifie si une app tourne dans le contexte actuel."""
         if not app_name:
             return False
-        name_lower = app_name.lower()
-        # Check top processes
+        # Sprint Artefacts / AR1 : nom de processus EXACT, avec ou sans .exe (règle GB3). Avant, un
+        # morceau suffisait : steamwebhelper.exe faisait croire Steam lancé.
+        from tools.app_launcher import _normalize_app_name, _processus_de
+
+        def nu(n: str) -> str:
+            return (n or "").lower().strip().removesuffix(".exe")
+
+        noms = {nu(app_name), _normalize_app_name(nu(app_name)).replace(" ", "")} | {nu(p) for p in _processus_de(app_name)}
+        noms.discard("")
         for proc in context.get("top_processes", []):
-            proc_name = (proc.get("name") or "").lower()
-            if name_lower in proc_name or proc_name.startswith(name_lower):
+            if nu(proc.get("name")) in noms:
                 return True
-        # Check foreground window
-        fg = context.get("foreground_window", {})
-        fg_title = (fg.get("title") or "").lower()
-        fg_process = (fg.get("process") or "").lower()
-        if name_lower in fg_title or name_lower in fg_process:
-            return True
-        return False
+        fg = context.get("foreground_window", {}) or {}
+        return nu(fg.get("process")) in noms
 
     def _is_browser(self, target: str) -> bool:
         """Détecte si le target est un navigateur."""
