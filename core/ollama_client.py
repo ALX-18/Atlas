@@ -35,7 +35,18 @@ def _load_ollama_config() -> dict:
 
 _cfg = _load_ollama_config()
 BASE_URL: str = _cfg["base_url"]
-MODEL: str = _cfg["model"]
+# Banc de modèles / BM2 : le banc choisit le modèle par une variable, jamais par la configuration.
+# Sans elle (Atlas normal), rien ne change.
+import os as _os
+
+MODEL: str = _os.environ.get("ATLAS_MODELE") or _cfg["model"]
+# Réflexion (« thinking ») coupée pour les modèles qui l'ont : le banc pose ATLAS_MODELE_REFLEXION=off.
+REFLEXION_COUPEE: bool = _os.environ.get("ATLAS_MODELE_REFLEXION") == "off"
+
+
+def champs_modele() -> dict:
+    """Le modèle de chaque requête, et la réflexion coupée si demandé (BM2)."""
+    return {"model": MODEL, **({"think": False} if REFLEXION_COUPEE else {})}
 TEMPERATURE: float = _cfg["temperature"]
 STREAM_TIMEOUT: int = _cfg.get("stream_timeout_seconds", 30)
 KEEP_ALIVE: str = _cfg.get("keep_alive", "5m")  # v5.3 — keep model warm in VRAM
@@ -70,7 +81,7 @@ def prewarm() -> "asyncio.Task":
         try:
             async with httpx.AsyncClient(timeout=180.0) as client:
                 await client.post(f"{BASE_URL}/api/generate",
-                                  json={"model": MODEL, "keep_alive": KEEP_ALIVE, "options": ollama_options()})
+                                  json={**champs_modele(), "keep_alive": KEEP_ALIVE, "options": ollama_options()})
             logger.info("[OLLAMA] Modèle préchauffé (num_ctx=%d).", NUM_CTX)
         except Exception as e:
             logger.warning("[OLLAMA] Préchauffage du modèle impossible : %s", e)
@@ -193,7 +204,7 @@ async def chat_stream(
     system_prompt = build_system_prompt(context, memories=memories)
 
     payload = {
-        "model": MODEL,
+        **champs_modele(),
         "messages": build_messages(system_prompt, user_message, history),
         "stream": True,
         "keep_alive": KEEP_ALIVE,
@@ -254,7 +265,7 @@ async def _chat_full_raw(
     """Génération non-streaming brute (sans garde linguistique)."""
     if system_prompt:
         payload = {
-            "model": MODEL,
+            **champs_modele(),
             "messages": build_messages(system_prompt, user_message, history),
             "stream": True,
             "keep_alive": KEEP_ALIVE,

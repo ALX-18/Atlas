@@ -173,6 +173,17 @@ class MemoryManager:
             self._status = {"etat": "neutralisee", "detail": "processus hors d'Atlas (ATLAS_MEMORY≠real)"}
             logger.warning("Mémoire long terme neutralisée : processus hors d'Atlas (ATLAS_MEMORY≠real).")
             return
+        # BM0 : ATLAS_MEMORY=real ne suffit plus — un script qui le pose lui-même (bancs, rejeux) ouvrait
+        # la VRAIE mémoire. Seul Atlas (main.py) l'ouvre ; les autres travaillent sur une copie.
+        from core import donnees_reelles
+
+        if donnees_reelles.interdit(CHROMA_PATH):
+            self._connected = False
+            self._status = {"etat": "neutralisee",
+                            "detail": "processus hors d'Atlas : vraie mémoire interdite (ATLAS_CHROMA_PATH : une copie)"}
+            logger.error("[DONNEES REELLES] Refus : la vraie mémoire (%s) n'est ouverte que par Atlas. "
+                         "Travailler sur une copie (ATLAS_CHROMA_PATH).", CHROMA_PATH)
+            return
         try:
             self._client = open_client(CHROMA_PATH)
             self._collection = self._client.get_or_create_collection(

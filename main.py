@@ -672,6 +672,14 @@ async def health():
 # --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
+    # Banc de modèles / BM0 : seul Atlas lancé normalement écrit dans les données réelles. Un Atlas
+    # d'essai (redirections ATLAS_* posées par un rejeu) n'y a jamais droit (core/donnees_reelles.py).
+    from core.donnees_reelles import autoriser_atlas
+
+    if autoriser_atlas():
+        logger.info("🔐 Données réelles : autorisées (Atlas lancé normalement).")
+    else:
+        logger.info("🔐 Données réelles : interdites (Atlas d'essai, redirections ATLAS_*).")
     lock_ok, lock_msg = acquire_instance_lock()
     if not lock_ok:
         logger.error("⛔ %s", lock_msg)

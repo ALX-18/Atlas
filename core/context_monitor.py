@@ -376,6 +376,14 @@ def _init_db():
     if _db_initialized:
         return
 
+    from core import donnees_reelles
+
+    if donnees_reelles.interdit(_DB_PATH):      # BM0 : seul Atlas crée ou écrit le vrai habits.db
+        try:
+            donnees_reelles.verifier_ecriture(_DB_PATH, "habitudes (habits.db)")
+        except donnees_reelles.DonneesReellesInterdites as e:
+            logger.warning("%s", e)
+        return
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     try:
         conn = sqlite3.connect(str(_DB_PATH))
@@ -404,6 +412,9 @@ def _init_db():
 def _persist_habit(process_name: str, count: int):
     """Persiste un compteur d'habitude dans SQLite (synchrone, rapide)."""
     try:
+        from core.donnees_reelles import verifier_ecriture
+
+        verifier_ecriture(_DB_PATH, "habitudes (habits.db)")       # BM0
         conn = sqlite3.connect(str(_DB_PATH))
         conn.execute(
             """INSERT INTO process_habits (process_name, detection_count, last_seen, marked_as_habit)

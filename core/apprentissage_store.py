@@ -63,9 +63,20 @@ class Indisponible(RuntimeError):
     """Le fichier ne peut pas être ouvert (verrouillé par un autre processus, disque…)."""
 
 
-def _connexion() -> sqlite3.Connection:
+def _connexion(ecriture: bool = True) -> sqlite3.Connection:
     chemin = pathlib.Path(DB_PATH)
     cle = str(chemin.resolve())
+    # BM0 : un processus qui n'est pas Atlas ne crée, ne verrouille ni n'écrit le vrai apprentissage.db ;
+    # il peut le lire s'il existe. Refus rendu comme Indisponible : les appelants savent déjà s'en passer.
+    from core import donnees_reelles
+
+    if donnees_reelles.interdit(chemin):
+        try:
+            if ecriture:
+                donnees_reelles.verifier_ecriture(chemin, "écriture dans apprentissage.db")
+            return donnees_reelles.lecture_seule(chemin)
+        except donnees_reelles.DonneesReellesInterdites as e:
+            raise Indisponible(str(e)) from e
     if cle not in _pret:
         from core.memory_manager import acquire_memory_lock
 
@@ -103,7 +114,7 @@ def ecrire(doc_id: str, type_: str, libelle: str, meta: dict) -> None:
 def lire(ids: Optional[list[str]] = None) -> list[dict]:
     """Les enregistrements demandés (tous si ids est None) : {id, type, libelle, meta, depuis}."""
     with _verrou:
-        conn = _connexion()
+        conn = _connexion(ecriture=False)
         try:
             if ids is None:
                 rows = conn.execute("SELECT id, type, libelle, meta, cree FROM appris ORDER BY cree, id").fetchall()
@@ -143,7 +154,7 @@ def noter_proposition(cle: str, quand: Optional[float] = None) -> None:
 
 def propositions_depuis(depuis: float, cle: Optional[str] = None) -> int:
     with _verrou:
-        conn = _connexion()
+        conn = _connexion(ecriture=False)
         try:
             if cle is None:
                 return conn.execute("SELECT COUNT(*) FROM propositions WHERE quand >= ?", (depuis,)).fetchone()[0]
@@ -155,7 +166,7 @@ def propositions_depuis(depuis: float, cle: Optional[str] = None) -> int:
 
 def etat(cle: str, defaut: Optional[str] = None) -> Optional[str]:
     with _verrou:
-        conn = _connexion()
+        conn = _connexion(ecriture=False)
         try:
             r = conn.execute("SELECT valeur FROM etat WHERE cle = ?", (cle,)).fetchone()
         finally:

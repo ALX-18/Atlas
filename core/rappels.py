@@ -56,8 +56,14 @@ _fil: Optional[threading.Thread] = None
 _arret = threading.Event()
 
 
-def _connexion() -> sqlite3.Connection:
+def _connexion(ecriture: bool = True) -> sqlite3.Connection:
     chemin = pathlib.Path(DB_PATH)
+    from core import donnees_reelles
+
+    if donnees_reelles.interdit(chemin):          # BM0 : seul Atlas crée ou écrit le vrai rappels.db
+        if ecriture:
+            donnees_reelles.verifier_ecriture(chemin, "écriture dans rappels.db")
+        return donnees_reelles.lecture_seule(chemin)
     chemin.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(chemin), timeout=5.0)
     conn.execute("PRAGMA synchronous=FULL")
@@ -99,7 +105,7 @@ def ajouter(sorte: str, texte: str, echeance: datetime, recurrence: Optional[dic
 
 def actifs() -> list[dict]:
     with _verrou:
-        conn = _connexion()
+        conn = _connexion(ecriture=False)
         try:
             rows = conn.execute(f"SELECT {_COLS} FROM rappels WHERE etat = 'actif' ORDER BY echeance, id").fetchall()
         finally:
@@ -109,7 +115,7 @@ def actifs() -> list[dict]:
 
 def lire(rid: int) -> Optional[dict]:
     with _verrou:
-        conn = _connexion()
+        conn = _connexion(ecriture=False)
         try:
             r = conn.execute(f"SELECT {_COLS} FROM rappels WHERE id = ?", (rid,)).fetchone()
         finally:
