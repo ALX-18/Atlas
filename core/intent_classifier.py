@@ -185,6 +185,11 @@ INTENT_CATEGORIES = {
     },
     # Sprint Artefacts : rédiger un document Word ou PDF (règles dédiées, _regles_artefacts)
     "artefact": {"verbs_map": {}, "tools": {"creer": "artefact_creer"}},
+    # Sprint Compétences 1 (règles dédiées : core/regles_competences.py) — le verbe est le nom de l'outil
+    "competence": {"verbs_map": {}, "tools": {t: t for t in (
+        "heure_dire", "rappel_creer", "rappel_lister", "rappel_annuler", "son_regler", "luminosite_regler",
+        "ecrans_veille", "bluetooth_regler", "bluetooth_connecter", "musique_commande", "musique_chercher",
+        "musique_service")}},
     # Sprint Index des fichiers : tes fichiers (règles dédiées dans classify, _regles_fichiers)
     "fichiers": {
         "verbs_map": {},
@@ -393,6 +398,12 @@ HELP_FAMILY_WORDS = {
     "Système": r"syst[èe]me|ordinateur|pc|programmes?",
     "Mémoire": r"m[ée]moire|souvenirs?",
     "Modes et automatisations": r"modes?|automatisations?|t[âa]ches(?:\s+planifi[ée]es)?",
+    "Son et écrans": r"son|volume|[ée]crans?|luminosit[ée]",
+    "Bluetooth": r"bluetooth",
+    "Musique": r"musique|chansons?",
+    "Heure et rappels": r"rappels?|minuteurs?|heure",
+    "Documents": r"documents?|rapports?|r[ée]sum[ée]s?",
+    "Fichiers": r"fichiers?|dossiers?",
 }
 _HELP_FAMILY_RE = re.compile(
     r"^(?:atlas[\s,]*)?(?:(?:ok|et|alors)[\s,]+)*(?:"
@@ -560,8 +571,6 @@ _PROCESSUS_RE = re.compile(
 _TACHES_LISTE_RE = re.compile(
     r"\b(?:liste|lister|montre|affiche|donne|voir|quelles?)\b.*?\btaches?\b(?!.*\b(?:ajoute|cree|planifie)\b)"
 )
-# « rappelle-moi de boire de l'eau à 15h » : un rappel à planifier (≠ « rappelle-toi », mémoire)
-_RAPPEL_RE = re.compile(r"^(?:atlas[\s,]*)?(?:tu peux\s+|peux-tu\s+)?rappelle[- ]moi\s+(?:de\s+|d'|que\s+|qu')(?P<quoi>.+)$")
 # Une question sur un fait retenu : « quel est mon code portail ? », « quel est le numéro de mon essai »
 _QUESTION_FAIT_RE = re.compile(
     r"^(?:et\s+)?(?:quel(?:le)?s?\s+(?:est|sont|etait|etaient)|c'?\s*est\s+(?:quoi|quand|qui|ou)|c est (?:quoi|quand)|"
@@ -575,14 +584,6 @@ _PAS_UN_FAIT_RE = re.compile(
 # Une phrase qui nomme une page web à ouvrir (et non à lire)
 _OUVRIR_PAGE_RE = re.compile(r"^(?:atlas[\s,]*)?(?:ouvre|va sur|vas sur|navigue|aller sur|affiche)\b")
 
-
-def _heure(texte: str) -> Optional[tuple[int, int]]:
-    """« à 15h », « a 15 h 30 », « 18h » → (15, 0), (15, 30), (18, 0)."""
-    m = re.search(r"\b(?:a\s+)?(\d{1,2})\s*h\s*(\d{2})?\b", texte)
-    if not m:
-        return None
-    h, mn = int(m.group(1)), int(m.group(2) or 0)
-    return (h, mn) if h < 24 and mn < 60 else None
 
 
 
@@ -791,9 +792,23 @@ class IntentClassifier:
         raw = user_input.strip()
         normalized = raw.lower()
 
+        # --- Sprint Compétences 1 : l'heure, les rappels, le son, la lumière, le Bluetooth, la musique.
+        # Chaque règle exige l'objet de la demande (son, écran, bluetooth, minuteur…), jamais un verbe seul.
+        from core import regles_competences
+
+        _plat0 = _sans_accents(normalized).replace("’", "'").strip().rstrip(" .!?")
+        competence = regles_competences.reconnaitre(raw, _plat0)
+        if competence is not None:
+            outil, params = competence
+            if outil == "__unsupported__":
+                return IntentResult(category="unsupported", verb="action", target=None,
+                                    confidence=0.9, is_complex=False, raw_input=raw)
+            return IntentResult(category="competence", verb=outil, target=None, params=params,
+                                confidence=0.96, is_complex=False, raw_input=raw)
+
         # --- Sprint Artefacts : « fais-moi un rapport sur… », « résume mon rapport de stage dans un Word ».
         # En premier : « écris un rapport sur… » n'est pas « écris X dans une fenêtre ».
-        artefact = _regles_artefacts(raw, _sans_accents(normalized).replace("’", "'").strip().rstrip(" .!?"))
+        artefact = _regles_artefacts(raw, _plat0)
         if artefact is not None:
             return artefact
 
@@ -1183,40 +1198,25 @@ class IntentClassifier:
         if re.match(r"^(?:et\s+)?comment\b", plain.strip()):
             return IntentResult(category="conversation", verb="chat", target=None,
                                 confidence=0.85, is_complex=False, raw_input=raw)
+        # Compétences 1 (trouvé par un négatif du corpus) : « à quelle heure ferme la poste ? » allait à
+        # window_close (« ferme »). Une question sur un moment ou une raison est une question, pas un ordre.
+        if re.match(r"^(?:et\s+)?(?:a\s+quelle\s+heure|jusqu'a\s+quelle\s+heure|depuis\s+quand|quand|pourquoi)\b",
+                    plain.strip()):
+            return IntentResult(category="conversation", verb="chat", target=None,
+                                confidence=0.85, is_complex=False, raw_input=raw)
         if _PROCESSUS_RE.search(plain):
             return IntentResult(category="process", verb="list", target=None, params={},
                                 confidence=0.95, is_complex=False, raw_input=raw)
         if _TACHES_LISTE_RE.search(plain):
             return IntentResult(category="automation", verb="schedule_list", target=None, params={},
                                 confidence=0.95, is_complex=False, raw_input=raw)
-        m = _RAPPEL_RE.match(plain.strip().rstrip(" .!?"))
-        if m:
-            quoi = raw.strip().rstrip(" .!?")
-            quoi = quoi[len(quoi) - len(m.group("quoi")):] if len(quoi) >= len(m.group("quoi")) else m.group("quoi")
-            return IntentResult(category="automation", verb="schedule", target=quoi,
-                                params=self._params_rappel(quoi, plain),
-                                confidence=0.95, is_complex=False, raw_input=raw)
+        # « rappelle-moi de… » : Compétences 1 / CP2 (core/regles_competences.py, en tête de classify).
+        # Avant, il créait ici une tâche planifiée QUOTIDIENNE, quel que soit le moment dit (P2).
         m = _QUESTION_FAIT_RE.match(plain.strip())
         if m and not _PAS_UN_FAIT_RE.search(m.group("reste")):
             return IntentResult(category="memory", verb="recall", target=None, params={},
                                 confidence=0.93, is_complex=False, raw_input=raw)
         return None
-
-    @staticmethod
-    def _params_rappel(quoi: str, plain: str) -> dict:
-        """« boire de l'eau tous les jours à 15h » → une notification, chaque jour à 15 h 00."""
-        texte = re.sub(r"\s*(?:tous les jours|chaque jour|quotidiennement)\b", "", quoi, flags=re.IGNORECASE)
-        texte = re.sub(r"\s*\b(?:a|à)?\s*\d{1,2}\s*h\s*(?:\d{2})?\b", "", texte, flags=re.IGNORECASE).strip(" ,.")
-        heure = _heure(plain)
-        params = {"name": f"Rappel : {texte}"[:80],
-                  "actions": [{"action": "notify", "params": {"message": f"Rappel : {texte}", "title": "Atlas"}}]}
-        if heure:
-            params["trigger_type"] = "cron"
-            params["trigger_config"] = {"hour": heure[0], "minute": heure[1]}
-        else:
-            params["trigger_type"] = "interval"
-            params["trigger_config"] = {"hours": 24}
-        return params
 
     def _detect_url(self, text: str) -> Optional[str]:
         """Détecte une URL dans le texte."""

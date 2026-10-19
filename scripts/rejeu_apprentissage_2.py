@@ -176,7 +176,7 @@ def main(argv=None) -> int:
     shutil.copytree(DATA / "chromadb", travail / "chromadb", ignore=shutil.ignore_patterns("*.lock"))
     _historique_synthetique(travail / "atlas_actions.jsonl")
     env = {"ATLAS_CHROMA_PATH": str(travail / "chromadb"), "ATLAS_APPRENTISSAGE_DB": str(travail / "apprentissage.db"),
-           "ATLAS_ACTIONS_LOG": str(travail / "atlas_actions.jsonl"), "ATLAS_HABITS_DB": str(travail / "habits.db")}
+           "ATLAS_ACTIONS_LOG": str(travail / "atlas_actions.jsonl"), "ATLAS_HABITS_DB": str(travail / "habits.db"), "ATLAS_RAPPELS_DB": str(travail / "rappels.db")}
 
     fen, res = {}, {"debut": time.strftime("%Y-%m-%d %H:%M:%S"), "racine": str(racine), "aq1": [], "aq3": [],
                     "aq4": [], "aq5": [], "arrets": []}

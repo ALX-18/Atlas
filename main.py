@@ -509,6 +509,17 @@ async def lifespan(app: FastAPI):
 
             signaler("file_indexer", f"{type(e).__name__}: {e}")
 
+    # Sprint Compétences 1 / CP2 : minuteurs et rappels (data/rappels.db). Au démarrage, ce qui a été
+    # manqué pendant qu'Atlas était éteint est annoncé.
+    from core import rappels
+
+    try:
+        rappels.demarrer()
+    except Exception as e:
+        from core_conversational.degradations import signaler
+
+        signaler("rappels", f"{type(e).__name__}: {e}")
+
     _annoncer_bascules()
 
     yield
@@ -549,6 +560,10 @@ async def lifespan(app: FastAPI):
         pass
     try:
         await file_indexer.stop()
+    except Exception:
+        pass
+    try:
+        rappels.arreter()
     except Exception:
         pass
 

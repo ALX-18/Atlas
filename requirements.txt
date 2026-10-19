@@ -6,6 +6,15 @@ httpx==0.28.1
 pydantic==2.10.4
 comtypes==1.4.8
 pycaw==20240210
+# Sprint Compétences 1 : Bluetooth (radios, appareils appairés) et sessions multimédia de Windows (SMTC),
+# par les projections WinRT officielles — aucun outil tiers à installer à la main.
+winrt-runtime==3.2.1
+winrt-Windows.Foundation==3.2.1
+winrt-Windows.Foundation.Collections==3.2.1
+winrt-Windows.Devices.Radios==3.2.1
+winrt-Windows.Devices.Bluetooth==3.2.1
+winrt-Windows.Devices.Enumeration==3.2.1
+winrt-Windows.Media.Control==3.2.1
 chromadb==1.5.1
 sentence-transformers==3.3.1
 beautifulsoup4>=4.12.0

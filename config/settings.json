@@ -146,5 +146,10 @@
         "_note_porcupine": "Migration vers Porcupine possible en remplaçant _init_wake_word() — clé PORCUPINE_ACCESS_KEY requise",
         "_note_wake_word": "Sprint v6.0.2 — modèle 'Hey Atlas' custom (briankelley/atlas-voice-training, release hey_atlas-v1) au lieu du mot-clé intégré 'hey_mycroft'. Confirmé par Alexis le 2026-07-24 (alternative 'V2' du brief écartée, jugée insuffisamment entraînée). Métriques publiées par l'auteur: 81% accuracy / 62% recall / ~1.24 FA/h — à re-mesurer en usage réel quand les tests micro reprendront (reportés, non urgent). Placer le fichier via scripts/download_voice_models.py avant premier lancement.",
         "_note_tts": "fr_FR-siwis-medium (rhasspy/piper-voices) remplace fr_FR-upmc-medium — absent en v5.0 (cf RAPPORT_V50), à télécharger via scripts/download_voice_models.py."
+    },
+    "competences": {
+        "pas_volume": 10,
+        "pas_luminosite": 20,
+        "_note": "Sprint Compétences 1 : « monte le son », « baisse la luminosité » sans valeur changent de ce pas (en points de pourcentage)."
     }
 }

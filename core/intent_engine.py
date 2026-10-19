@@ -415,6 +415,11 @@ TOOL_HANDLERS = {
     "apprentissage_lister": lambda args: _run_apprentissage_lister(args),
     # Sprint Artefacts
     "artefact_creer": lambda args: _artefacts().creer(args),
+    # Sprint Compétences 1 : agir, relire, dire (core/competences.py), hors de la boucle de l'API
+    **{nom: (lambda n: lambda args: asyncio.to_thread(getattr(_competences(), n), args))(nom)
+       for nom in ("heure_dire", "rappel_creer", "rappel_lister", "rappel_annuler", "son_regler",
+                   "luminosite_regler", "ecrans_veille", "bluetooth_regler", "bluetooth_connecter",
+                   "musique_commande", "musique_chercher", "musique_service")},
     # Sprint Index des fichiers
     "fichier_ouvrir": lambda args: _fichiers().ouvrir(args),
     "fichier_lancer_programme": lambda args: _fichiers().lancer_programme(args),
@@ -438,8 +443,11 @@ TOOL_HANDLERS = {
 #  Les confirmations viennent de CONFIRMATION_POLICY, la seule source de vérité.
 # --------------------------------------------------------------------------- #
 
+# Compétences 1 : « Documents » et « Fichiers » (sprints précédents) manquaient ici, donc à « tu peux
+# faire quoi ? ». Un test exige désormais que toute famille du registre y figure.
 CAPABILITY_FAMILIES = ("Applications et fenêtres", "Écrire ailleurs", "Internet", "Système",
-                       "Mémoire", "Modes et automatisations")
+                       "Son et écrans", "Bluetooth", "Musique", "Heure et rappels",
+                       "Mémoire", "Documents", "Fichiers", "Modes et automatisations")
 
 TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "launch_app": ("Applications et fenêtres", "ouvrir une application"),
@@ -471,6 +479,18 @@ TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "redo_last_action": ("Mémoire", "refaire la dernière action"),
     "apprentissage_lister": ("Mémoire", "dire ce que j'ai appris de tes corrections"),
     "artefact_creer": ("Documents", "rédiger un rapport, un résumé ou un compte rendu en Word ou en PDF"),
+    "son_regler": ("Son et écrans", "régler le volume (général ou d'un programme)"),
+    "luminosite_regler": ("Son et écrans", "la luminosité"),
+    "ecrans_veille": ("Son et écrans", "mettre les écrans en veille"),
+    "bluetooth_regler": ("Bluetooth", "l'allumer ou l'éteindre"),
+    "bluetooth_connecter": ("Bluetooth", "aider à connecter un appareil"),
+    "musique_commande": ("Musique", "pause, suivant, précédent, dire ce qui passe"),
+    "musique_chercher": ("Musique", "chercher dans ton service"),
+    "musique_service": ("Musique", "retenir ton service"),
+    "heure_dire": ("Heure et rappels", "donner l'heure et la date"),
+    "rappel_creer": ("Heure et rappels", "mettre un minuteur ou un rappel"),
+    "rappel_lister": ("Heure et rappels", "les lister"),
+    "rappel_annuler": ("Heure et rappels", "les annuler"),
     "fichier_ouvrir": ("Fichiers", "ouvrir un de tes documents par son nom"),
     "fichier_lancer_programme": ("Fichiers", "lancer un programme ou un script trouvé sur ton PC (avec confirmation)"),
     "fichier_ou": ("Fichiers", "dire où est un fichier"),
@@ -555,10 +575,17 @@ _FAMILY_EXAMPLE = {
     "Écrire ailleurs": "pour écrire ailleurs",
     "Internet": "sur internet",
     "Système": "sur le système",
+    "Son et écrans": "avec le son",
+    "Bluetooth": "avec le bluetooth",
+    "Musique": "avec la musique",
+    "Heure et rappels": "avec les rappels",
     "Mémoire": "avec la mémoire",
+    "Documents": "avec les documents",
+    "Fichiers": "avec les fichiers",
     "Modes et automatisations": "avec les modes",
 }
-_NUMBERS = {1: "une", 2: "deux", 3: "trois", 4: "quatre", 5: "cinq", 6: "six", 7: "sept", 8: "huit"}
+_NUMBERS = {1: "une", 2: "deux", 3: "trois", 4: "quatre", 5: "cinq", 6: "six", 7: "sept", 8: "huit",
+            9: "neuf", 10: "dix", 11: "onze", 12: "douze"}
 
 
 def capabilities_reply_voice(family: str | None = None) -> str:
@@ -615,6 +642,18 @@ def _fichiers():
     from tools import fichiers
 
     return fichiers
+
+
+OUTILS_COMPETENCES = frozenset((
+    "heure_dire", "rappel_creer", "rappel_lister", "rappel_annuler", "son_regler", "luminosite_regler",
+    "ecrans_veille", "bluetooth_regler", "bluetooth_connecter", "musique_commande", "musique_chercher",
+    "musique_service"))
+
+
+def _competences():
+    from core import competences
+
+    return competences
 
 
 def _artefacts():
@@ -1116,8 +1155,15 @@ class ExecutionEngine:
         # Sprint Index des fichiers : « ouvre mon CV » est résolu AVANT la confirmation. Plusieurs
         # fichiers → la liste et la question ; aucun → dit ; un programme ou un script (ou un raccourci
         # vers l'un d'eux) devient fichier_lancer_programme : confirmation « toujours », chemin complet.
-        if tool_name.startswith(("fichier_", "index_", "artefact_")):
+        if tool_name.startswith(("fichier_", "index_", "artefact_")) or tool_name in OUTILS_COMPETENCES:
             params = {**params, "_origine": context.get("origine")}
+        # Sprint Compétences 1 / CP5 : éteindre le Bluetooth avec un clavier ou une souris Bluetooth
+        # connecté demande confirmation — le message dit quel appareil sera déconnecté. Décidé AVANT d'agir.
+        if tool_name == "bluetooth_regler" and not params.get("allume") and params.get("action") != "etat":
+            motif = await asyncio.to_thread(_competences().bluetooth_a_confirmer, params)
+            if motif:
+                return request_confirmation(tool_name, {**params, "_confirme": True,
+                                                        "libelle": "éteindre le Bluetooth"}, context, motif)
         # Sprint Artefacts / AR1 : fermer, réduire, agrandir visent LA fenêtre désignée. Elle est
         # résolue ici, avant la confirmation : plusieurs → la question « laquelle ? » (titre exact
         # et programme de chacune) ; une → la confirmation montre son titre et son programme, et
@@ -2097,6 +2143,9 @@ def _save_action_to_memory(tool_name: str, args: dict, result: Any, context: dic
     """Sauvegarde une action exécutée avec succès dans la mémoire long terme."""
     if tool_name in MEMORY_TOOLS:
         # G4 : l'historique recopierait le fait retenu — et ressusciterait un fait oublié.
+        return
+    if tool_name in ("heure_dire", "rappel_lister"):
+        # Compétences 1 : « il est 15 h 07 » rappelé plus tard ferait redonner une heure périmée (L4).
         return
     try:
         mem = get_memory_manager()

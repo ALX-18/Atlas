@@ -119,11 +119,30 @@ def mesurer(corpus: list[dict]) -> dict:
             "erreurs": erreurs}
 
 
+def _donnees_jetables() -> None:
+    """Compétences 1 (règle C3) : lancée seule, la mesure écrivait dans les VRAIES données — 8 lignes
+    « automation:workflow » au journal (les modes chargés pour décrire une route) et un
+    data/apprentissage.db vide. Le journal et les bases d'Atlas vont dans un dossier jetable."""
+    import tempfile
+
+    import core.apprentissage_store as apprentissage_store
+    import core.atlas_logger as atlas_logger
+    import core.context_monitor as context_monitor
+    import core.rappels as rappels
+
+    jetable = pathlib.Path(tempfile.mkdtemp(prefix="atlas_mesure_routes_"))
+    atlas_logger.LOG_FILE = jetable / "atlas_actions.jsonl"
+    apprentissage_store.DB_PATH = jetable / "apprentissage.db"
+    context_monitor._DB_PATH = jetable / "habits.db"
+    rappels.DB_PATH = jetable / "rappels.db"
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", default=str(CORPUS))
     ap.add_argument("--out")
     a = ap.parse_args(argv)
+    _donnees_jetables()
     res = mesurer(json.loads(pathlib.Path(a.corpus).read_text(encoding="utf-8")))
     texte = json.dumps(res, ensure_ascii=False, indent=1, default=str)
     if a.out:

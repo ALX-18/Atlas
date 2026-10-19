@@ -780,6 +780,36 @@ def composants() -> list[dict]:
           _pkg_version("fpdf2") is not None, _pkg_version("fpdf2"), "processeur (polices de Windows)",
           "pas de document PDF : Atlas le dit (bascule « documents »)", ("documents",))
 
+    # Sprint Compétences 1 : le son, la lumière, le Bluetooth, la musique (lecture seule, rien n'est changé)
+    sys.path.insert(0, str(ROOT))
+    try:
+        from tools import affichage, bluetooth, musique, son
+
+        son_ok, son_detail = son.disponible()
+        ligne("Son (pycaw)", "volume général et par programme, relu après chaque réglage",
+              son_ok and _pkg_version("pycaw") is not None, f"pycaw {_pkg_version('pycaw')} — {son_detail}",
+              "sortie audio par défaut", "Atlas dit qu'il ne peut pas régler le son")
+        d = affichage.diagnostic()
+        ecr = d.get("ecrans") or []
+        detail = ", ".join(f"{e['nom']} : " + (f"{e['methode'].upper()} {e['niveau']} %" if e["niveau"] is not None
+                                                else "refuse le réglage") for e in ecr) or d.get("erreur") or "aucun écran"
+        ligne("Luminosité (WMI / DDC/CI)", "luminosité des écrans qui l'acceptent ; veille des écrans",
+              any(e["niveau"] is not None for e in ecr), detail, "écrans",
+              "Atlas dit quel écran refuse le réglage")
+        b = bluetooth.diagnostic()
+        ligne("Bluetooth (WinRT)", "allumer, éteindre (relu) ; connexion : paramètres Bluetooth",
+              b["ok"], f"winrt-Windows.Devices.Radios {_pkg_version('winrt-Windows.Devices.Radios')} — {b['etat']}",
+              "radio Bluetooth", "Atlas dit que ce PC n'a pas de Bluetooth utilisable")
+        m = musique.diagnostic()
+        inst = ", ".join(musique.SERVICES[k]["nom"] for k, v in (m.get("services") or {}).items() if v)
+        ligne("Musique (sessions Windows, WinRT)", "pause, suivant, « qu'est-ce qui passe ? » ; recherche par service",
+              m["ok"], f"winrt-Windows.Media.Control {_pkg_version('winrt-Windows.Media.Control')} — lecteurs : "
+                       f"{', '.join(m.get('sessions') or []) or 'aucun ouvert'} ; services : {inst or 'aucun'}"
+              if m["ok"] else m.get("erreur"), "—", "commandes de lecture impossibles (dit par Atlas)")
+    except Exception as e:
+        ligne("Compétences (son, écrans, Bluetooth, musique)", "—", False, f"{type(e).__name__}: {e}", "—",
+              "Atlas dit ce qu'il ne peut pas faire")
+
     # Internet
     ligne("Recherche web (ddgs)", "DuckDuckGo", _pkg_version("ddgs") is not None, _pkg_version("ddgs"), "réseau",
           "recherche impossible (dit à chaque demande)")

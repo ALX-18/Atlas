@@ -602,6 +602,8 @@ def test_aq2_un_atlas_d_essai_n_ecrit_ni_dans_le_journal_ni_dans_l_apprentissage
         s = f.read_text(encoding="utf-8")
         if '"main.py"' in s and "Popen" in s:
             # Index des fichiers (17/10) : habits.db aussi — deux lancements d'essai y avaient écrit.
-            if not ("ATLAS_ACTIONS_LOG" in s and "ATLAS_APPRENTISSAGE_DB" in s and "ATLAS_HABITS_DB" in s):
+            # Compétences 1 : rappels.db aussi — un Atlas d'essai ne donne ni ne crée les rappels d'Alexis.
+            if not ("ATLAS_ACTIONS_LOG" in s and "ATLAS_APPRENTISSAGE_DB" in s and "ATLAS_HABITS_DB" in s
+                    and "ATLAS_RAPPELS_DB" in s):
                 fautifs.append(f.name)
     assert fautifs == [], fautifs

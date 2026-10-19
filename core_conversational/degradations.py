@@ -167,6 +167,13 @@ CATALOGUE: dict[str, dict] = {
         "vecue": True,
         "message": "Je ne peux pas produire ce document pour le moment : il me manque de quoi écrire ce format.",
     },
+    "rappels": {
+        "composant": "Minuteurs et rappels (data/rappels.db)",
+        "declencheur": "la base des rappels ne s'ouvre pas, ou la surveillance ne démarre pas",
+        "perte": "donner les minuteurs et les rappels à l'heure",
+        "vecue": True,
+        "message": "Mes minuteurs et rappels ne fonctionnent pas en ce moment : je ne pourrai pas te prévenir.",
+    },
     "file_indexer": {
         "composant": "Index des fichiers",
         "declencheur": "l'index des fichiers ne démarre pas, ou sa base (data/file_index.db) est illisible",
