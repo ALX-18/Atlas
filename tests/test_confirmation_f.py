@@ -39,6 +39,10 @@ def executed(monkeypatch):
                             (lambda n: lambda args: calls.append((n, args))
                              or {"success": True, "message": f"[simulé] {n}"})(name))
     monkeypatch.setattr(ie, "_save_action_to_memory", lambda *a, **k: None)
+    # Banc de modèles (trouvé le 19/10) : depuis AR1, « ferme le bloc-notes » résout la VRAIE fenêtre
+    # avant la confirmation ; un Bloc-notes ouvert chez Alexis changeait la cible attendue. Aucune vraie
+    # fenêtre ne correspond ici.
+    monkeypatch.setattr(ie.window_controller, "fenetres_correspondantes", lambda nom: [])
     confirmation._pending.clear()
     yield calls
     confirmation._pending.clear()

@@ -25,7 +25,8 @@ import sys
 import time
 
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
-# Branchée VOLONTAIREMENT pour des rappels réels ; ReadOnlyMemory en bloque les écritures.
+# Branchée VOLONTAIREMENT pour des rappels réels, sur une COPIE (BM0, banc_donnees) ; ReadOnlyMemory
+# en bloque les écritures.
 os.environ["ATLAS_MEMORY"] = "real"
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -272,4 +273,7 @@ def main(out_path, mode="o1"):
 
 
 if __name__ == "__main__":
+    from banc_donnees import donnees_jetables
+
+    donnees_jetables(prefixe="atlas_o_")                # BM0 : une copie, jamais la vraie mémoire
     main(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else "o1")

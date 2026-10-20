@@ -564,6 +564,9 @@ def report_automation_block(source: str, item: str, reason: str) -> None:
         "pipeline_stage": f"automation:{source}",
     }
     try:
+        from core.donnees_reelles import verifier_ecriture
+
+        verifier_ecriture(atlas_logger.LOG_FILE, "journal des actions (automatisation bloquée)")   # BM0
         atlas_logger.LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(atlas_logger.LOG_FILE, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")

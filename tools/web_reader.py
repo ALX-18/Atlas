@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
-from core.ollama_client import BASE_URL, KEEP_ALIVE, MODEL, ollama_options
+from core.ollama_client import BASE_URL, KEEP_ALIVE, champs_modele, ollama_options
 
 logger = logging.getLogger("atlas.web_reader")
 
@@ -130,7 +130,7 @@ async def summarize_url(url: str, max_chars: int = READER_MAX_CHARS) -> dict[str
     )
 
     payload = {
-        "model": MODEL,
+        **champs_modele(),
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": "Fais un résumé clair en 5 points maximum."},

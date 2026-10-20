@@ -62,9 +62,9 @@ SCHEMA_DOCUMENT = {"type": "object", "properties": {
 
 def _generer_json(systeme: str, consigne: str, schema: dict, temperature: float = 0.4) -> Optional[dict]:
     """Un appel à Ollama, sortie JSON imposée par le schéma. None si l'appel ou le JSON échoue."""
-    from core.ollama_client import BASE_URL, KEEP_ALIVE, MODEL, ollama_options
+    from core.ollama_client import BASE_URL, KEEP_ALIVE, champs_modele, ollama_options
 
-    payload = {"model": MODEL, "stream": False, "keep_alive": KEEP_ALIVE, "format": schema,
+    payload = {**champs_modele(), "stream": False, "keep_alive": KEEP_ALIVE, "format": schema,
                "options": ollama_options(temperature=temperature),
                "messages": [{"role": "system", "content": systeme}, {"role": "user", "content": consigne}]}
     try:

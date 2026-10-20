@@ -60,6 +60,9 @@ async def log_action(
     if origine:
         entry["origine"] = origine
 
+    from core.donnees_reelles import verifier_ecriture
+
+    verifier_ecriture(LOG_FILE, "journal des actions")      # BM0 : seul Atlas écrit le vrai journal
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -82,6 +85,9 @@ async def log_orchestration_step(
         "latency_ms": latency_ms,
         "error": error,
     }
+    from core.donnees_reelles import verifier_ecriture
+
+    verifier_ecriture(LOG_FILE, "journal des actions")      # BM0 : seul Atlas écrit le vrai journal
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")

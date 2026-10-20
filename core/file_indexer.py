@@ -238,8 +238,18 @@ CREATE TABLE IF NOT EXISTS etat (cle TEXT PRIMARY KEY, valeur TEXT NOT NULL);
 """
 
 
+def _verifier_ecriture(quoi: str) -> None:
+    from core.donnees_reelles import verifier_ecriture
+
+    verifier_ecriture(DB_PATH, quoi)            # BM0 : seul Atlas écrit le vrai index
+
+
 def connexion(chemin: Optional[pathlib.Path] = None) -> sqlite3.Connection:
     p = pathlib.Path(chemin or DB_PATH)
+    from core import donnees_reelles
+
+    if donnees_reelles.interdit(p):              # BM0 : lecture seule, jamais créé hors d'Atlas
+        return donnees_reelles.lecture_seule(p)
     p.parent.mkdir(parents=True, exist_ok=True)
     c = sqlite3.connect(str(p), timeout=10.0, check_same_thread=False)
     c.execute("PRAGMA journal_mode=WAL")       # lectures pendant l'indexation
@@ -378,6 +388,7 @@ class FileIndexer:
             self._progression.pop("en_pause", None)
 
     def passage(self) -> dict[str, Any]:
+        _verifier_ecriture("passage de l'index des fichiers")
         cfg = self._cfg
         regles = Exclusions.depuis_config(cfg)
         taille_max = int(float(cfg.get("contenu_taille_max_mo", 20)) * 1024 * 1024)
@@ -602,6 +613,7 @@ def par_chemin(chemin: str) -> Optional[dict]:
 
 def indexer_un_fichier(chemin: str) -> None:
     """Sprint Artefacts : un document créé par Atlas entre TOUT DE SUITE dans l'index (nom et texte)."""
+    _verifier_ecriture("ajout d'un fichier à l'index")
     st = os.stat(chemin)
     nom = os.path.basename(chemin)
     ext = os.path.splitext(nom)[1].lower()
@@ -631,6 +643,7 @@ def indexer_un_fichier(chemin: str) -> None:
 
 def oublier_index() -> int:
     """Vide l'index (« oublie l'index de mes fichiers », confirmé). Retourne le nombre de fichiers."""
+    _verifier_ecriture("oubli de l'index des fichiers")
     c = connexion()
     try:
         n = c.execute("SELECT COUNT(*) FROM fichiers").fetchone()[0]
