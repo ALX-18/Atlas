@@ -97,12 +97,12 @@ def test_gt1_la_reponse_dit_ce_qui_demande_une_confirmation_et_reste_lisible():
     assert "confirmation" in texte.lower()
     for jargon in ("_", "window", "launch", "workflow_run", "TOOL"):
         assert jargon not in texte, f"jargon « {jargon} » : {texte}"
-    # G-ter : avec 6 familles, environ 1 250 caractères (limite 1 400). Compétences 1 : la liste suit le
-    # registre (12 familles, dont Documents et Fichiers qui en manquaient) ; la lisibilité se garde
-    # ligne par ligne (une famille tient en une ligne courte), avec un plafond d'ensemble.
+    # G-ter : avec 6 familles, environ 1 250 caractères (limite 1 400). Compétences 1 : 2 018 caractères
+    # (12 familles), plafond relevé. Artefacts sur mesure / AS4 : l'écrit prend le format de la voix — les
+    # familles, puis le détail sur demande : la limite redevient COURTE.
     for ligne in texte.splitlines():
         assert len(ligne) < 300, f"ligne trop longue ({len(ligne)} caractères) : {ligne}"
-    assert len(texte) < 2200, f"trop long ({len(texte)} caractères)"
+    assert len(texte) < 700, f"trop long ({len(texte)} caractères)"
 
 
 def test_gt1_la_consigne_ne_fait_plus_nier_qu_atlas_sait_agir():

@@ -205,7 +205,7 @@ def test_ar2_word_vrais_titres_listes_pied_de_page_et_relu(tmp_path):
     from tools import documents as d
 
     f = tmp_path / "essai.docx"
-    d.ecrire_docx(CONTENU, f, pied="Rédigé par Atlas avec un modèle local — à relire")
+    d.ecrire_docx(CONTENU, f, pied="Rédigé par Atlas avec un modèle local — à relire", sommaire=True)
     ok, raison, info = d.verifier_fichier(f)
     assert ok, raison
     doc = docx.Document(str(f))
@@ -332,7 +332,8 @@ def _annonces():
 @pytest.mark.parametrize("phrase,type_,sujet,source", [
     ("fais-moi un rapport sur la photosynthèse", "rapport", "la photosynthèse", None),
     ("rédige un rapport en PDF sur l'histoire de Rome", "rapport", "l'histoire de Rome", None),
-    ("fais un document Word sur les volcans", "rapport", "les volcans", None),
+    # Artefacts sur mesure : un « document » reste un document (la structure vient de la demande), plus un rapport.
+    ("fais un document Word sur les volcans", "document", "les volcans", None),
     ("résume mon rapport de stage dans un Word", "resume", None, "mon rapport de stage"),
     ("fais un résumé en PDF de mon rapport de stage", "resume", None, "mon rapport de stage"),
     ("rédige un compte rendu de mes notes de réunion", "compte_rendu", None, "mes notes de réunion"),

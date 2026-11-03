@@ -8,7 +8,7 @@ import json
 import logging
 import pathlib
 import time
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi import Body
@@ -567,11 +567,15 @@ def _refuser_si_autre_origine(request: Request | None) -> None:
 
 
 @router.get("/annonces")
-async def api_annonces():
-    """Sprint Artefacts : ce qu'Atlas annonce de lui-même (un document prêt). Relevé par la fenêtre."""
+async def api_annonces(depuis: Optional[int] = None):
+    """Sprint Artefacts : ce qu'Atlas annonce de lui-même (un document prêt). Relevé par la fenêtre.
+    Artefacts sur mesure : ?depuis=N — les annonces après N, sans vider la file (fenêtre de bureau ET web)."""
     from core import annonces
 
-    return {"annonces": annonces.lire()}
+    if depuis is None:
+        return {"annonces": annonces.lire()}
+    liste, dernier = annonces.depuis(depuis)
+    return {"annonces": liste, "dernier": dernier}
 
 
 @router.get("/confirmations")

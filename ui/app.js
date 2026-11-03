@@ -27,7 +27,29 @@ document.addEventListener('DOMContentLoaded', () => {
     checkBridgeStatus();
     setInterval(checkHealth, 15000);   // health check toutes les 15s
     setInterval(checkBridgeStatus, 5000); // bridge check toutes les 5s
+    setInterval(checkAnnonces, 1500);  // Artefacts sur mesure : un document prêt, un rappel… (comme la fenêtre de bureau)
 });
+
+// ============================================================
+//  Annonces d'Atlas (document prêt, rappel, minuteur)
+//  Par numéro, sans vider la file : la fenêtre de bureau les voit aussi.
+// ============================================================
+
+let _annonceVue = 0;
+
+async function checkAnnonces() {
+    try {
+        const res = await fetch(`${API_BASE}/annonces?depuis=${_annonceVue}`);
+        if (!res.ok) return;
+        const corps = await res.json();
+        for (const a of (corps.annonces || [])) {
+            appendMessage('assistant', a.message || '');
+        }
+        _annonceVue = Math.max(_annonceVue, corps.dernier || 0);
+    } catch {
+        /* serveur pas encore prêt : silence */
+    }
+}
 
 // ============================================================
 //  Health check

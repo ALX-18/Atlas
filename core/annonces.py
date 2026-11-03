@@ -18,6 +18,10 @@ logger = logging.getLogger("atlas.annonces")
 
 _verrou = threading.Lock()
 _file: list[dict] = []
+# Artefacts sur mesure / AS4 : la fenêtre de bureau ET la fenêtre web relèvent les annonces. Lire en vidant
+# la file ferait qu'une seule des deux les voie : chaque annonce a un numéro, `depuis(n)` ne vide rien.
+_historique: list[dict] = []
+_numero = 0
 NOTIFIER = True            # les tests le coupent (conftest) : aucune notification sur l'écran d'Alexis
 
 
@@ -34,8 +38,13 @@ def publier(message: str, origine: Optional[str] = None, titre: str = "Atlas",
             parole: Optional[str] = None) -> None:
     """parole (Compétences 1) : la phrase à prononcer si la voix est active, quelle que soit
     l'origine (un rappel arrive sans demande) ; sinon, prononcé seulement pour une demande vocale."""
+    global _numero
     with _verrou:
-        _file.append({"message": message, "origine": origine, "quand": time.strftime("%H:%M:%S")})
+        _numero += 1
+        entree = {"id": _numero, "message": message, "origine": origine, "quand": time.strftime("%H:%M:%S")}
+        _file.append(entree)
+        _historique.append(entree)
+        del _historique[:-100]
     logger.info("[ANNONCE] %s", message)
 
     def notifier():
@@ -73,3 +82,9 @@ def lire() -> list[dict]:
         out = list(_file)
         _file.clear()
     return out
+
+
+def depuis(n: int) -> tuple[list[dict], int]:
+    """(annonces de numéro > n, dernier numéro) — sans rien vider : plusieurs fenêtres peuvent lire."""
+    with _verrou:
+        return [dict(e) for e in _historique if e["id"] > n], _numero

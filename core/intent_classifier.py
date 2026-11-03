@@ -184,7 +184,7 @@ INTENT_CATEGORIES = {
         },
     },
     # Sprint Artefacts : rédiger un document Word ou PDF (règles dédiées, _regles_artefacts)
-    "artefact": {"verbs_map": {}, "tools": {"creer": "artefact_creer"}},
+    "artefact": {"verbs_map": {}, "tools": {"creer": "artefact_creer", "retoucher": "artefact_retoucher"}},
     # Sprint Compétences 1 (règles dédiées : core/regles_competences.py) — le verbe est le nom de l'outil
     "competence": {"verbs_map": {}, "tools": {t: t for t in (
         "heure_dire", "rappel_creer", "rappel_lister", "rappel_annuler", "son_regler", "luminosite_regler",
@@ -777,7 +777,172 @@ def _regles_artefacts(raw: str, plain: str) -> Optional[IntentResult]:
             return _artefact(raw, type="compte_rendu", source=x_brut or None, formats=formats)
         if x and _ressemble_a_un_fichier(x):
             return _artefact(raw, type="resume", source=x_brut, formats=formats)
-        return _artefact(raw, type="rapport", sujet=x_brut, formats=formats)
+        return _artefact(raw, type="rapport", sujet=_sujet_sans_consignes(x_brut), formats=formats)
+    return None
+
+
+# --------------------------------------------------------------------------- #
+#  Sprint Artefacts sur mesure — d'autres genres (lettre, fiche, plan de cours, note…), et les retouches
+# --------------------------------------------------------------------------- #
+
+_GENRES_DOC = (r"lettre(?:\s+de\s+motivation|\s+de\s+resiliation)?|courrier|fiche(?:\s+de\s+revision|\s+pratique|"
+               r"\s+recapitulative|\s+memo)?|plan\s+de\s+cours|plan\s+de\s+(?:la\s+)?lecon|note\s+de\s+synthese|"
+               r"note\s+d'information|note|expose|texte|rapport|document|compte[ -]rendu")   # « dossier » : ambigu
+_CONSIGNE_DEBUT = re.compile(r",|\s+(?:en\s+\d+\s+(?:parties|sections|lignes|pages|mots)|en\s+(?:une?|deux|trois|quatre|cinq)\s+"
+                             r"(?:parties|sections|lignes|pages)|de\s+\d+\s+(?:mots|pages|lignes)|d'une\s+page|"
+                             r"en\s+(?:word|pdf|anglais|espagnol|allemand|italien)|avec\s+|sans\s+|intitule|"
+                             r"(?:tres\s+)?(?:court|courte|detaille|detaillee|formel|formelle|simple)\b)")
+
+
+def _tranche(brut: str, plain: str, m, groupe: str) -> Optional[str]:
+    """Le groupe `groupe` du motif m (trouvé sur plain), pris À SA PLACE dans la phrase d'origine
+    (accents, majuscules). _morceau_brut ne vaut que pour un morceau en FIN de phrase."""
+    if m is None or m.group(groupe) is None:
+        return None
+    if len(brut) == len(plain):
+        return brut[m.start(groupe):m.end(groupe)].strip()
+    return m.group(groupe).strip()
+
+
+def _sujet_genre(brut: str, plain: str, debut: int, genre: str) -> str:
+    """Le sujet d'un document : après « sur / à propos de / au sujet de / concernant » s'il y en a un ;
+    pour une lettre, après « pour » (« pour signaler une fuite ») ; sinon le reste. Consignes retirées."""
+    reste_p = plain[debut:]
+    m = re.search(r"\b(?:sur|a propos d(?:e|u|es)|au sujet d(?:e|u|es)|concernant)\s+(?P<x>.+)$", reste_p)
+    if not m and genre == "lettre":
+        m = re.search(r"\b(?:pour|afin de)\s+(?P<x>(?!mon\b|ma\b|mes\b|un\b|une\b|le\b|la\b|les\b|l'|des\b)\w.+)$", reste_p)
+    if not m:
+        m = re.search(r"^\s*(?:(?:word|pdf|docx)\s+)?(?:de|du|des|d'|pour)?\s*(?P<x>.+)$", reste_p)
+    if not m:
+        return ""
+    x = brut[debut + m.start("x"):debut + m.end("x")] if len(brut) == len(plain) else m.group("x")
+    return _sujet_sans_consignes(x)
+
+
+def _sujet_sans_consignes(x: str) -> str:
+    """« la photosynthèse en 3 parties, avec un tableau » → « la photosynthèse » (le reste est la spécification)."""
+    m = _CONSIGNE_DEBUT.search(_sans_accents(x.lower()))
+    s = x[:m.start()] if m and m.start() > 2 else x
+    return s.strip(" ,.;:")
+
+
+def _regles_genres(raw: str, plain: str) -> Optional[IntentResult]:
+    """« rédige une lettre pour mon propriétaire… », « fais une fiche de révision sur… »."""
+    brut = raw.strip().rstrip(" .!?")
+    m = re.match(r"^(?P<d>.+?)\s+—\s+signee\s*:\s*(?P<s>.+)$", plain)     # réponse à « à quel nom signer ? »
+    if m:
+        debut = len(m.group("d"))
+        signature = brut.split("—", 1)[1].split(":", 1)[1].strip() if "—" in brut else m.group("s")
+        r = _regles_genres(brut[:debut], plain[:debut])
+        if r is not None:
+            r.params["signature"] = signature
+            return r
+        return None
+    m = re.match(r"^(?:fais|fait|redige|rediger|ecris|prepare|prepares|genere|cree|produis)(?:-| )?(?:moi |nous )?"
+                 rf"(?:un |une )(?P<t>{_GENRES_DOC})\b(?P<reste>.*)$", plain)
+    if not m:
+        return None
+    t, reste = m.group("t"), m.group("reste")
+    if t == "texte" and (re.search(r"\bdans\s+(?:le|la|l'|mon|ma|discord|word|notepad|bloc)", reste)
+                         or not re.search(r"\bsur\b|\bmots\b|\blignes\b|\bpages?\b|\bparties\b|\bword\b|\bpdf\b", reste)):
+        return None                                       # « écris un texte dans le bloc-notes » : la frappe
+    from core.specification import extraire
+
+    spec = extraire(raw)
+    genre = spec.get("genre") or "document"
+    if genre == "compte_rendu":
+        return None                                       # la règle des artefacts s'en occupe
+    sujet = _sujet_genre(brut, plain, m.start("reste"), genre)
+    if genre == "lettre":
+        return _artefact(raw, type="lettre", sujet=sujet or "lettre", formats=spec["formats"])
+    return _artefact(raw, type=genre, sujet=sujet, formats=spec["formats"])
+
+
+_RANGS_PARTIE = r"premiere|deuxieme|seconde|troisieme|quatrieme|cinquieme|sixieme|derniere|\d+e|\d+eme|\d+"
+_DOC = r"(?P<doc>(?:le |la |l'|mon |ma |ce |cette |du |de |au |a )?(?:document|rapport|texte|fichier|lettre|fiche|note|" \
+       r"compte rendu|cv|expose|dossier|plan de cours|resume)\b[^?]*?)"
+
+
+def _regles_retouches(raw: str, plain: str) -> Optional[IntentResult]:
+    """Les retouches d'un document : sur le dernier document de la session, ou sur un document nommé."""
+    from core import artefacts
+
+    brut = raw.strip().rstrip(" .!?")
+    m = re.match(r"^(?P<d>.+?)\s+—\s+document\s*:\s*(?P<c>[a-z]:\\.+)$", plain)    # choix dans une liste
+    chemin = None
+    if m:
+        chemin = re.search(r"[A-Za-z]:\\.+$", brut).group(0).strip()
+        plain, brut = m.group("d"), brut[:len(m.group("d"))]
+    recent = artefacts.dernier_document_recent() is not None
+    lead = r"^(?:atlas[\s,]*)?(?:(?:tu peux|peux-tu|pourrais-tu)\s+)?"
+
+    def res(op, m=None, **params):
+        doc = (m.groupdict().get("doc") if m is not None else None) or ""
+        d_brut = _tranche(brut, plain, m, "doc") if doc else None
+        doc = re.sub(r"^(?:le |la |l'|mon |ma |ce |cette |du |de |au |a )", "", doc.strip()).strip()
+        if d_brut:
+            d_brut = re.sub(r"^(?:le |la |l'|l’|mon |ma |ce |cette |du |de |au |à |a )", "", d_brut, flags=re.IGNORECASE).strip()
+        generique = re.fullmatch(r"(?:document|texte|fichier|rapport|lettre|fiche|note|resume|dernier document)", doc or "")
+        if chemin is None and (not doc or generique):
+            if not recent:
+                # « raccourcis » sans document récent : ni une retouche, ni un raccourci clavier — une conversation
+                return IntentResult(category="conversation", verb="chat", target=None, confidence=0.85,
+                                    is_complex=False, raw_input=raw)
+            d_brut = None
+        return IntentResult(category="artefact", verb="retoucher", target=d_brut,
+                            params={"operation": op, "document": d_brut, "document_chemin": chemin,
+                                    "phrase_retouche": brut, **params}, confidence=0.95, is_complex=False, raw_input=raw)
+
+    cible = rf"(?:\s+(?:au|dans|du|de|a)\s+{_DOC})?"
+    m = re.match(lead + r"(?:rajoute|ajoute|ajouter|rajouter|insere)(?:-y|-lui)?\s+(?:une|un)\s+(?:partie|section|paragraphe|"
+                 r"chapitre)\s+(?:sur|a propos d(?:e|u|es)|au sujet d(?:e|u|es)|concernant|consacree?s?\s+a|qui parle d(?:e|u|es))\s+"
+                 rf"(?P<x>.+?){cible}$", plain)
+    if m:
+        x = _tranche(brut, plain, m, "x")
+        return res("ajouter", m, objet=x)
+    m = re.match(lead + r"(?:raccourcis|raccourcir|abrege|abreger|condense|condenser|resserre)(?:-le|-la|-les)?"
+                 rf"(?:\s+{_DOC})?$", plain) or \
+        re.match(lead + rf"(?:rends|fais)(?:-le|-la)?\s+(?:{_DOC}\s+)?plus\s+court(?:e)?$", plain)
+    if m:
+        return res("raccourcir", m)
+    m = re.match(lead + r"(?:developpe|developper|etoffe|etoffer|detaille|approfondis)(?:-la|-le)?\s+(?:la|le)\s+"
+                 rf"(?P<r>{_RANGS_PARTIE})\s+(?:partie|section){cible}$", plain)
+    if m:
+        r = m.group("r")
+        rang = -1 if r == "derniere" else (artefacts._RANGS.get(r) or int(re.sub(r"\D", "", r) or 0))
+        return res("developper", m, rang=rang)
+    m = re.match(lead + r"(?:developpe|developper|etoffe|detaille|approfondis)\s+la\s+partie\s+(?:sur|consacree a)\s+(?P<x>.+?)"
+                 rf"{cible}$", plain)
+    if m:
+        return res("developper", m, objet=_tranche(brut, plain, m, "x"))
+    m = re.match(lead + r"(?:rends|fais|ecris|reecris|redige)(?:-le|-la)?\s+(?:" + _DOC + r"\s+)?(?:de (?:facon|maniere) |"
+                 r"un peu )?plus\s+(?P<t>formel|soutenu|professionnel|simple|clair|accessible|amical|long)(?:le|e)?$", plain) or \
+        re.match(lead + r"(?:un peu )?plus\s+(?P<t>formel|simple|professionnel|clair)(?:le|e)?(?:\s+s'il te plait)?$", plain)
+    if m:
+        t = m.group("t")
+        if t == "long":
+            return res("developper", m)
+        return res("ton", m, valeur={"soutenu": "formel", "clair": "simple", "accessible": "simple"}.get(t, t))
+    m = re.match(lead + r"(?:enleve|enlever|retire|retirer|supprime|supprimer|ote|vire)(?:-lui)?\s+(?:la|le|l'|les)\s*"
+                 r"(?P<x>conclusion|introduction|sommaire|table des matieres|tableaux?|derniere partie|premiere partie|"
+                 rf"partie\s+(?:sur\s+|consacree a\s+)?.+?|section\s+.+?){cible}$", plain)
+    if m:
+        x = m.group("x")
+        rang = -1 if x == "derniere partie" else (1 if x == "premiere partie" else None)
+        objet = re.sub(r"^(?:partie|section)\s+(?:sur\s+|consacree a\s+)?", "", _tranche(brut, plain, m, "x"))
+        return res("enlever", m, objet=objet, rang=rang)
+    m = re.match(lead + r"(?:change|changer|modifie|modifier|remplace|remplacer)\s+(?:le titre|son titre)"
+                 rf"(?:\s+(?:du|de)\s+{_DOC})?\s+(?:en|par|pour)\s+(?P<v>.+)$", plain)
+    if m:
+        return res("titre", m, valeur=_tranche(brut, plain, m, "v").strip(" «»\"“”"))
+    m = re.match(lead + r"(?:corrige|corriger|relis et corrige)(?:-le|-la)?(?:\s+(?:les fautes|l'orthographe|les erreurs)"
+                 rf"(?:\s+(?:du|de|dans)\s+{_DOC})?)?$", plain)
+    if m and (m.group("doc") or "fautes" in plain or "orthographe" in plain or re.search(r"corrige-l[ea]", plain)):
+        return res("corriger", m)
+    m = re.match(lead + r"(?:mets|met|mettre|convertis|convertir|transforme|exporte|enregistre)(?:-le|-la)?\s+"
+                 rf"(?:{_DOC}\s+)?en\s+pdf$", plain) or re.match(lead + r"fais(?:-en| en)\s+un\s+pdf$", plain)
+    if m:
+        return res("pdf", m)
     return None
 
 class IntentClassifier:
@@ -808,7 +973,8 @@ class IntentClassifier:
 
         # --- Sprint Artefacts : « fais-moi un rapport sur… », « résume mon rapport de stage dans un Word ».
         # En premier : « écris un rapport sur… » n'est pas « écris X dans une fenêtre ».
-        artefact = _regles_artefacts(raw, _plat0)
+        # Artefacts sur mesure : les retouches (« rajoute une partie sur… », « mets-le en PDF »), puis les autres genres.
+        artefact = _regles_retouches(raw, _plat0) or _regles_genres(raw, _plat0) or _regles_artefacts(raw, _plat0)
         if artefact is not None:
             return artefact
 
