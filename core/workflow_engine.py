@@ -431,9 +431,12 @@ class WorkflowEngine:
         )
 
         # Save to YAML
-        WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
         yaml_path = WORKFLOWS_DIR / f"{wf_id}.yaml"
         try:
+            from core.donnees_reelles import verifier_ecriture
+
+            verifier_ecriture(yaml_path, "workflow")                 # BM0 : seul Atlas écrit les vrais
+            WORKFLOWS_DIR.mkdir(parents=True, exist_ok=True)
             with open(yaml_path, "w", encoding="utf-8") as f:
                 yaml.dump(wf.to_yaml_dict(), f, default_flow_style=False, allow_unicode=True, sort_keys=False)
         except Exception as e:

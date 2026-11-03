@@ -134,9 +134,35 @@ def test_bm0_main_pose_l_autorisation_au_lancement_seulement():
     ("core/apprentissage_store.py", "donnees_reelles.interdit"), ("core/rappels.py", "donnees_reelles.interdit"),
     ("core/context_monitor.py", "verifier_ecriture"), ("core/file_indexer.py", "verifier_ecriture"),
     ("core/memory_manager.py", "donnees_reelles.interdit"),
+    ("core/trigger_engine.py", "verifier_ecriture"), ("core/scheduler.py", "verifier_ecriture"),
+    ("core/workflow_engine.py", "verifier_ecriture"),
 ])
 def test_bm0_chaque_ecrivain_passe_par_le_garde(fichier, marque):
     assert marque in (ROOT / fichier).read_text(encoding="utf-8")
+
+
+def test_bm0_un_atlas_d_essai_ne_reecrit_ni_declencheurs_ni_taches(tmp_path, monkeypatch):
+    """Trouvé au rejeu Artefacts sur mesure : « GPU over 90 » a réécrit le vrai triggers.json."""
+    from core import donnees_reelles as dr
+    from core import scheduler, trigger_engine
+
+    monkeypatch.delenv(dr.VARIABLE, raising=False)
+    monkeypatch.setattr(dr, "DOSSIER", tmp_path)                 # simulé : tmp_path joue les données réelles
+    monkeypatch.setattr(trigger_engine, "TRIGGERS_FILE", tmp_path / "triggers.json")
+    monkeypatch.setattr(scheduler, "SCHEDULES_FILE", tmp_path / "schedules.json")
+    for module, classe, table in ((trigger_engine, trigger_engine.TriggerEngine, "_triggers"),
+                                  (scheduler, scheduler.AtlasScheduler, "_jobs")):
+        moteur = classe.__new__(classe)
+        moteur._storage_error, moteur._raw_entries, moteur._unparsed_entries = None, {}, []
+        setattr(moteur, table, {})
+        (moteur._save_triggers if table == "_triggers" else moteur._save_jobs)()
+    assert not (tmp_path / "triggers.json").exists() and not (tmp_path / "schedules.json").exists()
+
+    monkeypatch.setenv(dr.VARIABLE, "reelles")                   # le vrai Atlas, lui, écrit
+    moteur = trigger_engine.TriggerEngine.__new__(trigger_engine.TriggerEngine)
+    moteur._storage_error, moteur._raw_entries, moteur._unparsed_entries, moteur._triggers = None, {}, [], {}
+    moteur._save_triggers()
+    assert (tmp_path / "triggers.json").exists()
 
 
 @pytest.fixture

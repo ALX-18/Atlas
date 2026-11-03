@@ -855,10 +855,12 @@ def test_cp7_toute_famille_du_registre_est_annoncee():
 
 
 def test_cp7_tu_peux_faire_quoi_montre_les_nouvelles_familles():
+    # Artefacts sur mesure / AS4 : à l'écrit, les familles seulement ; le détail sur demande.
     m = _msg(_chat("tu peux faire quoi ?"))
     for famille in ("Son et écrans", "Bluetooth", "Musique", "Heure et rappels", "Documents", "Fichiers"):
-        assert f"- {famille} :" in m, (famille, m)
-    assert "régler le volume" in m and "mettre un minuteur ou un rappel" in m
+        assert f"- {famille}\n" in m + "\n", (famille, m)
+    assert "détail d'une famille" in m
+    assert "régler le volume" in _msg(_chat("que sais-tu faire avec le son ?"))
 
 
 def test_cp7_le_detail_d_une_nouvelle_famille():

@@ -657,7 +657,8 @@ class Validator:
         # --- Sprint Apprentissage 1 : lister, oublier ce qui a été appris ---
         # --- Sprint Artefacts : ce qui manque est demandé par l'outil ; la rédaction en arrière-plan ---
         if category == "artefact":
-            return ResolvedAction(tool="artefact_creer", params=dict(intent.params or {}), intent=intent)
+            outil = "artefact_retoucher" if verb == "retoucher" else "artefact_creer"
+            return ResolvedAction(tool=outil, params=dict(intent.params or {}), intent=intent)
 
         # --- Sprint Compétences 1 : l'outil est nommé par la règle ; ce qui manque est demandé par l'outil,
         # et le Bluetooth éteint avec un clavier ou une souris connecté passe par une confirmation (moteur).

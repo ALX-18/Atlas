@@ -169,9 +169,10 @@ def build_system_prompt(context: dict, memories: list[str] | None = None, extra_
         memories_section = "- Aucun souvenir disponible pour le moment."
 
     try:
-        from core.intent_engine import capabilities_reply
+        # Artefacts sur mesure : la personne reçoit la liste courte (familles) ; le modèle garde le détail.
+        from core.intent_engine import capabilities_detail
 
-        capabilities_section = capabilities_reply()
+        capabilities_section = capabilities_detail()
     except Exception as e:
         from core_conversational.degradations import signaler
 

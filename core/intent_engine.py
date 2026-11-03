@@ -415,6 +415,8 @@ TOOL_HANDLERS = {
     "apprentissage_lister": lambda args: _run_apprentissage_lister(args),
     # Sprint Artefacts
     "artefact_creer": lambda args: _artefacts().creer(args),
+    # Sprint Artefacts sur mesure : une nouvelle version, jamais d'écrasement
+    "artefact_retoucher": lambda args: _artefacts().retoucher(args),
     # Sprint Compétences 1 : agir, relire, dire (core/competences.py), hors de la boucle de l'API
     **{nom: (lambda n: lambda args: asyncio.to_thread(getattr(_competences(), n), args))(nom)
        for nom in ("heure_dire", "rappel_creer", "rappel_lister", "rappel_annuler", "son_regler",
@@ -478,7 +480,10 @@ TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "memory_forget": ("Mémoire", "l'oublier"),
     "redo_last_action": ("Mémoire", "refaire la dernière action"),
     "apprentissage_lister": ("Mémoire", "dire ce que j'ai appris de tes corrections"),
-    "artefact_creer": ("Documents", "rédiger un rapport, un résumé ou un compte rendu en Word ou en PDF"),
+    "artefact_creer": ("Documents", "rédiger le document que tu demandes (rapport, lettre, fiche, résumé…) en Word ou "
+                                    "en PDF, selon tes consignes"),
+    "artefact_retoucher": ("Documents", "le retoucher (ajouter, raccourcir, changer le ton, corriger, mettre en PDF), "
+                                        "dans une nouvelle version"),
     "son_regler": ("Son et écrans", "régler le volume (général ou d'un programme)"),
     "luminosite_regler": ("Son et écrans", "la luminosité"),
     "ecrans_veille": ("Son et écrans", "mettre les écrans en veille"),
@@ -536,6 +541,22 @@ def _usable_modes() -> list[str]:
         return []
 
 
+def capabilities_detail() -> str:
+    """La liste détaillée (chaque famille et ses actions), pour la consigne du MODÈLE : il doit savoir ce
+    qu'Atlas sait faire. La personne, elle, reçoit la version courte (capabilities_reply)."""
+    tools = capability_tools()
+    lines = []
+    for fam in CAPABILITY_FAMILIES:
+        labels = _family_labels(fam, tools)
+        if labels:
+            lines.append(f"- {fam} : {', '.join(labels)}.")
+    modes = _usable_modes()
+    if modes:
+        lines.append(f"  Modes utilisables : {', '.join(modes)}.")
+    lines.append("* demande une confirmation à l'écran.")
+    return "\n".join(lines)
+
+
 def capabilities_reply(family: str | None = None) -> str:
     """La réponse fixe à « tu peux faire quoi ? » (GT1), ou le détail d'une famille (C1)."""
     tools = capability_tools()
@@ -547,11 +568,11 @@ def capabilities_reply(family: str | None = None) -> str:
         if any(label.endswith(" *") for label in labels):
             lines.append("* demande votre confirmation à l'écran.")
         return "\n".join(lines)
-    lines = ["Voici ce que je sais faire :"]
+    # Artefacts sur mesure / AS4 : à l'écrit aussi, les familles seulement, puis le détail sur demande (C1).
+    lines = ["Voici ce que je sais faire, par famille :"]
     for fam in CAPABILITY_FAMILIES:
-        labels = _family_labels(fam, tools)
-        if labels:
-            lines.append(f"- {fam} : {', '.join(labels)}.")
+        if _family_labels(fam, tools):
+            lines.append(f"- {fam}")
     modes = _usable_modes()
     if modes:
         lines.append(f"  Modes utilisables : {', '.join(modes)}.")
@@ -563,7 +584,9 @@ def capabilities_reply(family: str | None = None) -> str:
                 lines.append("- Voix : dites « Hey Atlas », prononcé à l'anglaise, puis votre demande.")
     except Exception:
         pass
-    lines.append("* demande votre confirmation à l'écran. Ce que je ne sais pas encore faire, je vous le dis.")
+    exemple = _FAMILY_EXAMPLE.get("Applications et fenêtres", "avec les fenêtres")
+    lines.append(f"Demande-moi le détail d'une famille, par exemple « que sais-tu faire {exemple} ? ». Certaines "
+                 "actions demandent ta confirmation à l'écran. Ce que je ne sais pas encore faire, je te le dis.")
     return "\n".join(lines)
 
 

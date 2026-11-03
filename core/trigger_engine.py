@@ -401,8 +401,11 @@ class TriggerEngine:
         if self._storage_error:
             logger.error("triggers.json non réécrit : %s", self._storage_error)
             return
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
         try:
+            from core.donnees_reelles import verifier_ecriture
+
+            verifier_ecriture(TRIGGERS_FILE, "déclencheurs (triggers.json)")      # BM0 : seul Atlas écrit le vrai
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
             data = [
                 self._raw_entries[t.id] if t.invalid_reason and t.id in self._raw_entries else t.to_storage_dict()
                 for t in self._triggers.values()

@@ -293,8 +293,11 @@ class AtlasScheduler:
         if self._storage_error:
             logger.error("schedules.json non réécrit : %s", self._storage_error)
             return
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
         try:
+            from core.donnees_reelles import verifier_ecriture
+
+            verifier_ecriture(SCHEDULES_FILE, "tâches planifiées (schedules.json)")   # BM0 : seul Atlas écrit le vrai
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
             data = [
                 self._raw_entries[j.id] if j.invalid_reason and j.id in self._raw_entries else j.to_storage_dict()
                 for j in self._jobs.values()

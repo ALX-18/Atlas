@@ -2684,11 +2684,13 @@
  },
  {
   "phrase": "fais une note de synthèse sur le télétravail",
-  "famille": "conversation",
+  "famille": "artefacts",
   "attendu": {
-   "route": "conversation"
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "teletravail"
   },
-  "origine": "Artefacts (AR2) — négatif : « dossier », « note de synthèse » ne sont pas des mots de document (brief)"
+  "origine": "Artefacts (AR2) — négatif : « dossier », « note de synthèse » ne sont pas des mots de document (brief) → Artefacts sur mesure : une note sort naturellement d'une demande claire"
  },
  {
   "phrase": "rédige un rapport à propos de la cybersécurité",
@@ -3746,5 +3748,197 @@
    "route": "conversation"
   },
   "origine": "Compétences 1"
+ },
+ {
+  "phrase": "rédige une lettre formelle pour mon propriétaire pour signaler une fuite",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "fuite"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "fais une fiche de révision sur la Révolution française avec un tableau",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "revolution"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "prépare un plan de cours sur le cycle de l'eau pour des CM2",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "cycle de l'eau"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "écris une note courte sur la sécurité des mots de passe",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "mots de passe"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "rédige un exposé sur les volcans sans liste à puces",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "volcans"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "écris un texte de 150 mots sur l'automne",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "automne"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "écris un document en anglais sur les énergies renouvelables",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "energies"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "fais-moi un rapport sur le recyclage en 3 parties : introduction, les enjeux, conclusion",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "recyclage"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "rédige une lettre de motivation pour un stage en informatique",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_creer",
+   "cible": "stage"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "rajoute une partie sur les limites au rapport de stage",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_retoucher",
+   "cible": "limites"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "raccourcis mon rapport de stage",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_retoucher",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "mets mon rapport de stage en PDF",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_retoucher",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "change le titre du rapport de stage en Bilan de stage",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_retoucher",
+   "cible": "bilan de stage"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "corrige les fautes du rapport de stage",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_retoucher",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "développe la deuxième partie du rapport de stage",
+  "famille": "artefacts",
+  "attendu": {
+   "route": "outil",
+   "outil": "artefact_retoucher",
+   "cible": "rapport de stage"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "raccourcis",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "raccourcis-le",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "plus simple",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "rajoute du lait à ma liste",
+  "famille": "conversation",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "écris un texte dans le bloc-notes",
+  "famille": "ecrire_ailleurs",
+  "attendu": {
+   "route": "outil",
+   "outil": "window_type",
+   "cible": "bloc-notes"
+  },
+  "origine": "Artefacts sur mesure"
  }
 ]

@@ -468,10 +468,13 @@ class AtlasDesktop:
                         for item in c.json().get("pending", []):
                             self._messages.put(("confirmation", item))
                     # Sprint Artefacts : un document rédigé en arrière-plan est prêt (ou a échoué).
-                    a = client.get(f"{base}/api/annonces")
+                    # Artefacts sur mesure : par numéro, sans vider la file — la fenêtre web les voit aussi.
+                    a = client.get(f"{base}/api/annonces", params={"depuis": getattr(self, "_annonce_vue", 0)})
                     if a.status_code == 200:
-                        for item in a.json().get("annonces", []):
+                        corps = a.json()
+                        for item in corps.get("annonces", []):
                             self._messages.put(("atlas", item.get("message", "")))
+                        self._annonce_vue = max(getattr(self, "_annonce_vue", 0), int(corps.get("dernier") or 0))
             except Exception:
                 self._messages.put(("voice", None))   # backend pas encore prêt : silence
 
