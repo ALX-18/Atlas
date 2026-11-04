@@ -241,6 +241,7 @@ async def _chat(req: ChatRequest):
         "type": "tool_execution",
         "message": clean_text,
         "tool_results": results,
+        "non_fiable": _non_fiable(results),        # Compétences 2 : hors de l'historique de conversation
     }
 
 
@@ -289,8 +290,23 @@ def _avec_annonce(reponse, annonce):
     return reponse
 
 
+def _marquer_origine(request: Request | None) -> None:
+    """Compétences 2 : une demande venue d'une page web étrangère n'atteint ni les mails ni l'agenda. Défense en
+    profondeur, comme pour /api/confirm (sprint G / G1) : le CORS de main.py empêche une page de LIRE la réponse,
+    pas d'envoyer une requête ; ici, même envoyée, elle ne déclenche rien."""
+    from core import courrier
+
+    origine = request.headers.get("origin") if request is not None else None
+    courrier.ORIGINE_ETRANGERE.set(bool(origine) and origine.rstrip("/") not in _origines_atlas())
+
+
+def _non_fiable(results) -> bool:
+    return any(isinstance(r, dict) and isinstance(r.get("result"), dict) and r["result"].get("non_fiable")
+               for r in results or [])
+
+
 @router.post("/chat")
-async def chat_endpoint(req: ChatRequest):
+async def chat_endpoint(req: ChatRequest, request: Request = None):
     """Endpoint principal (voir _chat) ; ajoute à la réponse les bascules vécues pas encore dites.
 
     Sprint Apprentissage 1 / AP2 : une correction d'Alexis (« non, je voulais… ») est routée comme
@@ -298,6 +314,11 @@ async def chat_endpoint(req: ChatRequest):
     """
     from core import apprentissage
 
+    _marquer_origine(request)
+    from core.contenu_externe import REFUS_SECRET, ressemble_a_un_secret
+
+    if ressemble_a_un_secret(req.message):     # Compétences 2 : rien n'est routé, noté, journalisé ni mémorisé
+        return {"type": "text", "message": REFUS_SECRET, "tool_results": []}
     prep = apprentissage.preparer(req.message, req.origine)
     if prep["reponse"]:          # « non » à une question d'Atlas : rien n'est routé
         return _avec_bascules({"type": "text", "message": prep["reponse"], "tool_results": []})
@@ -328,10 +349,14 @@ async def _flux_avec_bascules(flux: AsyncGenerator[str, None]) -> AsyncGenerator
 
 
 @router.post("/chat/stream")
-async def chat_stream_endpoint(req: ChatRequest):
+async def chat_stream_endpoint(req: ChatRequest, request: Request = None):
     from core import apprentissage
 
-    prep = apprentissage.preparer(req.message, req.origine)
+    _marquer_origine(request)
+    from core.contenu_externe import REFUS_SECRET, ressemble_a_un_secret
+
+    prep = ({"reponse": REFUS_SECRET} if ressemble_a_un_secret(req.message)      # Compétences 2 : rien n'est gardé
+            else apprentissage.preparer(req.message, req.origine))
     if prep["reponse"]:
         texte = prep["reponse"]
 
@@ -517,6 +542,7 @@ async def _chat_stream(req: ChatRequest):
             "type": "tool_execution",
             "message": clean_text,
             "tool_results": results,
+            "non_fiable": _non_fiable(results),    # Compétences 2 : hors de l'historique de conversation
         }
 
         yield f"data: {json.dumps({'type': 'result', 'content': final_result}, ensure_ascii=False)}\n\n"
@@ -609,8 +635,12 @@ async def confirm_endpoint(req: ConfirmationResponse, request: Request = None):
         pending = resolve_pending(req.confirmation_id)
         fois = None
         if pending and (pending.get("expires_at") is None or pending["expires_at"] > time.time()):
+            from core.intent_engine import OUTILS_COURRIER
+
+            # Compétences 2 : la cible d'un envoi est le mail entier — elle n'entre pas dans ce qui est appris
+            cible = pending.get("tool") if pending.get("tool") in OUTILS_COURRIER else pending.get("target")
             fois = apprentissage.noter_refus(pending.get("demande"), pending.get("tool", ""),
-                                             pending.get("target"), pending.get("origine"))
+                                             cible, pending.get("origine"))
         message = "Action annulée." + (" Je retiens que tu l'as annulée." if fois else "")
         return {"status": "cancelled", "message": message}
 

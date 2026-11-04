@@ -601,6 +601,12 @@ class WindowController:
             # Sauvegarder dans data/
             import pathlib
             data_dir = pathlib.Path(__file__).parent.parent / "data" / "screenshots"
+            from core import donnees_reelles
+
+            if donnees_reelles.interdit(data_dir):     # BM0 : un Atlas d'essai range ses captures hors de data/
+                import tempfile
+
+                data_dir = pathlib.Path(tempfile.gettempdir()) / "atlas_essai_captures"
             data_dir.mkdir(parents=True, exist_ok=True)
             filename = f"screenshot_{int(time.time())}.png"
             filepath = data_dir / filename

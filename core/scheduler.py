@@ -259,6 +259,12 @@ class AtlasScheduler:
 
         self._jobs, self._raw_entries, self._unparsed_entries = {}, {}, []
         self._storage_error = None
+        from core import donnees_reelles
+
+        if donnees_reelles.interdit(SCHEDULES_FILE):
+            # Compétences 2 / CM0 : un Atlas d'essai n'exécute pas les vraies tâches planifiées d'Alexis
+            logger.info("Atlas d'essai : les vraies tâches planifiées (schedules.json) ne sont pas chargées.")
+            return
         if not SCHEDULES_FILE.exists():
             return
         try:

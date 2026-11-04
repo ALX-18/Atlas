@@ -813,6 +813,22 @@ def composants() -> list[dict]:
     # Internet
     ligne("Recherche web (ddgs)", "DuckDuckGo", _pkg_version("ddgs") is not None, _pkg_version("ddgs"), "réseau",
           "recherche impossible (dit à chaque demande)")
+
+    # Compétences 2 : mails et agenda — connecté / refusé / absent, JAMAIS un secret (seulement l'adresse du compte)
+    try:
+        from core import coffre, courrier
+
+        for service, cle in (("gmail", "courrier_refuse"), ("agenda_google", "agenda_refuse")):
+            e = courrier.etat(service)
+            compte = coffre.identifiant(service) if e != "absent" else None
+            nom = courrier.SERVICES[service]["nom"]
+            ligne(f"{nom} (facultatif)", "mails : lire, résumer, brouillons, envoi" if service == "gmail" else
+                  "agenda : lire ; créer par lien pré-rempli", e == "connecté",
+                  f"{e}{(' — ' + compte) if compte and '@' in compte else ''}", "réseau, à la demande",
+                  "non connecté : Atlas le dit et explique « connecte mon " + nom + " »" if e == "absent"
+                  else "refusé : Atlas le dit (mot de passe ou adresse à renouveler)", cles=(cle,))
+    except Exception as e:
+        ligne("Mails et agenda", "—", False, f"{type(e).__name__}", "—", "Atlas dit qu'il ne peut pas les lire")
     return lignes
 
 

@@ -268,6 +268,9 @@ class AtlasDesktop:
         "schedule_remove": "Supprimer la tâche planifiée",
         "memory_forget": "Oublier ce souvenir",          # G-bis / GB6
         "window_send_message": "Envoyer le message",     # G-bis / GB4 et GB6
+        "courrier_envoyer": "Envoyer ce mail",           # Compétences 2 : le message exact est montré
+        "courrier_ouvrir_lien": "Ouvrir un lien venu d'un mail",
+        "agenda_creer": "Créer ce rendez-vous dans Google Agenda",
         "schedule_add": "Créer la tâche planifiée",
         "trigger_add": "Créer le déclencheur",
         "workflow_create": "Créer le workflow",
@@ -301,7 +304,9 @@ class AtlasDesktop:
 
         ttk.Label(dlg, text=self.ACTION_LABELS.get(action, action), style="CardTitle.TLabel",
                   padding=(16, 12, 16, 2)).pack(anchor="w")
-        ttk.Label(dlg, text=f"Cible : {cible}", padding=(16, 2)).pack(anchor="w")
+        # Compétences 2 : un mail à envoyer s'affiche en entier (À, Cc, Cci, objet, corps), sur plusieurs lignes
+        ttk.Label(dlg, text=f"Cible : {cible}" if "\n" not in cible else cible, wraplength=560, justify="left",
+                  padding=(16, 2)).pack(anchor="w")
         if data.get("rappel"):          # Apprentissage 2 / AQ3 : tes refus d'avant, dits avant de proposer
             ttk.Label(dlg, text=data["rappel"], wraplength=360, padding=(16, 2)).pack(anchor="w")
         ttk.Label(dlg, text=f"Pourquoi je demande : {motif}", wraplength=360,
@@ -315,7 +320,9 @@ class AtlasDesktop:
         boutons.pack(fill="x")
 
         def fermer():
-            self._shown_confirmations.discard(cid)
+            # Compétences 2 (rejeu du 04/11) : l'identifiant reste « montré ». Le retirer ici rouvrait la même
+            # confirmation au relevé suivant (toutes les 1,5 s), avant que le serveur l'ait traitée : deux clics,
+            # deux POST /api/confirm. Une confirmation ne s'affiche qu'une fois.
             try:
                 dlg.destroy()
             except Exception:

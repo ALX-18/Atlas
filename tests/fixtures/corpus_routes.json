@@ -1583,9 +1583,10 @@
   "phrase": "réponds à mon dernier mail",
   "famille": "honnete",
   "attendu": {
-   "route": "honnete"
+   "route": "outil",
+   "outil": "courrier_repondre"
   },
-  "origine": "GB1 (34 demandes d'action)"
+  "origine": "GB1 (34 demandes d'action) ; Compétences 2 : répondre à un mail existe désormais — sans le texte à dire, l'outil le demande et ne prépare rien"
  },
  {
   "phrase": "mets un minuteur de 10 minutes",
@@ -3940,5 +3941,601 @@
    "cible": "bloc-notes"
   },
   "origine": "Artefacts sur mesure"
+ },
+ {
+  "phrase": "connecte mon Gmail",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_connecter",
+   "cible": "gmail"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "tu peux connecter mon compte Gmail ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_connecter",
+   "cible": "gmail"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "connecte ma boîte mail",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_connecter",
+   "cible": "gmail"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "déconnecte mon Gmail",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_deconnecter",
+   "cible": "gmail"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "connecte mon agenda Google",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_connecter",
+   "cible": "agenda_google"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "déconnecte mon agenda Google",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_deconnecter",
+   "cible": "agenda_google"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "j'ai des nouveaux mails ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "est-ce que j'ai des nouveaux mails",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "j'ai reçu des mails aujourd'hui ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "mes derniers mails",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "montre-moi mes mails",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "résume mes mails de ce matin",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister",
+   "cible": "matin"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "résume-moi mes nouveaux mails",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "les mails de Paul",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister",
+   "cible": "Paul"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "montre les mails de Camille",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister",
+   "cible": "Camille"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "le dernier mail de la banque",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister",
+   "cible": "banque"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "lis-moi le dernier mail de Paul",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister",
+   "cible": "Paul"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "quoi de neuf dans ma boîte de réception ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "lis-moi le 2",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lire",
+   "cible": "2"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "lis le mail 3",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lire",
+   "cible": "3"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "ouvre le mail 1",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lire",
+   "cible": "1"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "lis-moi le deuxième",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lire",
+   "cible": "2"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "résume le 3",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_resumer",
+   "cible": "3"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "résume-moi le mail 2",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_resumer",
+   "cible": "2"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "réponds à Paul que je suis d'accord pour jeudi",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_repondre",
+   "cible": "Paul"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "réponds au 2 que c'est noté",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_repondre",
+   "cible": "noté"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "réponds-lui que je viendrai",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_repondre",
+   "cible": "viendrai"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "réponds au mail de Camille pour lui dire que je suis d'accord",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_repondre",
+   "cible": "Camille"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "envoie-le",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_envoyer"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "envoie le brouillon",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_envoyer"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "envoie la réponse",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_envoyer"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "ouvre le lien 2",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_ouvrir_lien",
+   "cible": "2"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "ouvre le lien 1 du mail 3",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_ouvrir_lien",
+   "cible": "3"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "qu'est-ce que j'ai demain ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "qu'est-ce que j'ai de prévu jeudi",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "j'ai quoi aujourd'hui ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "montre mon agenda de demain",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "mon prochain rendez-vous",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "c'est quand mon prochain rendez-vous ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "je suis libre jeudi après-midi ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "est-ce que je suis libre demain matin",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "ajoute un rendez-vous chez le dentiste jeudi à 14 h",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_creer",
+   "cible": "dentiste"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "mets un rendez-vous avec Paul demain à 10 h",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_creer",
+   "cible": "Paul"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "ajoute dans mon agenda réunion d'équipe vendredi de 9 h à 10 h",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_creer",
+   "cible": "réunion"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "crée un événement anniversaire de Léa samedi à 19 h",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_creer",
+   "cible": "anniversaire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "envoie-moi une blague",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "mon agenda papier est plein",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "j'ai des nouveaux messages sur Discord ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "c'est quoi un mail ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "comment on écrit un bon mail de motivation ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "qu'est-ce que j'ai fait hier ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "memory_recall"
+  },
+  "origine": "Compétences 2 (négatif : pas l'agenda ; le rappel de la mémoire, comme avant)"
+ },
+ {
+  "phrase": "j'ai quoi comme jeux sur Steam",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "tu peux me lire une histoire ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "explique-moi ce qu'est un agenda partagé",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "supprime mes mails",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "transfère tous mes mails à mon frère",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "envoie un mail à Paul pour lui dire bonjour",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "honnete"
+  },
+  "origine": "Compétences 2 (négatif)"
+ },
+ {
+  "phrase": "connecte mon Outlook",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_connecter",
+   "cible": "outlook"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "tu as reçu un mail de Paul ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister",
+   "cible": "Paul"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "ouvre ma boîte mail",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "je suis dispo demain ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "ajoute au calendrier dîner vendredi à 20 h",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_creer",
+   "cible": "dîner"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "vérifie mes mails",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_lister"
+  },
+  "origine": "Compétences 2"
+ },
+ {
+  "phrase": "connecte mon iCloud",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "courrier_connecter",
+   "cible": "icloud"
+  },
+  "origine": "Compétences 2"
  }
 ]

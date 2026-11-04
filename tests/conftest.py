@@ -129,6 +129,18 @@ def _isolate_data() -> pathlib.Path:
     for module in (son, affichage, bluetooth, musique):
         module.MATERIEL = MaterielInterdit(module.__name__)
 
+    # Compétences 2 : jamais le vrai Gestionnaire d'identification, jamais un vrai compte mail ni le vrai agenda,
+    # jamais la vraie fenêtre de connexion. Les tests branchent le serveur IMAP/SMTP simulé (tests/courrier_simule.py).
+    import core.agenda as agenda
+    import core.coffre as coffre
+    import core.courrier as courrier
+
+    def compte_interdit(*a, **k):
+        raise AssertionError("un test vise un vrai compte, le vrai agenda ou la vraie fenêtre de connexion")
+
+    coffre.utiliser(coffre.EnMemoire())
+    courrier.fabrique_boite = courrier.lancer_fenetre = agenda.telecharger = compte_interdit
+
     atlas_logger.LOG_FILE = data / "atlas_actions.jsonl"
     apprentissage_store.DB_PATH = data / "apprentissage.db"      # Apprentissage 2 : jamais le vrai
     context_monitor._DB_PATH = data / "habits.db"

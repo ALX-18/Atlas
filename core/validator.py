@@ -165,6 +165,11 @@ CONFIRMATION_POLICY: dict[str, tuple[str, str]] = {
     # Sprint Index des fichiers : ouvrir un programme ou un script, c'est exécuter du code.
     "fichier_lancer_programme": ("toujours", "lancer un programme ou un script exécute du code sur ton PC"),
     "index_oublier": ("toujours", "effacer l'index de tes fichiers (il se reconstruit ensuite)"),
+    # Sprint Compétences 2 : envoyer ne se reprend pas ; un lien venu d'un mail est un contenu non fiable ;
+    # un rendez-vous se montre (date, heure, titre) avant d'ouvrir Google Agenda.
+    "courrier_envoyer": ("toujours", "envoyer ce mail — un mail envoyé ne se reprend pas"),
+    "courrier_ouvrir_lien": ("toujours", "ouvrir un lien venu d'un mail, donc d'un inconnu"),
+    "agenda_creer": ("toujours", "créer ce rendez-vous"),
 }
 
 
@@ -455,6 +460,9 @@ _AUTOMATION_EXCLUSIONS = {
         "workflow_create",
     },
     "suppression définitive, rejouée à chaque exécution": {"maintenance_empty_bin"},
+    # Compétences 2 : un mail ou un agenda ne se lit, ne s'écrit et ne s'envoie qu'à la demande d'Alexis
+    "mails et agenda : seulement à la demande d'Alexis, jamais par une automatisation": {
+        "courrier_connecter", "courrier_deconnecter", "courrier_lister", "courrier_lire", "courrier_resumer", "courrier_repondre", "courrier_envoyer", "courrier_ouvrir_lien", "agenda_lire", "agenda_creer"},
     "rejoue une action qui dépend du moment où elle a eu lieu": {"redo_last_action"},
     "paramètres non contrôlés (priorité de processus)": {"set_priority"},
     "sans effet utile : le résultat n'est remis à personne": {
@@ -664,6 +672,15 @@ class Validator:
         # et le Bluetooth éteint avec un clavier ou une souris connecté passe par une confirmation (moteur).
         if category == "competence":
             outil = INTENT_CATEGORIES["competence"]["tools"].get(verb)
+            if outil:
+                return ResolvedAction(tool=outil, params=dict(intent.params or {}),
+                                      confirmation_required=confirmation_reason(outil, interactive=True) is not None,
+                                      intent=intent)
+
+        # --- Sprint Compétences 2 : l'outil est nommé par la règle ; envoyer, ouvrir un lien d'un mail et créer
+        # un rendez-vous sont préparés par le moteur (ce qui sera fait est montré), puis confirmés.
+        if category == "courrier":
+            outil = INTENT_CATEGORIES["courrier"]["tools"].get(verb)
             if outil:
                 return ResolvedAction(tool=outil, params=dict(intent.params or {}),
                                       confirmation_required=confirmation_reason(outil, interactive=True) is not None,

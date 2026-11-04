@@ -83,7 +83,9 @@ def conforme(obtenu: dict, attendu: dict) -> bool:
 # Outils qui ne font que LIRE ou décrire : rien ne change sur le PC, dans la mémoire, au dehors.
 OUTILS_LECTURE = {"memory_recall", "workflow_describe", "workflow_list", "schedule_list", "list_processes",
                   "fichier_ou", "fichier_recents", "fichier_contenu", "index_etat",
-                  "window_list", "get_diagnostics", "screen_read"}
+                  "window_list", "get_diagnostics", "screen_read",
+                  # Compétences 2 : lire sans rien marquer comme lu, dire l'agenda
+                  "courrier_lister", "courrier_lire", "courrier_resumer", "agenda_lire"}
 
 
 def gravite(obtenu: dict, attendu: dict) -> str | None:

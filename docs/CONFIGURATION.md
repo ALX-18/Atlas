@@ -22,6 +22,7 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 | `filesystem_assistant` | index des fichiers : activation, disques (`*` = tous les disques fixes), exclusions, plafonds (détail ci-dessous) | `core/file_indexer.py` |
 | `grounding` | vision (désactivée), délai d'arrêt du processus EasyOCR inactif | `tools/grounding.py` |
 | `voice` | micro, mot d'éveil, transcription (`stt_device` : `cuda` ou `cpu`), voix Piper | `core/voice_engine.py`, `main.py` |
+| `mail` | `envoi` : `"simulation"` (par défaut) ou `"reel"` (détail ci-dessous, sprint Compétences 2) | `core/courrier.py` |
 
 ## `memory.collections` : une archive
 
@@ -67,6 +68,24 @@ reconstruit, il n'entre pas dans les sauvegardes, il s'efface par « oublie l'in
 Texte indexé : PDF, `.docx`, `.odt`, `.txt`, `.md`, `.rtf`, et les tableurs et présentations `.xlsx`,
 `.pptx`, `.ods`, `.odp`. Ouvrir un programme, un script ou un raccourci vers l'un d'eux demande
 **toujours** une confirmation qui montre le chemin complet (`fichier_lancer_programme`).
+
+## `mail` et les connexions facultatives (sprint Compétences 2)
+
+**Invariant :** « Zéro compte Atlas requis. Atlas peut, à la demande et avec l'accord explicite de la personne, se connecter à ses propres services (mails, agenda). Cette connexion est facultative, désactivable, et tout ce qui en revient est traité sur la machine. »
+
+- **Ce qui se connecte, à la demande :** Gmail (IMAP et SMTP, avec un mot de passe d'application) et Google Agenda
+  (lecture par l'adresse secrète au format iCal ; création par un lien pré-rempli que la personne enregistre
+  elle-même chez Google). Aucun OAuth, aucune application enregistrée chez Google.
+- **Les secrets** (mot de passe d'application, adresse iCal privée) ne sont **pas** dans ce fichier : ils sont
+  dans le Gestionnaire d'identification de Windows (entrées `Atlas:gmail`, `Atlas:agenda_google`), saisis dans la
+  fenêtre de connexion d'Atlas au champ masqué — jamais dans la conversation ni à la voix. Ils ne vont dans aucun
+  journal, aucun rapport, aucune consigne au modèle. « Déconnecte mon Gmail » les supprime.
+- **Hors du modèle de menace, et dit comme tel :** un logiciel malveillant qui tourne sous le compte de la
+  personne lit le Gestionnaire d'identification aussi bien qu'Atlas.
+- **`mail.envoi`** : `"simulation"` par défaut — Atlas prépare l'envoi, montre exactement ce qui partirait (À, Cc,
+  Cci, objet, texte), demande la confirmation, puis **n'envoie rien** et le dit. `"reel"` : l'envoi part, après la
+  même confirmation, en une seule tentative ; Atlas dit « le fournisseur a accepté l'envoi », jamais « il l'a
+  reçu ». Seule Alexis change cette valeur, à la main, dans ce fichier.
 
 ## Exception justifiée (clé conservée, lue par personne)
 

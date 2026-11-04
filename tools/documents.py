@@ -595,12 +595,18 @@ def _phrases(texte: str) -> list[str]:
 def retirer_faits_inventes(contenu: dict, source: str) -> tuple[dict, list[dict]]:
     """Retire du résumé chaque PHRASE qui cite un fait absent de la source. Retourne le contenu
     nettoyé et la liste des phrases retirées (dites à Alexis). Un paragraphe vidé disparaît ;
-    un point inventé aussi. Le titre inventé devient « Résumé »."""
+    un point inventé aussi. Le titre inventé devient « Résumé », un titre de partie inventé « Partie N »."""
     propre = copy.deepcopy(contenu)
     retirees = []
     if faits_absents(propre.get("titre", ""), source):
         propre["titre"] = "Résumé"
-    for s in propre.get("sections", []):
+    for i, s in enumerate(propre.get("sections", []), 1):
+        f = faits_absents(s.get("titre", ""), source)
+        if f:
+            # Compétences 2 / CM0 (risque 10 du rapport Artefacts sur mesure) : un titre de partie inventé
+            # aussi est retiré, et dit
+            retirees.append({"phrase": s["titre"], "faits": f})
+            s["titre"] = f"Partie {i}"
         paras = []
         for p in s.get("paragraphes", []):
             gardees = []

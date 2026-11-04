@@ -365,6 +365,13 @@ class TriggerEngine:
 
         self._triggers, self._raw_entries, self._unparsed_entries = {}, {}, []
         self._storage_error = None
+        from core import donnees_reelles
+
+        if donnees_reelles.interdit(TRIGGERS_FILE):
+            # Compétences 2 / CM0 : un Atlas d'essai n'exécute pas les vrais déclencheurs d'Alexis (le rejeu
+            # Artefacts sur mesure avait affiché une vraie notification « GPU high »)
+            logger.info("Atlas d'essai : les vrais déclencheurs (triggers.json) ne sont pas chargés.")
+            return
         if not TRIGGERS_FILE.exists():
             return
         try:
