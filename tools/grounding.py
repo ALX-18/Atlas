@@ -146,6 +146,9 @@ def _point_in_bounds(x: int, y: int, bounds: tuple[int, int, int, int]) -> bool:
 def _save_debug_image(img: Any, name: str) -> None:
     """Persist debug screenshots for grounding diagnostics."""
     try:
+        from core.donnees_reelles import verifier_ecriture
+
+        verifier_ecriture(_DEBUG_IMAGE_DIR, "image de diagnostic (data/debug)")     # BM0 : un essai n'y écrit pas
         os.makedirs(_DEBUG_IMAGE_DIR, exist_ok=True)
         path = os.path.join(_DEBUG_IMAGE_DIR, f"{name}.png")
         img.save(path)

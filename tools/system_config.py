@@ -32,7 +32,6 @@ _PS_ALLOWLIST, _PS_DENYLIST = _load_ps_security_config()
 
 # Audit log path
 _AUDIT_LOG_PATH = pathlib.Path(__file__).resolve().parent.parent / "data" / "audit_log.jsonl"
-_AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def _audit_log(command: str, status: str, reason: str = ""):
@@ -44,6 +43,10 @@ def _audit_log(command: str, status: str, reason: str = ""):
         "reason": reason,
     }
     try:
+        from core.donnees_reelles import verifier_ecriture
+
+        verifier_ecriture(_AUDIT_LOG_PATH, "journal d'audit (audit_log.jsonl)")      # BM0 : seul Atlas l'écrit
+        _AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(_AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as e:

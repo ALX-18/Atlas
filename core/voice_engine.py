@@ -799,6 +799,10 @@ class VoiceEngine:
         refus = too_long_reply(text)
         if refus:
             return refus
+        from core.contenu_externe import REFUS_SECRET, ressemble_a_un_secret
+
+        if ressemble_a_un_secret(text):          # Compétences 2 : un secret ne passe jamais par la voix
+            return REFUS_SECRET
         context = collect_context()
         context["user_input"] = text
         context["origine"] = "voix"      # Apprentissage 1 : la voix, c'est Alexis
@@ -871,8 +875,15 @@ class VoiceEngine:
                 summaries.append(msg)
 
         response = " ; ".join(summaries) if summaries else "C'est fait."
-        mem.add_to_session("assistant", response)
-        ws.add_to_history("assistant", response)
+        # Compétences 2 : un mail lu ou résumé est du contenu externe — il n'entre pas dans l'historique.
+        if any(isinstance(i.get("result"), dict) and i["result"].get("non_fiable") for i in results):
+            from core.courrier import REPERE_HISTORIQUE
+
+            mem.add_to_session("assistant", REPERE_HISTORIQUE)
+            ws.add_to_history("assistant", REPERE_HISTORIQUE)
+        else:
+            mem.add_to_session("assistant", response)
+            ws.add_to_history("assistant", response)
         return response
 
 

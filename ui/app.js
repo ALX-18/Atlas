@@ -134,6 +134,7 @@ async function sendMessage() {
         const decoder = new TextDecoder();
         let assistantText = '';
         let toolResults = [];
+        let nonFiable = false;
         let msgEl = null;
 
         while (true) {
@@ -211,6 +212,7 @@ async function sendMessage() {
 
                         // Nettoyer le JSON brut affiché pendant le streaming
                         // et remplacer par le message propre du résultat
+                        nonFiable = !!result.non_fiable;
                         if (result.tool_results && result.tool_results.length > 0) {
                             // Remplacer le contenu de la bulle par le message nettoyé
                             const cleanMsg = result.message || '';
@@ -235,9 +237,11 @@ async function sendMessage() {
             }
         }
 
-        // Save assistant response
+        // Save assistant response — Compétences 2 : un mail lu ou résumé (contenu externe) n'entre pas dans
+        // l'historique renvoyé au modèle ; un repère le remplace.
         if (assistantText) {
-            conversationHistory.push({ role: 'assistant', content: assistantText });
+            conversationHistory.push({ role: 'assistant', content: nonFiable
+                ? '[contenu externe montré à Alexis : non conservé dans la conversation]' : assistantText });
         }
 
     } catch (err) {
@@ -274,16 +278,16 @@ async function handleConfirmation(confirmationId, accepted) {
         if (btnContainer) {
             if (result.status === 'success') {
                 const r = result.result || {};
-                btnContainer.innerHTML = `<span style="color: var(--success)">✅ ${r.message || 'Action exécutée.'}</span>`;
+                btnContainer.innerHTML = `<span style="color: var(--success)">✅ ${escapeHtml(r.message || 'Action exécutée.')}</span>`;
             } else if (result.status === 'cancelled') {
-                btnContainer.innerHTML = `<span style="color: var(--text-muted)">↩️ ${result.message}</span>`;
+                btnContainer.innerHTML = `<span style="color: var(--text-muted)">↩️ ${escapeHtml(result.message)}</span>`;
             } else {
-                btnContainer.innerHTML = `<span style="color: var(--danger)">❌ ${result.message || 'Erreur.'}</span>`;
+                btnContainer.innerHTML = `<span style="color: var(--danger)">❌ ${escapeHtml(result.message || 'Erreur.')}</span>`;
             }
         }
     } catch (err) {
         if (btnContainer) {
-            btnContainer.innerHTML = `<span style="color: var(--danger)">❌ Erreur réseau : ${err.message}</span>`;
+            btnContainer.innerHTML = `<span style="color: var(--danger)">❌ Erreur réseau : ${escapeHtml(err.message)}</span>`;
         }
     }
 }
@@ -319,6 +323,14 @@ function updateMessageContent(el, text) {
     }
 }
 
+// Compétences 2 : un objet ou un expéditeur de mail est du contenu externe — rien de ce qui vient d'un outil
+// n'est inséré comme du HTML (un « <img onerror=…> » s'exécuterait à l'origine d'Atlas, celle de /api/confirm).
+function escapeHtml(text) {
+    return String(text == null ? '' : text)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 function appendToolResults(parentEl, results) {
     for (const tr of results) {
         const div = document.createElement('div');
@@ -326,26 +338,27 @@ function appendToolResults(parentEl, results) {
         if (tr.status === 'confirmation_required') {
             div.className = 'tool-result confirmation';
             div.innerHTML = `
-                <div class="tool-result-header confirmation">⚠️ Confirmation requise — ${tr.tool}</div>
-                <div>${tr.reason || ''}</div>
-                ${tr.suggestion ? `<div class="muted" style="margin-top:4px">${tr.suggestion}</div>` : ''}
-                <div class="confirmation-buttons" id="confirm-${tr.confirmation_id}">
-                    <button class="btn-confirm" onclick="handleConfirmation('${tr.confirmation_id}', true)">✅ Oui</button>
-                    <button class="btn-reject" onclick="handleConfirmation('${tr.confirmation_id}', false)">❌ Non</button>
+                <div class="tool-result-header confirmation">⚠️ Confirmation requise — ${escapeHtml(tr.tool)}</div>
+                ${tr.target ? `<div style="white-space:pre-wrap;margin:4px 0">${escapeHtml(tr.target)}</div>` : ''}
+                <div>${escapeHtml(tr.reason || '')}</div>
+                ${tr.suggestion ? `<div class="muted" style="margin-top:4px">${escapeHtml(tr.suggestion)}</div>` : ''}
+                <div class="confirmation-buttons" id="confirm-${escapeHtml(tr.confirmation_id)}">
+                    <button class="btn-confirm" onclick="handleConfirmation('${escapeHtml(tr.confirmation_id)}', true)">✅ Oui</button>
+                    <button class="btn-reject" onclick="handleConfirmation('${escapeHtml(tr.confirmation_id)}', false)">❌ Non</button>
                 </div>
             `;
         } else if (tr.status === 'success') {
             div.className = 'tool-result success';
             const result = tr.result || {};
             div.innerHTML = `
-                <div class="tool-result-header success">✅ ${tr.tool}</div>
-                <div>${result.message || JSON.stringify(result, null, 2)}</div>
+                <div class="tool-result-header success">✅ ${escapeHtml(tr.tool)}</div>
+                <div style="white-space:pre-wrap">${escapeHtml(result.message || JSON.stringify(result, null, 2))}</div>
             `;
         } else {
             div.className = 'tool-result error';
             div.innerHTML = `
-                <div class="tool-result-header error">❌ ${tr.tool}</div>
-                <div>${tr.message || 'Erreur inconnue'}</div>
+                <div class="tool-result-header error">❌ ${escapeHtml(tr.tool)}</div>
+                <div style="white-space:pre-wrap">${escapeHtml(tr.message || 'Erreur inconnue')}</div>
             `;
         }
 
@@ -378,7 +391,7 @@ function appendStepResult(parentEl, stepData) {
 
     div.innerHTML = `
         <div style="color: ${color}; font-size: 0.9em;">
-            ${icon} <strong>Étape ${stepData.step}/${stepData.total}</strong> — ${stepData.message || ''}
+            ${icon} <strong>Étape ${stepData.step}/${stepData.total}</strong> — ${escapeHtml(stepData.message || '')}
         </div>
     `;
     parentEl.appendChild(div);

@@ -151,5 +151,9 @@
         "pas_volume": 10,
         "pas_luminosite": 20,
         "_note": "Sprint Compétences 1 : « monte le son », « baisse la luminosité » sans valeur changent de ce pas (en points de pourcentage)."
+    },
+    "mail": {
+        "envoi": "simulation",
+        "_note": "Sprint Compétences 2 : « simulation » (par défaut) — Atlas prépare l'envoi, montre exactement ce qui partirait, demande la confirmation, puis n'envoie rien et le dit. « reel » : l'envoi part vraiment, après la même confirmation. C'est Alexis qui change cette valeur, à la main."
     }
 }

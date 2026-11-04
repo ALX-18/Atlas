@@ -94,7 +94,8 @@ def purge_expired_confirmations() -> list[str]:
     for cid in expired:
         item = resolve_pending(cid) or {}
         logger.warning("[CONFIRMATION] %s (%s → %s) expirée sans réponse — refus par défaut, rien exécuté.",
-                       cid, item.get("tool"), item.get("target"))
+                       cid, item.get("tool"), "(non journalisé)" if item.get("tool") in OUTILS_COURRIER
+                       else item.get("target"))
     return expired
 
 
@@ -144,7 +145,8 @@ def _protected_process_match(name) -> Optional[str]:
     return None
 
 
-def request_confirmation(tool_name: str, args: dict, context: dict, reason: str) -> dict[str, Any]:
+def request_confirmation(tool_name: str, args: dict, context: dict, reason: str,
+                         cible: Optional[str] = None) -> dict[str, Any]:
     """Met l'action en attente de confirmation — ou la refuse si elle vise un processus système.
 
     Décision d'Alexis (sprint F) : un processus système critique (liste always_protected)
@@ -153,7 +155,7 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
     from core.confirmation import ALWAYS_PROTECTED
 
     purge_expired_confirmations()
-    target = _confirmation_target(tool_name, args)
+    target = cible if cible is not None else _confirmation_target(tool_name, args)
     level, detail, suggestion = "🟡 DEMANDE", reason, None
     if tool_name == "kill_process":
         conf = needs_confirmation(tool_name, args, context) or {}
@@ -229,7 +231,8 @@ def request_confirmation(tool_name: str, args: dict, context: dict, reason: str)
         "demande": demande, "origine": context.get("origine"), "rappel": rappel,
     })
     logger.info("[CONFIRMATION] %s → « %s » en attente (%s), expire dans %ds : %s",
-                tool_name, target, confirmation_id, int(CONFIRMATION_TTL_S), detail)
+                tool_name, "(contenu montré à l'écran, non journalisé)" if tool_name in OUTILS_COURRIER else target,
+                confirmation_id, int(CONFIRMATION_TTL_S), detail)
     return {
         "status": "confirmation_required",
         "confirmation_id": confirmation_id,
@@ -432,6 +435,14 @@ TOOL_HANDLERS = {
     "index_etat": lambda args: _fichiers().index_etat(args),
     "index_oublier": lambda args: _fichiers().index_oublier(args),
     "apprentissage_oublier": lambda args: _run_apprentissage_oublier(args),
+    # Sprint Compétences 2 : mails et agenda (core/courrier.py, core/agenda.py), hors de la boucle de l'API
+    "courrier_connecter": lambda args: asyncio.to_thread(_courrier().connecter, args),
+    "courrier_deconnecter": lambda args: asyncio.to_thread(_courrier().deconnecter, args),
+    **{nom: (lambda n: lambda args: asyncio.to_thread(getattr(_courrier(), n), args))(nom)
+       for nom in ("courrier_lister", "courrier_lire", "courrier_resumer", "courrier_repondre", "courrier_envoyer",
+                   "courrier_ouvrir_lien")},
+    **{nom: (lambda n: lambda args: asyncio.to_thread(getattr(_agenda(), n), args))(nom)
+       for nom in ("agenda_lire", "agenda_creer")},
 }
 
 
@@ -449,7 +460,7 @@ TOOL_HANDLERS = {
 # faire quoi ? ». Un test exige désormais que toute famille du registre y figure.
 CAPABILITY_FAMILIES = ("Applications et fenêtres", "Écrire ailleurs", "Internet", "Système",
                        "Son et écrans", "Bluetooth", "Musique", "Heure et rappels",
-                       "Mémoire", "Documents", "Fichiers", "Modes et automatisations")
+                       "Mémoire", "Documents", "Fichiers", "Mails et agenda", "Modes et automatisations")
 
 TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "launch_app": ("Applications et fenêtres", "ouvrir une application"),
@@ -505,6 +516,17 @@ TOOL_CAPABILITIES: dict[str, tuple[str, str]] = {
     "index_etat": ("Fichiers", "dire où en est l'index de tes fichiers"),
     "index_oublier": ("Fichiers", "oublier l'index de tes fichiers"),
     "apprentissage_oublier": ("Mémoire", "oublier ce que j'ai appris"),
+    # Compétences 2 : libellés courts — la liste détaillée entre dans la consigne du modèle (budget PF6)
+    "courrier_connecter": ("Mails et agenda", "connecter Gmail"),
+    "courrier_deconnecter": ("Mails et agenda", "déconnecter"),
+    "courrier_lister": ("Mails et agenda", "lister"),
+    "courrier_lire": ("Mails et agenda", "lire"),
+    "courrier_resumer": ("Mails et agenda", "résumer"),
+    "courrier_repondre": ("Mails et agenda", "répondre"),
+    "courrier_envoyer": ("Mails et agenda", "envoyer"),
+    "courrier_ouvrir_lien": ("Mails et agenda", "ouvrir un lien"),
+    "agenda_lire": ("Mails et agenda", "lire l'agenda"),
+    "agenda_creer": ("Mails et agenda", "y ajouter un rendez-vous"),
     "workflow_run": ("Modes et automatisations", "lancer un mode"),
     "workflow_describe": ("Modes et automatisations", "décrire un mode"),
     "workflow_list": ("Modes et automatisations", "lister les modes"),
@@ -605,6 +627,7 @@ _FAMILY_EXAMPLE = {
     "Mémoire": "avec la mémoire",
     "Documents": "avec les documents",
     "Fichiers": "avec les fichiers",
+    "Mails et agenda": "avec les mails",
     "Modes et automatisations": "avec les modes",
 }
 _NUMBERS = {1: "une", 2: "deux", 3: "trois", 4: "quatre", 5: "cinq", 6: "six", 7: "sept", 8: "huit",
@@ -677,6 +700,28 @@ def _competences():
     from core import competences
 
     return competences
+
+
+# Sprint Compétences 2 : mails et agenda. Leur résultat est du contenu externe : jamais en mémoire longue,
+# et le moteur ne journalise ni leur texte ni leurs paramètres.
+OUTILS_COURRIER = frozenset(("courrier_connecter", "courrier_deconnecter", "courrier_lister", "courrier_lire", "courrier_resumer", "courrier_repondre", "courrier_envoyer", "courrier_ouvrir_lien", "agenda_lire", "agenda_creer"))
+# Préparés AVANT la confirmation (ce qui partira, ce qui s'ouvrira est montré) ; leurs paramètres ne portent
+# que des identifiants.
+_PREPARER_COURRIER = {"courrier_envoyer": ("courrier", "preparer_envoi"),
+                      "courrier_ouvrir_lien": ("courrier", "preparer_lien"),
+                      "agenda_creer": ("agenda", "preparer_creation")}
+
+
+def _courrier():
+    from core import courrier
+
+    return courrier
+
+
+def _agenda():
+    from core import agenda
+
+    return agenda
 
 
 def _artefacts():
@@ -1178,8 +1223,20 @@ class ExecutionEngine:
         # Sprint Index des fichiers : « ouvre mon CV » est résolu AVANT la confirmation. Plusieurs
         # fichiers → la liste et la question ; aucun → dit ; un programme ou un script (ou un raccourci
         # vers l'un d'eux) devient fichier_lancer_programme : confirmation « toujours », chemin complet.
-        if tool_name.startswith(("fichier_", "index_", "artefact_")) or tool_name in OUTILS_COMPETENCES:
+        if tool_name.startswith(("fichier_", "index_", "artefact_")) or tool_name in OUTILS_COMPETENCES \
+                or tool_name in OUTILS_COURRIER:
             params = {**params, "_origine": context.get("origine")}
+        # Sprint Compétences 2 : ce qui partira (À, Cc, Cci, objet, corps), le lien complet, la date et l'heure
+        # du rendez-vous sont résolus ICI, avant la confirmation, et montrés tels quels. La confirmation porte
+        # l'empreinte du message : il ne peut plus changer sans une nouvelle confirmation.
+        if tool_name in _PREPARER_COURRIER:
+            module, fonction = _PREPARER_COURRIER[tool_name]
+            prep = await asyncio.to_thread(getattr(_courrier() if module == "courrier" else _agenda(), fonction), params)
+            if "resultat" in prep:
+                r = prep["resultat"]
+                return {"status": "success" if r.get("success") else "error", "message": r["message"], "result": r}
+            reason = confirmation_reason(tool_name, interactive=True) or "action sensible"
+            return request_confirmation(tool_name, prep["params"], context, reason, cible=prep["cible"])
         # Sprint Compétences 1 / CP5 : éteindre le Bluetooth avec un clavier ou une souris Bluetooth
         # connecté demande confirmation — le message dit quel appareil sera déconnecté. Décidé AVANT d'agir.
         if tool_name == "bluetooth_regler" and not params.get("allume") and params.get("action") != "etat":
@@ -2169,6 +2226,9 @@ def _save_action_to_memory(tool_name: str, args: dict, result: Any, context: dic
         return
     if tool_name in ("heure_dire", "rappel_lister"):
         # Compétences 1 : « il est 15 h 07 » rappelé plus tard ferait redonner une heure périmée (L4).
+        return
+    if tool_name in OUTILS_COURRIER:
+        # Compétences 2 : rien des mails ni de l'agenda en mémoire longue sans qu'Alexis le demande.
         return
     try:
         mem = get_memory_manager()

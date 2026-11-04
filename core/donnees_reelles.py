@@ -31,6 +31,22 @@ REDIRECTIONS = ("ATLAS_CHROMA_PATH", "ATLAS_APPRENTISSAGE_DB", "ATLAS_ACTIONS_LO
                 "ATLAS_RAPPELS_DB", "ATLAS_FILE_INDEX_DB")
 _dits: set[str] = set()
 
+# Compétences 2 / CM0 : ce qui touche `data/` SANS passer par ce garde, et pourquoi. Un test recense tous les
+# fichiers qui écrivent près de `data/` : chacun passe par le garde, ou figure ici avec sa raison.
+ECRIVAINS_HORS_GARDE = {
+    "core/donnees_reelles.py": "le garde lui-même",
+    "core_conversational/memory_core.py": "ouvert par core/memory_manager.py, qui garde la mémoire avant de l'ouvrir",
+    "scripts/backup_memory.py": "maintenance : écrit hors de data/ (sauvegardes), restaure seulement avec --oui",
+    "scripts/nettoyer_journal.py": "maintenance : exige --oui",
+    "scripts/migrer_memoire.py": "maintenance : part d'une sauvegarde vérifiée, refuse si data/chromadb existe",
+    "scripts/repro_chroma.py": "mesure : refuse le vrai data/chromadb",
+    "scripts/garde_fou_rappels.py": "mesure : travaille sur une copie dans un dossier jetable",
+    "scripts/prototype_sans_docker.py": "mesure : travaille sur une copie dans un dossier jetable",
+    "scripts/mesure_ressources.py": "mesure : lit data/voices, travaille sur une copie de la mémoire",
+    "scripts/checkup_dynamique.py": "mesure : Atlas sur une copie de la mémoire (redirections ATLAS_*)",
+    "scripts/download_voice_models.py": "installation : télécharge les voix dans data/voices, à la demande",
+}
+
 
 class DonneesReellesInterdites(PermissionError):
     """Un processus qui n'est pas Atlas vise les données réelles d'Alexis."""

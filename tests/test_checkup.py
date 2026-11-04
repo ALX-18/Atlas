@@ -495,7 +495,10 @@ def test_ck7_les_scripts_qui_vectorisent_suivent_le_reglage_d_atlas():
         if rel.startswith("core_conversational/") or rel == "core/embeddings.py":
             continue
         texte = f.read_text(encoding="utf-8")
-        if "memory_core" in texte and "core.embeddings" not in texte and "set_embedding_backend" not in texte:
+        # Compétences 2 : un IMPORT de memory_core, pas une mention (core/donnees_reelles.py le nomme dans son registre)
+        importe = re.search(r"(?:^|\n)\s*(?:import\s+[\w.]*memory_core|from\s+[\w.]*memory_core\s+import|"
+                            r"from\s+core_conversational\s+import\s+[^\n]*\bmemory_core\b)", texte)
+        if importe and "core.embeddings" not in texte and "set_embedding_backend" not in texte:
             fautifs.append(rel)
     assert fautifs == []
 

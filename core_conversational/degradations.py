@@ -197,6 +197,23 @@ CATALOGUE: dict[str, dict] = {
         "message": "Je ne peux pas afficher de notifications Windows : mes avertissements n'apparaîtront "
                    "que dans mes réponses.",
     },
+    # Sprint Compétences 2 : un mot de passe d'application refusé est une bascule annoncée
+    "courrier_refuse": {
+        "composant": "Mails (IMAP/SMTP, mot de passe d'application)",
+        "declencheur": "le fournisseur refuse le mot de passe d'application enregistré (révoqué ou changé)",
+        "perte": "lire, résumer, préparer et envoyer des mails",
+        "vecue": True,
+        "message": "Ton fournisseur de mails refuse le mot de passe d'application enregistré : je ne peux plus lire "
+                   "tes mails. Dis « déconnecte mon Gmail », puis « connecte mon Gmail ».",
+    },
+    "agenda_refuse": {
+        "composant": "Agenda (adresse iCal privée)",
+        "declencheur": "l'adresse iCal privée ne répond plus (réinitialisée chez Google, ou invalide)",
+        "perte": "lire l'agenda",
+        "vecue": True,
+        "message": "L'adresse privée de ton agenda ne marche plus (elle a peut-être été réinitialisée) : dis "
+                   "« déconnecte mon agenda Google », puis « connecte mon agenda Google ».",
+    },
     "instantane_processus": {
         "composant": "Instantané des processus (NtQuerySystemInformation)",
         "declencheur": "l'appel système unique échoue",
@@ -226,6 +243,14 @@ def signaler(cle: str, cause: str) -> None:
         _ACTIVES[cle] = {"cle": cle, "cause": str(cause)[:300], "depuis": time.strftime("%Y-%m-%d %H:%M:%S"),
                          "dite": False, "annoncee": False}
     logger.warning("[BASCULE] %s — %s (cause : %s)", entree["composant"], entree["perte"], cause)
+
+
+def lever(cle: str) -> None:
+    """La cause a disparu (Compétences 2 : une reconnexion réussie, une déconnexion)."""
+    CATALOGUE[cle]
+    with _LOCK:
+        if _ACTIVES.pop(cle, None) is not None:
+            logger.info("[BASCULE] %s : levée.", CATALOGUE[cle]["composant"])
 
 
 def actives() -> list[dict]:

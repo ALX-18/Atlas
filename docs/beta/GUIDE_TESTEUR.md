@@ -13,6 +13,8 @@ Atlas est un assistant pour Windows. Vous lui parlez à voix haute ou vous lui �
 - **la recherche sur internet**, quand vous la demandez : votre recherche part alors sur internet, comme dans un navigateur ;
 - **un logiciel installé avec Atlas** (Ollama) vérifie lui-même ses mises à jour, comme le font la plupart des logiciels.
 
+- **vos mails et votre agenda, seulement si vous les connectez** (c'est facultatif) : Atlas lit alors votre boîte Gmail et votre agenda Google à votre demande, et traite ce qu'il lit sur votre ordinateur. Le principe : « Zéro compte Atlas requis. Atlas peut, à la demande et avec l'accord explicite de la personne, se connecter à ses propres services (mails, agenda). Cette connexion est facultative, désactivable, et tout ce qui en revient est traité sur la machine. »
+
 Au démarrage, Atlas lui-même ne se connecte à rien sur internet. Son module de reconnaissance de la voix n'est téléchargé qu'une fois, au tout premier lancement, quand Alexis l'installe.
 
 ---
@@ -56,6 +58,15 @@ Bon à savoir : le texte qu'Atlas écrit dans une autre application passe par le
 
 ---
 
+## Vos mails et votre agenda (facultatif)
+
+- **« Connecte mon Gmail »** ouvre une fenêtre d'Atlas qui explique comment créer un **mot de passe d'application** chez Google. Vous le collez **dans cette fenêtre** (le champ est masqué) — **jamais dans la conversation**, jamais à voix haute. **« Déconnecte mon Gmail »** le supprime de votre ordinateur.
+- **« J'ai des nouveaux mails ? »**, **« les mails de Paul »**, **« lis-moi le 2 »**, **« résume le 3 »** : Atlas lit sans rien marquer comme lu. Ses résumés commencent par **« Contenu externe »** : c'est ce qu'un inconnu a écrit, pas un ordre. Si un mail demande un mot de passe ou contient un lien piégé, Atlas vous prévient.
+- **« Réponds à Paul que je suis d'accord pour jeudi »** : le brouillon est rangé dans vos brouillons Gmail, et affiché en entier. **« Envoie-le »** montre exactement ce qui partirait, puis attend votre confirmation. Pour l'instant, l'envoi est en **mode simulation** : rien ne part, et Atlas le dit.
+- **L'agenda** : **« connecte mon agenda Google »** (l'adresse privée de votre agenda, dans la même fenêtre), puis **« qu'est-ce que j'ai demain ? »**, **« je suis libre jeudi après-midi ? »**. **« Ajoute un rendez-vous chez le dentiste jeudi à 14 h »** ouvre Google Agenda pré-rempli : **c'est vous qui enregistrez** là-bas.
+
+---
+
 ## Les confirmations se donnent à l'écran, jamais à la voix
 
 Avant toute action qu'on ne peut pas défaire (fermer une fenêtre, effacer un souvenir, arrêter un programme, **envoyer un message en votre nom**…), Atlas ouvre une petite fenêtre **« Atlas — confirmation requise »** avec deux boutons :
@@ -75,7 +86,8 @@ Certains programmes essentiels de Windows ne peuvent pas être arrêtés par Atl
 
 Pour éviter les mauvaises surprises :
 
-- **Régler le son, la luminosité, le Bluetooth, la musique, envoyer un mail, commander quelque chose…** : il ne sait pas encore, et il vous le dit.
+- **Régler le son, la luminosité, le Bluetooth, la musique, commander quelque chose…** : il ne sait pas encore, et il vous le dit.
+- **Écrire un mail à quelqu'un de nouveau, transférer ou effacer un mail, Outlook et iCloud** : pas encore. Il sait répondre à un mail reçu, dans Gmail.
 - **Il ne connaît pas l'heure.** S'il vous en donne une, elle est fausse. Regardez l'horloge de Windows.
 - **Il n'apprend pas de ses erreurs.** S'il se trompe, il pourra refaire la même erreur.
 - **Pas de rappels programmés.** « Rappelle-moi d'appeler maman à 18 h » ne programme rien.

@@ -71,6 +71,10 @@ def apply_reorg_plan(plan: dict[str, Any], max_apply: int = 300) -> dict[str, An
     ops = plan.get("operations", [])
     if not isinstance(ops, list):
         return {"success": False, "message": "Plan invalide", "moved": 0}
+    from core.donnees_reelles import verifier_ecriture
+
+    # Compétences 2 / CM0 : sans historique, pas d'annulation — on refuse AVANT de déplacer quoi que ce soit
+    verifier_ecriture(HISTORY_FILE, "historique des rangements (file_reorg_history.jsonl)")
 
     moved = 0
     errors: list[str] = []
@@ -130,6 +134,9 @@ def rollback_reorg(operation_id: str, max_restore: int = 300) -> dict[str, Any]:
 
 
 def _save_history(plan: dict[str, Any], moved_entries: list[dict[str, str]], errors: list[str]) -> str:
+    from core.donnees_reelles import verifier_ecriture
+
+    verifier_ecriture(HISTORY_FILE, "historique des rangements (file_reorg_history.jsonl)")   # BM0
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     op_id = str(uuid.uuid4())[:8]
     row = {

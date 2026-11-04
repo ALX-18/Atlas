@@ -197,6 +197,9 @@ INTENT_CATEGORIES = {
                   "recents": "fichier_recents", "contenu": "fichier_contenu", "index_etat": "index_etat",
                   "index_oublier": "index_oublier"},
     },
+    # Sprint Compétences 2 : mails et agenda (règles dédiées : core/regles_courrier.py) — le verbe est l'outil
+    "courrier": {"verbs_map": {}, "tools": {t: t for t in (
+        "courrier_connecter", "courrier_deconnecter", "courrier_lister", "courrier_lire", "courrier_resumer", "courrier_repondre", "courrier_envoyer", "courrier_ouvrir_lien", "agenda_lire", "agenda_creer")}},
     # Sprint Apprentissage 1 : ce qu'Atlas a appris (règles dédiées dans classify)
     "apprentissage": {
         "verbs_map": {},
@@ -969,6 +972,16 @@ class IntentClassifier:
                 return IntentResult(category="unsupported", verb="action", target=None,
                                     confidence=0.9, is_complex=False, raw_input=raw)
             return IntentResult(category="competence", verb=outil, target=None, params=params,
+                                confidence=0.96, is_complex=False, raw_input=raw)
+
+        # --- Sprint Compétences 2 : mails, agenda, connexion. Chaque règle exige son objet (mail, agenda,
+        # rendez-vous, Gmail…) ; le mail visé est désigné par son numéro dans la dernière liste.
+        from core import regles_courrier
+
+        courrier = regles_courrier.reconnaitre(raw, _plat0)
+        if courrier is not None:
+            outil, params = courrier
+            return IntentResult(category="courrier", verb=outil, target=None, params=params,
                                 confidence=0.96, is_complex=False, raw_input=raw)
 
         # --- Sprint Artefacts : « fais-moi un rapport sur… », « résume mon rapport de stage dans un Word ».
