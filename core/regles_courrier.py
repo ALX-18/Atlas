@@ -77,6 +77,37 @@ def _jour(t: str) -> Optional[date]:
     return None
 
 
+_WE = r"week[- ]?end"
+
+
+def _periode(t: str) -> Optional[dict]:
+    """Sprint Installeur / IN7 : « cette semaine », « la semaine prochaine », « ce week-end ».
+    Rend {"du", "au" (inclus), "periode"} ; {"periode_inconnue": True} pour un mois ou le passé, que l'agenda
+    ne lit pas encore (et le dit, au lieu de répondre pour aujourd'hui)."""
+    auj = horloge.maintenant().date()
+    lundi = auj - timedelta(days=auj.weekday())
+    if re.search(r"\bsemaine\s+prochaine\b|\bprochaine\s+semaine\b", t):
+        d = lundi + timedelta(days=7)
+        return {"du": d, "au": d + timedelta(days=6), "periode": "la semaine prochaine"}
+    if re.search(r"\bsemaine\s+(?:derniere|passee)\b|\b(?:ce|du)\s+mois(?:-ci)?\b|\bmois\s+(?:prochain|dernier)\b", t):
+        return {"periode_inconnue": True}
+    if re.search(r"\b(?:cette|de\s+la|la)\s+semaine\b", t):
+        return {"du": auj, "au": lundi + timedelta(days=6), "periode": "cette semaine"}
+    if re.search(rf"\b{_WE}\s+prochain\b|\bprochain\s+{_WE}\b", t):
+        samedi = lundi + timedelta(days=5) + timedelta(days=7 if auj.weekday() >= 5 else 0)
+        return {"du": samedi, "au": samedi + timedelta(days=1), "periode": "le week-end prochain"}
+    if re.search(rf"\b(?:ce|du|le|pour\s+le)\s+{_WE}\b", t):
+        samedi = lundi + timedelta(days=5)
+        return {"du": max(auj, samedi), "au": samedi + timedelta(days=1), "periode": "ce week-end"}
+    return None
+
+
+def _periode_params(per: dict) -> dict:
+    if per.get("periode_inconnue"):
+        return {"periode_inconnue": True}
+    return {"du": per["du"].isoformat(), "au": per["au"].isoformat(), "periode": per["periode"]}
+
+
 def _plage(t: str) -> tuple[int, int, str]:
     if re.search(r"\bmatin(?:ee)?\b", t):
         return 8, 12, "le matin"
@@ -220,11 +251,16 @@ def reconnaitre(raw: str, plain: str) -> Optional[tuple[str, dict]]:
         return "agenda_lire", {"prochain": True}
     m = re.search(r"\b(?:je\s+suis|suis-je|serai-je|je\s+serai|est-ce\s+que\s+je\s+suis)\s+(?:libre|dispo(?:nible)?)\b", t)
     if m:
-        jour = _jour(t) or horloge.maintenant().date()
         h0, h1, plage = _plage(t)
+        per = _periode(t)
+        if per:
+            return "agenda_lire", {**_periode_params(per), "libre": True, "de": h0, "a": h1, "plage": plage}
+        jour = _jour(t) or horloge.maintenant().date()
         return "agenda_lire", {"jour": jour.isoformat(), "libre": True, "de": h0, "a": h1, "plage": plage}
     # « qu'est-ce que j'ai demain ? » : le jour doit suivre (« qu'est-ce que j'ai fait hier » n'est pas l'agenda)
     _JOUR = (r"(?:apres[- ]demain|demain|aujourd'hui|ce\s+soir|ce\s+matin|cet\s+apres[- ]midi|cette\s+semaine|"
+             r"(?:la\s+)?semaine\s+prochaine|(?:ce|le)\s+week[- ]?end(?:\s+prochain)?|ce\s+mois(?:-ci)?|"
+             r"le\s+mois\s+prochain|"
              r"(?:ce\s+|le\s+)?(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)(?:\s+prochain)?(?:\s+(?:matin|soir|"
              r"apres[- ]midi))?|le\s+\d{1,2}(?:er)?\s+\w+)")
     question = re.search(
@@ -233,6 +269,9 @@ def reconnaitre(raw: str, plain: str) -> Optional[tuple[str, dict]]:
         r"(?:\s+(?:de\s+prevu|au\s+programme|comme\s+(?:rendez-vous|rdv)|d'autre))?\s+(?:pour\s+)?" + _JOUR + r"\b", t)
     concept = re.search(r"\b(?:explique|c'est\s+quoi|qu'est-ce\s+qu'(?:un|une)|comment|definition|pourquoi)\b", t)
     if (re.search(r"\b(?:mon|ton|l')\s*(?:agenda|calendrier)\b", t) and not concept) or question:
+        per = _periode(t)
+        if per:
+            return "agenda_lire", _periode_params(per)
         jour = _jour(t)
         return "agenda_lire", {"jour": (jour or horloge.maintenant().date()).isoformat()}
     return None

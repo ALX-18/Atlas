@@ -255,9 +255,13 @@ def test_12_download_wake_word_model_uses_expected_url_and_dest(monkeypatch, tmp
 
     monkeypatch.setattr(dvm, "WAKE_WORD_DIR", tmp_path / "models" / "wakewords")
     calls = []
-    monkeypatch.setattr(dvm, "download_file", lambda url, dest, min_bytes=1: calls.append((url, dest, min_bytes)))
+    # Sprint Installeur : chaque fichier est vérifié par son empreinte (cle)
+    monkeypatch.setattr(dvm, "download_file",
+                        lambda url, dest, min_bytes=1, cle=None: calls.append((url, dest, min_bytes)) or cles.append(cle))
+    cles = []
 
     assert dvm.download_wake_word_model() is True
+    assert cles == ["hey_atlas.onnx"]
     assert len(calls) == 1
     url, dest, min_bytes = calls[0]
     assert url == f"{dvm.WAKE_WORD_BASE_URL}/hey_atlas.onnx"
@@ -270,7 +274,8 @@ def test_13_download_piper_voice_downloads_onnx_and_json(monkeypatch, tmp_path):
 
     monkeypatch.setattr(dvm, "PIPER_VOICE_DIR", tmp_path / "data" / "voices")
     calls = []
-    monkeypatch.setattr(dvm, "download_file", lambda url, dest, min_bytes=1: calls.append((url, dest, min_bytes)))
+    monkeypatch.setattr(dvm, "download_file",
+                        lambda url, dest, min_bytes=1, cle=None: calls.append((url, dest, min_bytes)))
 
     assert dvm.download_piper_voice() is True
     assert len(calls) == 2
@@ -300,9 +305,12 @@ def test_15_download_openwakeword_support_models_calls_with_sentinel(monkeypatch
     calls = []
     fake_utils = SimpleNamespace(download_models=lambda model_names: calls.append(model_names))
     monkeypatch.setitem(sys.modules, "openwakeword.utils", fake_utils)
-    monkeypatch.setitem(sys.modules, "openwakeword", SimpleNamespace(utils=fake_utils))
+    monkeypatch.setitem(sys.modules, "openwakeword", SimpleNamespace(utils=fake_utils, __file__="openwakeword/__init__.py"))
+    verifies = []
+    monkeypatch.setattr(dvm, "verifier", lambda chemin, cle, effacer=True: verifies.append(cle))
 
     assert dvm.download_openwakeword_support_models() is True
+    assert verifies == ["embedding_model.onnx", "melspectrogram.onnx", "silero_vad.onnx"]
     assert calls == [[dvm._OWW_SUPPORT_ONLY_SENTINEL]]
 
 

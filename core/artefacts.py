@@ -47,7 +47,7 @@ SECONDES_PAR_MORCEAU = 6
 _occupe = threading.Lock()
 _en_cours: Optional[str] = None
 
-SYSTEME = ("Tu es Atlas, l'assistant d'Alexis. Tu rédiges en FRANÇAIS, de façon claire et sobre. Tu réponds "
+SYSTEME = ("Tu es Atlas, un assistant de bureau. Tu rédiges en FRANÇAIS, de façon claire et sobre. Tu réponds "
            "UNIQUEMENT par le JSON demandé, sans texte autour.")
 
 SCHEMA_PLAN = {"type": "object", "properties": {"titre": {"type": "string"},
@@ -111,7 +111,7 @@ def systeme(langue: str = "fr") -> str:
     if langue == "fr":
         return SYSTEME
     nom = _NOMS_LANGUES.get(langue, langue).upper()
-    return (f"Tu es Atlas, l'assistant d'Alexis. Tu rédiges ENTIÈREMENT en {nom}, de façon claire et sobre. Tu réponds "
+    return (f"Tu es Atlas, un assistant de bureau. Tu rédiges ENTIÈREMENT en {nom}, de façon claire et sobre. Tu réponds "
             "UNIQUEMENT par le JSON demandé, sans texte autour.")
 
 

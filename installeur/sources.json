@@ -1,0 +1,25 @@
+{
+    "_note": "Sprint Installeur : ce que l'installeur télécharge pendant l'installation, depuis la source officielle, en HTTPS, vérifié par son empreinte. « publiee » : l'empreinte que l'éditeur publie ; « relevee » : relevée à la construction de l'installeur (l'éditeur n'en publie pas). Les fichiers de construction (Python embarqué, Tcl/Tk, pip) sont dans construire.py.",
+    "ollama": {
+        "version": "0.40.6",
+        "url": "https://github.com/ollama/ollama/releases/download/v0.40.6/OllamaSetup.exe",
+        "sha256": "933794ee1d670137f5116c9de7fc7db092fa97c6b823aba848ddb8a7ea030828",
+        "empreinte": "publiee (sha256sum.txt de la version)",
+        "taille": 1584629376,
+        "options": ["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-"]
+    },
+    "tesseract": {
+        "version": "5.4.0.20240606",
+        "url": "https://github.com/UB-Mannheim/tesseract/releases/download/v5.4.0.20240606/tesseract-ocr-w64-setup-5.4.0.20240606.exe",
+        "sha256": "c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9",
+        "empreinte": "relevee le 06/11/2026 (aucune empreinte publiée ; signature Authenticode de l'Universität Mannheim, chaîne non reconnue par Windows : UnknownError)",
+        "taille": 50175248,
+        "options": ["/S"]
+    },
+    "tesseract_francais": {
+        "url": "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/87416418657359cb625c412a48b6e1d6d41c29bd/fra.traineddata",
+        "git_sha1": "d9e2b2160be0d1ca3b8f1bf2730fae476ef3b4a6",
+        "empreinte": "publiee (empreinte Git du dépôt officiel tessdata_fast)",
+        "taille": 1130365
+    }
+}

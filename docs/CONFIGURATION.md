@@ -23,6 +23,9 @@ Les clés qui commencent par `_` sont des commentaires : le code ne les lit pas,
 | `grounding` | vision (désactivée), délai d'arrêt du processus EasyOCR inactif | `tools/grounding.py` |
 | `voice` | micro, mot d'éveil, transcription (`stt_device` : `cuda` ou `cpu`), voix Piper | `core/voice_engine.py`, `main.py` |
 | `mail` | `envoi` : `"simulation"` (par défaut) ou `"reel"` (détail ci-dessous, sprint Compétences 2) | `core/courrier.py` |
+| `mode_jeu` | `actif` (`true` par défaut) : pendant un jeu en plein écran, Atlas décharge son modèle et rend la mémoire de la carte graphique, puis annonce le rechargement (sprint Installeur) | `main.py`, `core/modele_local.py` |
+
+Hors de `settings.json`, **`config/modeles.json`** (sprint Installeur) épingle les modèles installés par leur empreinte Ollama et donne la version d'Ollama de référence ; **`config/reference_non_regression.json`** garde la référence du banc de non-régression de chaque modèle (`scripts/non_regression_modele.py --enregistrer`).
 
 ## `memory.collections` : une archive
 

@@ -339,8 +339,46 @@ def check_ollama(settings: dict | None) -> list[Check]:
             except Exception:
                 version = None
         checks.append(ollama_version_check(version))
+        checks.append(epinglage_check(model, body_full(f"{base}/api/tags")))
+        checks.append(non_regression_check(version))
     checks.append(ollama_exposure_check(_ollama_listen_addresses()))
     return checks
+
+
+FICHIER_MODELES = ROOT / "config" / "modeles.json"
+
+
+def epinglage_check(model: str, tags_json: str) -> Check:
+    """Sprint Installeur / IN4 : le modèle installé a-t-il l'empreinte épinglée (config/modeles.json) ?"""
+    try:
+        epingles = json.loads(FICHIER_MODELES.read_text(encoding="utf-8")).get("modeles", {})
+        attendu = (epingles.get(model) or {}).get("digest")
+        trouve = next((m.get("digest") for m in json.loads(tags_json).get("models", []) if m.get("name") == model), None)
+    except Exception as e:
+        return Check("Ollama", "Modèle épinglé", False, WARNING, f"lecture impossible : {e}", "")
+    if not attendu:
+        return Check("Ollama", "Modèle épinglé", True, INFO, f"{model} n'est pas dans config/modeles.json (choix à la main)", "")
+    return Check("Ollama", "Modèle épinglé (empreinte attendue)", trouve == attendu, WARNING,
+                 f"attendue {attendu[:12]}…, trouvée {(trouve or 'aucune')[:12]}…",
+                 "Le modèle a changé dans Ollama : lancer le banc de non-régression "
+                 "(python scripts/non_regression_modele.py) avant de s'y fier.")
+
+
+def non_regression_check(version: str | None, fichier: Path | None = None) -> Check:
+    """Sprint Installeur / IN4 : Ollama a-t-il changé de version depuis le dernier banc de non-régression réussi ?"""
+    fichier = fichier or ROOT / "data" / "non_regression.json"
+    try:
+        dernier = json.loads(fichier.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return Check("Ollama", "Banc de non-régression", True, INFO, "jamais passé sur cette machine",
+                     "python scripts/non_regression_modele.py")
+    except Exception as e:
+        return Check("Ollama", "Banc de non-régression", False, WARNING, f"{fichier} illisible : {e}", "")
+    meme = dernier.get("ollama") == version
+    return Check("Ollama", "Même version d'Ollama qu'au dernier banc réussi", meme, WARNING,
+                 f"dernier banc vert le {dernier.get('date')} avec Ollama {dernier.get('ollama')} ; installée : "
+                 f"{version or 'inconnue'}",
+                 "Ollama s'est mis à jour depuis : relancer python scripts/non_regression_modele.py.")
 
 
 def body_full(url: str, timeout: float = 5.0) -> str:
@@ -870,6 +908,40 @@ VRAM_COMFORT_MIB = 7_500   # cartes 8 Go : 5,1 Go pour Atlas, marge pour l'affic
 VRAM_TIGHT_MIB = 5_500     # cartes 6 Go : juste (5,1 Go + l'affichage)
 DISK_MIN_GIB = 20.0        # ~14 Go installés + installeurs et caches pendant l'installation
 
+# Sprint Installeur / IN3 : les paliers, pour qwen2.5:7b (mêmes seuils dans precheck_atlas.ps1 et l'installeur ;
+# un test les garde identiques). Carte NVIDIA de 8 Go ou plus : qwen2.5:7b, le modèle de la démo. Carte de 6 Go,
+# ou pas de carte NVIDIA mais 16 Go de mémoire vive : gemma4:e4b, PROVISOIRE (mesuré par le test de capacité de
+# l'installeur). En dessous : la machine ne convient pas.
+MODELE_PALIER_HAUT = "qwen2.5:7b"
+MODELE_PALIER_MOYEN = "gemma4:e4b"
+
+
+def palier(m: dict) -> dict:
+    """{"modele": str | None, "provisoire": bool, "sur": "carte" | "processeur" | None, "raison": str}."""
+    if not m.get("windows") or not m.get("arch64"):
+        return {"modele": None, "provisoire": False, "sur": None,
+                "raison": "Atlas demande Windows 10 ou 11 en 64 bits."}
+    if float(m.get("disk_free_gib") or 0) < DISK_MIN_GIB:
+        return {"modele": None, "provisoire": False, "sur": None,
+                "raison": f"il faut au moins {DISK_MIN_GIB:.0f} Go libres sur le disque."}
+    ram = float(m.get("ram_gib") or 0)
+    if ram < RAM_MIN_GIB:
+        return {"modele": None, "provisoire": False, "sur": None,
+                "raison": "il faut au moins 12 Go de mémoire vive."}
+    vram = m.get("vram_mib") if m.get("gpu_name") else None
+    if vram and vram >= VRAM_COMFORT_MIB:
+        return {"modele": MODELE_PALIER_HAUT, "provisoire": False, "sur": "carte",
+                "raison": "carte graphique NVIDIA de 8 Go ou plus."}
+    if vram and vram >= VRAM_TIGHT_MIB:
+        return {"modele": MODELE_PALIER_MOYEN, "provisoire": True, "sur": "carte",
+                "raison": "carte graphique NVIDIA de 6 Go : un modèle plus léger, provisoire."}
+    if ram >= RAM_COMFORT_GIB:
+        return {"modele": MODELE_PALIER_MOYEN, "provisoire": True, "sur": "processeur",
+                "raison": "pas de carte graphique NVIDIA assez grande, mais 16 Go de mémoire vive : un modèle plus "
+                          "léger, sur le processeur, provisoire (réponses lentes)."}
+    return {"modele": None, "provisoire": False, "sur": None,
+            "raison": "sans carte graphique NVIDIA de 6 Go, il faut au moins 16 Go de mémoire vive."}
+
 
 def _ram_gib() -> float:
     if os.name != "nt":
@@ -957,12 +1029,16 @@ def machine_verdict(m: dict) -> tuple[str, list[str]]:
                         "de seconde, et ses réponses seront plus lentes.")
     elif vram < VRAM_TIGHT_MIB:
         degraded.append(f"Carte graphique trop petite pour le modèle d'Atlas ({m['gpu_name']}, "
-                        f"{vram / 1024:.0f} Go) : il faudra choisir un modèle plus petit à l'installation, "
-                        "sinon Atlas répondra lentement.")
+                        f"{vram / 1024:.0f} Go) : l'installation choisira un modèle plus léger, sur le processeur, "
+                        "et Atlas répondra lentement.")
     elif vram < VRAM_COMFORT_MIB:
-        degraded.append(f"Carte graphique juste ({m['gpu_name']}, {vram / 1024:.0f} Go) : le modèle tient, "
-                        "mais avec peu de marge ; fermer les jeux pendant qu'Atlas sert.")
+        degraded.append(f"Carte graphique juste ({m['gpu_name']}, {vram / 1024:.0f} Go) : l'installation "
+                        "choisira un modèle plus léger, provisoire ; fermer les jeux pendant qu'Atlas sert.")
 
+    if not ko:
+        p = palier(m)
+        if p["modele"] is None:
+            ko.append(f"Cette machine ne convient pas à Atlas : {p['raison']}")
     if ko:
         return VERDICT_KO, ko + degraded
     if degraded:
@@ -974,6 +1050,9 @@ def render_verdict(verdict: str, reasons: list[str], m: dict) -> None:
     print(verdict)
     for r in reasons:
         print(f"  - {r}")
+    p = palier(m)
+    if p["modele"]:
+        print(f"  Modèle prévu à l'installation : {p['modele']}{' (provisoire)' if p['provisoire'] else ''} — {p['raison']}")
     gpu = f"{m['gpu_name']} ({m['vram_mib']} Mio)" if m.get("gpu_name") else "aucune carte NVIDIA détectée"
     print(f"  (Windows {m.get('windows_release')} — {m.get('ram_gib')} Go de mémoire vive — {gpu} — "
           f"{m.get('disk_free_gib')} Go libres)")
@@ -1037,7 +1116,7 @@ def main(argv: list[str] | None = None) -> int:
     verdict, reasons = machine_verdict(machine)
     if args.precheck:
         if args.json:
-            print(json.dumps({"verdict": verdict, "reasons": reasons, "machine": machine},
+            print(json.dumps({"verdict": verdict, "reasons": reasons, "machine": machine, "palier": palier(machine)},
                              ensure_ascii=False, indent=2))
         else:
             render_verdict(verdict, reasons, machine)

@@ -214,6 +214,16 @@ CATALOGUE: dict[str, dict] = {
         "message": "L'adresse privée de ton agenda ne marche plus (elle a peut-être été réinitialisée) : dis "
                    "« déconnecte mon agenda Google », puis « connecte mon agenda Google ».",
     },
+    # Sprint Installeur / IN4 : le modèle installé n'a pas l'empreinte épinglée (config/modeles.json)
+    "modele_non_epingle": {
+        "composant": "Modèle de langue (épinglage par empreinte)",
+        "declencheur": "le modèle configuré n'a pas l'empreinte attendue (mis à jour ou remplacé dans Ollama)",
+        "perte": "les réponses viennent d'un modèle qui n'a pas passé le banc de non-régression",
+        "vecue": True,
+        "message": "Mon modèle de langue n'est pas celui qui a été vérifié (son empreinte a changé) : je fonctionne, "
+                   "mais mes réponses peuvent être moins sûres. Le banc de non-régression le dira "
+                   "(scripts/non_regression_modele.py).",
+    },
     "instantane_processus": {
         "composant": "Instantané des processus (NtQuerySystemInformation)",
         "declencheur": "l'appel système unique échoue",

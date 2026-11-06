@@ -32,7 +32,8 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PY = str(ROOT / ".venv" / "Scripts" / "python.exe")
+# Sprint Installeur : chez un proche, Atlas a son Python embarqué (pas de .venv)
+PY = str(ROOT / ".venv" / "Scripts" / "python.exe") if (ROOT / ".venv").exists() else sys.executable
 OLLAMA = "http://127.0.0.1:11434"
 STANDARD = ["qwen2.5:7b", "qwen3.5:9b", "qwen3:8b", "ministral-3:8b", "granite4.2:8b"]
 LEGER = ["qwen3.5:4b", "gemma4:e4b", "ministral-3:3b", "granite4.2:3b", "qwen3:4b"]
