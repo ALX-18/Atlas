@@ -213,8 +213,15 @@ def construire_python(dest: pathlib.Path = PAQUET / "python") -> dict:
 def construire_verrous(dest: pathlib.Path = PAQUET / "atlas" / "installeur") -> dict:
     """pip résout requirements.txt (sans rien installer) et rend chaque fichier avec son empreinte PyPI."""
     rapport = BUILD / "resolution.json"
-    subprocess.run([str(VENV_PY), "-m", "pip", "install", "--dry-run", "--ignore-installed", "--quiet", "--report",
-                    str(rapport), "-r", str(ROOT / "requirements.txt")], check=True)
+    # Les versions TESTÉES : celles du .venv où la suite passe (torch « 2.12.1+cpu » → torch 2.12.1 de PyPI)
+    gel = subprocess.run([str(VENV_PY), "-m", "pip", "list", "--format=freeze", "--disable-pip-version-check"],
+                         capture_output=True, text=True, check=True).stdout
+    contraintes = BUILD / "contraintes_venv.txt"
+    contraintes.write_text("\n".join(re.sub(r"\+[\w.]+$", "", l) for l in gel.splitlines() if "==" in l) + "\n",
+                           encoding="utf-8")
+    subprocess.run([str(VENV_PY), "-m", "pip", "install", "--dry-run", "--ignore-installed", "--quiet",
+                    "--disable-pip-version-check", "--report", str(rapport), "-r", str(ROOT / "requirements.txt"),
+                    "-c", str(contraintes)], check=True)
     installes = json.loads(rapport.read_text(encoding="utf-8"))["install"]
     roues = dest / "roues"
     roues.mkdir(parents=True, exist_ok=True)
