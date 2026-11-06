@@ -119,7 +119,7 @@ def main(argv=None) -> int:
     else:
         dossier = pathlib.Path(a.out) if a.out else ROOT / "data" / "non_regression" / time.strftime("%Y%m%d_%H%M%S")
         dossier.mkdir(parents=True, exist_ok=True)
-        print(f"Banc de non-régression : {modele} (Ollama {version}) — {PARTIES}. Une vingtaine de minutes.", flush=True)
+        print(f"Banc de non-régression : {modele} (Ollama {version}) — {PARTIES}. Environ 5 minutes avec une carte graphique (mesuré le 06/11), bien plus sur le processeur.", flush=True)
         subprocess.run([PY, "-u", str(ROOT / "scripts" / "banc_modeles.py"), "--out", str(dossier), "--modeles", modele,
                         "--parties", PARTIES], cwd=ROOT, check=False)
         fichier = dossier / modele.replace(":", "_").replace("/", "_") / "resultat.json"
