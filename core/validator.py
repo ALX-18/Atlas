@@ -151,11 +151,11 @@ CONFIRMATION_POLICY: dict[str, tuple[str, str]] = {
     # Audit F1 : aucune intention ne les produit aujourd'hui, mais le moteur ne s'en remet
     # pas à cette absence — une suppression définitive attend toujours l'accord d'Alexis.
     "maintenance_empty_bin": ("toujours", "vider la corbeille efface définitivement son contenu"),
-    "schedule_remove": ("toujours", "supprimer une tâche planifiée d'Alexis"),
+    "schedule_remove": ("toujours", "supprimer une de tes tâches planifiées"),
     # Sprint G / G4 : oublier efface, comme toute suppression.
     "memory_forget": ("toujours", "effacer définitivement ce souvenir"),
     # Sprint G-bis / GB4 : envoyer un message, c'est agir au nom d'Alexis ; il ne se reprend pas.
-    "window_send_message": ("toujours", "envoyer ce message au nom d'Alexis — un message envoyé ne se reprend pas"),
+    "window_send_message": ("toujours", "envoyer ce message en ton nom — un message envoyé ne se reprend pas"),
     "schedule_add":    ("interactif", "créer une tâche qui se rejouera seule"),
     "trigger_add":     ("interactif", "créer un déclencheur automatique"),
     "workflow_create": ("interactif", "créer un workflow"),
@@ -461,7 +461,7 @@ _AUTOMATION_EXCLUSIONS = {
     },
     "suppression définitive, rejouée à chaque exécution": {"maintenance_empty_bin"},
     # Compétences 2 : un mail ou un agenda ne se lit, ne s'écrit et ne s'envoie qu'à la demande d'Alexis
-    "mails et agenda : seulement à la demande d'Alexis, jamais par une automatisation": {
+    "mails et agenda : seulement à ta demande, jamais par une automatisation": {
         "courrier_connecter", "courrier_deconnecter", "courrier_lister", "courrier_lire", "courrier_resumer", "courrier_repondre", "courrier_envoyer", "courrier_ouvrir_lien", "agenda_lire", "agenda_creer"},
     "rejoue une action qui dépend du moment où elle a eu lieu": {"redo_last_action"},
     "paramètres non contrôlés (priorité de processus)": {"set_priority"},

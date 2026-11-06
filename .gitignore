@@ -102,3 +102,8 @@ docs/rapports/INVENTAIRE_MEMOIRE_*.md
 cleanup_ids*.json
 # Ancien dossier du projet : seuls des artefacts de test y étaient écrits.
 assistant-bureau/
+# Sprint Installeur : le bilan du banc de non-régression (propre à chaque machine)
+data/non_regression.json
+data/non_regression/
+data/premier_lancement_vu
+data/logs/

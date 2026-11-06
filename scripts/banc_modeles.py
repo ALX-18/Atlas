@@ -32,7 +32,8 @@ import sys
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-PY = str(ROOT / ".venv" / "Scripts" / "python.exe")
+# Sprint Installeur : chez un proche, Atlas a son Python embarqué (pas de .venv)
+PY = str(ROOT / ".venv" / "Scripts" / "python.exe") if (ROOT / ".venv").exists() else sys.executable
 OLLAMA = "http://127.0.0.1:11434"
 STANDARD = ["qwen2.5:7b", "qwen3.5:9b", "qwen3:8b", "ministral-3:8b", "granite4.2:8b"]
 LEGER = ["qwen3.5:4b", "gemma4:e4b", "ministral-3:3b", "granite4.2:3b", "qwen3:4b"]
@@ -282,13 +283,16 @@ def p_documents(modele, coupee):
     essais = []
     vraie = ar._essayer
 
-    def compter(consigne, schema, valide):
-        r = ar._generer_json(ar.SYSTEME, consigne, schema)
+    def compter(consigne, schema, valide, systeme_=None):
+        # Sprint Installeur : _essayer reçoit la consigne système (la langue) depuis Artefacts sur mesure ;
+        # l'ancienne signature à 3 arguments faisait échouer toute la partie « documents »
+        s = systeme_ or ar.SYSTEME
+        r = ar._generer_json(s, consigne, schema)
         ok, raison = valide(r) if r is not None else (False, "vide")
         essais.append(ok)
         if ok:
             return r, ""
-        r = ar._generer_json(ar.SYSTEME, f"{consigne}\n\nTa réponse précédente était invalide : {raison}. Corrige-la.", schema)
+        r = ar._generer_json(s, f"{consigne}\n\nTa réponse précédente était invalide : {raison}. Corrige-la.", schema)
         ok2, raison2 = valide(r) if r is not None else (False, "vide")
         return (r, "") if ok2 else (None, raison2 or raison)
 

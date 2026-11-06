@@ -152,6 +152,14 @@
         "pas_luminosite": 20,
         "_note": "Sprint Compétences 1 : « monte le son », « baisse la luminosité » sans valeur changent de ce pas (en points de pourcentage)."
     },
+    "utilisateur": {
+        "prenom": "",
+        "_note": "Sprint Installeur : le prénom de la personne qu'Atlas aide, demandé au premier lancement (installeur/premier_lancement.py). Vide : Atlas ne donne aucun prénom. Alexis reste le créateur dans l'identité d'Atlas."
+    },
+    "mode_jeu": {
+        "actif": true,
+        "_note": "Sprint Installeur / IN4 : pendant un jeu en plein écran (navigateurs et lecteurs vidéo exceptés), Atlas décharge son modèle et rend la mémoire de la carte graphique ; à la demande suivante, il dit « Je recharge mon modèle, quelques secondes ». false : le modèle reste chargé."
+    },
     "mail": {
         "envoi": "simulation",
         "_note": "Sprint Compétences 2 : « simulation » (par défaut) — Atlas prépare l'envoi, montre exactement ce qui partirait, demande la confirmation, puis n'envoie rien et le dit. « reel » : l'envoi part vraiment, après la même confirmation. C'est Alexis qui change cette valeur, à la main."

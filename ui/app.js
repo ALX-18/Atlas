@@ -241,7 +241,7 @@ async function sendMessage() {
         // l'historique renvoyé au modèle ; un repère le remplace.
         if (assistantText) {
             conversationHistory.push({ role: 'assistant', content: nonFiable
-                ? '[contenu externe montré à Alexis : non conservé dans la conversation]' : assistantText });
+                ? '[contenu externe montré à la personne : non conservé dans la conversation]' : assistantText });
         }
 
     } catch (err) {

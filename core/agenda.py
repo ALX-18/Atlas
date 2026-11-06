@@ -311,6 +311,50 @@ def _pas_connecte() -> dict:
             "champ masqué."}
 
 
+PERIODE_INCONNUE = ("Je sais lire ton agenda pour un jour (« qu'est-ce que j'ai jeudi ? »), pour cette semaine, la "
+                    "semaine prochaine ou le week-end, mais pas encore pour un mois entier ni pour le passé.")
+
+
+def _libelle_periode(p: dict, du: date, au: date) -> str:
+    from core import horloge
+
+    if du == au:
+        return f"{p['periode']} ({horloge.date_fr(du, annee=False)})"
+    if p["periode"].endswith("week-end"):
+        return f"{p['periode']} ({horloge.date_fr(du, annee=False)} et {horloge.date_fr(au, annee=False)})"
+    return f"{p['periode']} (du {horloge.date_fr(du, annee=False)} au {horloge.date_fr(au, annee=False)})"
+
+
+def _lire_periode(texte: str, p: dict) -> dict:
+    """Sprint Installeur / IN7 : plusieurs jours, regroupés par jour ; les jours vides ne sont pas cités."""
+    du, au = date.fromisoformat(p["du"]), date.fromisoformat(p["au"])
+    libelle = _libelle_periode(p, du, au)
+    par_jour: list[tuple[date, list[Evenement]]] = []
+    j = du
+    while j <= au:
+        d0, d1 = _bornes(j)
+        if p.get("libre"):
+            h0, h1 = p.get("de", 0), p.get("a", 24)
+            evs = [e for e in analyser_ical(texte, d0 + timedelta(hours=h0), d0 + timedelta(hours=h1) if h1 < 24 else d1)
+                   if e.occupe]
+        else:
+            evs = analyser_ical(texte, d0, d1)
+        if evs:
+            par_jour.append((j, evs))
+        j += timedelta(days=1)
+    blocs = "\n".join(f"{_jour_fr(j)[:1].upper()}{_jour_fr(j)[1:]} :\n" + "\n".join(f"- {_ligne(e)}" for e in evs)
+                      for j, evs in par_jour)
+    if p.get("libre"):
+        plage = f" {p['plage']}" if p.get("plage") else ""
+        if not par_jour:
+            return {"success": True, "non_fiable": True,
+                    "message": f"Oui : rien de prévu {libelle}{plage} dans ton agenda Google."}
+        return {"success": True, "non_fiable": True, "message": f"Non, {libelle}{plage} tu as :\n{blocs}"}
+    if not par_jour:
+        return {"success": True, "non_fiable": True, "message": f"Rien de prévu {libelle} dans ton agenda Google."}
+    return {"success": True, "non_fiable": True, "message": f"{libelle[:1].upper()}{libelle[1:]} :\n{blocs}"}
+
+
 def agenda_lire(p: dict) -> dict:
     """« Qu'est-ce que j'ai demain ? », « mon prochain rendez-vous », « je suis libre jeudi après-midi ? »."""
     from core import courrier, horloge
@@ -318,6 +362,8 @@ def agenda_lire(p: dict) -> dict:
     refus = courrier._refus_origine()
     if refus:
         return refus
+    if p.get("periode_inconnue"):
+        return {"success": True, "message": PERIODE_INCONNUE}
     try:
         texte = _ical()
     except LookupError:
@@ -339,6 +385,8 @@ def agenda_lire(p: dict) -> dict:
         e = evs[0]
         return {"success": True, "non_fiable": True,
                 "message": f"Ton prochain rendez-vous : {_jour_fr(e.debut.astimezone(_local()).date())}, {_ligne(e)}."}
+    if p.get("du"):
+        return _lire_periode(texte, p)
     jour = date.fromisoformat(p["jour"]) if p.get("jour") else now.date()
     d0, d1 = _bornes(jour)
     if p.get("libre"):

@@ -4537,5 +4537,85 @@
    "cible": "icloud"
   },
   "origine": "Compétences 2"
+ },
+ {
+  "phrase": "qu'est-ce que j'ai cette semaine ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "mon agenda de la semaine prochaine",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "j'ai quoi ce week-end ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "je suis libre ce weekend ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "qu'est-ce qui est prévu la semaine prochaine",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "est-ce que je suis libre cette semaine le soir ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "qu'est-ce que j'ai ce mois-ci ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "qu'est-ce que j'ai le week-end prochain ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "outil",
+   "outil": "agenda_lire"
+  },
+  "origine": "Installeur (IN7)"
+ },
+ {
+  "phrase": "combien de jours dans une semaine ?",
+  "famille": "mails_agenda",
+  "attendu": {
+   "route": "conversation"
+  },
+  "origine": "Installeur (IN7)"
  }
 ]

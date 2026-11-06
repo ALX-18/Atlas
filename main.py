@@ -10,6 +10,7 @@ import pathlib
 import socket
 import sys
 import asyncio
+import threading
 import webbrowser
 from contextlib import asynccontextmanager
 
@@ -74,6 +75,14 @@ logger = logging.getLogger("atlas")
 CONFIG_PATH = pathlib.Path(__file__).parent / "config" / "settings.json"
 with open(CONFIG_PATH, encoding="utf-8") as f:
     CONFIG = json.load(f)
+
+# Sprint Installeur : Tesseract là où l'installeur l'a mis (PATH du processus seulement)
+try:
+    from core import outils_externes as _outils_externes
+
+    _outils_externes.preparer()
+except Exception:
+    pass
 
 HOST = CONFIG["server"]["host"]
 PORT = CONFIG["server"]["port"]
@@ -338,6 +347,16 @@ async def lifespan(app: FastAPI):
     from core.ollama_client import prewarm
 
     app.state.prewarm_task = prewarm()
+
+    # Sprint Installeur / IN4 : le modèle installé est-il celui qui a été vérifié ? Et, pendant un jeu en plein
+    # écran, la carte graphique est rendue au jeu (mode_jeu.actif dans settings.json).
+    from core import modele_local
+    from core.ollama_client import MODEL as _MODELE
+
+    threading.Thread(target=modele_local.signaler_epinglage, args=(_MODELE,), name="atlas-epinglage",
+                     daemon=True).start()
+    if (CONFIG.get("mode_jeu") or {}).get("actif", True):
+        modele_local.demarrer_mode_jeu(_MODELE)
 
     # v5.1 corrective — mitigate Python 3.12 + Proactor + Windows socket cleanup bug
     # AssertionError raised in asyncio.proactor_events._attach when a deferred IOCP

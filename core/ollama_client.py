@@ -45,7 +45,14 @@ REFLEXION_COUPEE: bool = _os.environ.get("ATLAS_MODELE_REFLEXION") == "off"
 
 
 def champs_modele() -> dict:
-    """Le modèle de chaque requête, et la réflexion coupée si demandé (BM2)."""
+    """Le modèle de chaque requête, et la réflexion coupée si demandé (BM2). Sprint Installeur / IN4 : chaque
+    requête passe ici ; si le modèle a été rendu au jeu, Atlas annonce qu'il le recharge."""
+    try:
+        from core.modele_local import avant_appel_modele
+
+        avant_appel_modele()
+    except Exception:
+        pass
     return {"model": MODEL, **({"think": False} if REFLEXION_COUPEE else {})}
 TEMPERATURE: float = _cfg["temperature"]
 STREAM_TIMEOUT: int = _cfg.get("stream_timeout_seconds", 30)
@@ -120,7 +127,6 @@ def build_messages(system_prompt: str, user_message: str, history: Optional[list
 
 SYSTEM_PROMPT_TEMPLATE = """\
 {identity_section}
-Tu aides l'utilisateur à contrôler son PC.
 
 RÔLE : Tu ne choisis PAS les outils. C'est le système qui décide automatiquement quel outil utiliser.
 
@@ -129,11 +135,11 @@ TON TRAVAIL :
 2. Pendant CETTE conversation, aucun outil n'est exécuté : ne dis jamais que tu viens de faire, que tu fais ou que tu vas faire une action sur l'ordinateur (« volume baissé », « je vais envoyer », « c'est fait »). Mais Atlas SAIT agir par ses outils (liste ci-dessous) quand l'utilisateur le lui demande clairement. Ne dis donc JAMAIS « je ne peux pas effectuer d'action sur votre ordinateur » : c'est faux. Si on te demande de faire une de ces actions, dis comment la demander directement, par exemple « ouvre Steam » ou « mets Steam au premier plan ». Ce qui n'est pas dans la liste, dis que tu ne sais pas encore le faire. Si on te demande COMMENT faire quelque chose soi-même, explique-le normalement.
 3. Si le résultat d'une action t'est fourni → le résumer clairement pour l'utilisateur
 
-CE QU'ATLAS SAIT FAIRE PAR SES OUTILS (G-ter : construit depuis le registre des outils, la seule source de vérité) :
+CE QU'ATLAS SAIT FAIRE PAR SES OUTILS :
 {capabilities_section}
 
 RÈGLES :
-- Répondre en français, court et direct
+- Court et direct
 - Ne JAMAIS générer de JSON d'outil (le système s'en charge)
 - Si tu ne sais pas, dis-le honnêtement
 - Tu ne prétends jamais avoir agi : seul le système agit, et c'est lui qui en rend compte
@@ -179,10 +185,18 @@ def build_system_prompt(context: dict, memories: list[str] | None = None, extra_
         signaler("prompt_capacites", f"{type(e).__name__}: {e}")
         capabilities_section = "- (liste indisponible)"
 
+    # Sprint Installeur : la personne aidée (son prénom, demandé au premier lancement) — pas forcément Alexis
+    try:
+        from core.utilisateur import prenom
+
+        _p = prenom()
+    except Exception:
+        _p = None
+    identite = SYSTEM_PROMPT_IDENTITY + (f"\nTu parles à {_p}." if _p else "")
     return SYSTEM_PROMPT_TEMPLATE.format(
         extra_fixed=extra_fixed.strip() + "\n" if extra_fixed.strip() else "",
         capabilities_section=capabilities_section,
-        identity_section=SYSTEM_PROMPT_IDENTITY,
+        identity_section=identite,
         world_state_summary=world_state_summary,
         memories_section=memories_section,
     )

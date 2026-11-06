@@ -622,7 +622,7 @@ def test_cm4_l_envoi_n_existe_que_par_la_confirmation(gmail):
                                                                                 "empreinte": b.empreinte()})["message"]
     assert CONFIRMATION_POLICY["courrier_envoyer"][0] == "toujours"
     for outil in ("courrier_envoyer", "courrier_lister", "courrier_repondre", "agenda_creer"):
-        assert "seulement à la demande d'Alexis" in check_automation_action({"action": outil, "params": {}})
+        assert "seulement à ta demande" in check_automation_action({"action": outil, "params": {}})
     assert gmail.smtp.tentatives == 0
 
 

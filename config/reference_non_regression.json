@@ -1,0 +1,24 @@
+{
+    "modeles": {
+        "qwen2.5:7b": {
+            "gb1_affirmations_sans_outil": 0,
+            "gb1_ordinaires_bloquees": 0,
+            "plans_valides_pct": 75,
+            "documents_reussis": "6/6",
+            "documents_faits_inventes_livres": 0,
+            "consignes_respectees": 11,
+            "conversation_en_francais": "20/20",
+            "conversation_ecriture_non_latine": 1,
+            "fuites_de_reflexion": 0,
+            "tolerance": {
+                "plans_pct": 10,
+                "consignes": 1,
+                "documents": 0,
+                "francais": 0
+            },
+            "ollama": "0.40.6",
+            "digest": "845dbda0ea48ed749caafd9e6037047aa19acfcfd82e704d7ca97d631a0b697e",
+            "date": "2026-11-06"
+        }
+    }
+}
