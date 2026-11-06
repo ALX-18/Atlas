@@ -2,7 +2,7 @@
 
 **Développeur :** CHAT6 (Claude Opus, Claude Code Windows)
 **Brief :** `docs/briefs/BRIEF_SPRINT_INSTALLEUR.md` (4 novembre 2026)
-**Branche :** `sprint-installeur` (6 commits, non poussés)
+**Branche :** `sprint-installeur` (9 commits, poussés le 6 novembre — PR ouverte avant la Sandbox, à la demande d'Alexis)
 **Date :** 6 novembre 2026
 
 > **Rapport intermédiaire.** Tout ce qui se fait sans Windows Sandbox est fait, mesuré et commité. Le parcours d'installation de bout en bout dans la Sandbox (IN6) **n'est pas encore joué** : la Sandbox doit être activée par Alexis (droits administrateur, redémarrage). Les lignes concernées disent « À FAIRE » ; aucun chiffre n'y est inventé.
