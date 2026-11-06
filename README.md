@@ -31,7 +31,9 @@ Le matériel compte : 32 Go de mémoire vive et une carte NVIDIA de 8 Go donnent
 
 ## Installation
 
-La procédure complète, pas à pas, avec la pré-vérification de la machine : [`docs/beta/INSTALLATION_ALEXIS.md`](docs/beta/INSTALLATION_ALEXIS.md). En bref :
+**Chez un proche : l'installeur.** `python installeur/construire.py` produit `build/installeur/AtlasSetup.exe` (Inno Setup, ~15 Mo) à partir du code commité, sans aucune donnée locale. Un double-clic : diagnostic de la machine et choix du modèle (`qwen2.5:7b` sur une carte NVIDIA de 8 Go, `gemma4:e4b` provisoire sur 6 Go ou sans NVIDIA avec 16 Go de mémoire vive), puis Python embarqué, dépendances aux empreintes vérifiées, Ollama, Tesseract, modèles, test de capacité réelle. Désinstallation par Paramètres > Applications (la mémoire est gardée si on le veut). Détails : [`docs/rapports/RAPPORT_SPRINT_INSTALLEUR.md`](docs/rapports/RAPPORT_SPRINT_INSTALLEUR.md).
+
+**Pour le développement** — la procédure complète, pas à pas : [`docs/beta/INSTALLATION_ALEXIS.md`](docs/beta/INSTALLATION_ALEXIS.md). En bref :
 
 ```powershell
 py scripts\doctor.py --precheck          # ce PC peut-il faire tourner Atlas ?

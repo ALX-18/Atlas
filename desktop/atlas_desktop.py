@@ -21,6 +21,31 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 SETTINGS_PATH = ROOT / "config" / "settings.json"
 
 
+def texte_resultat_confirmation(data) -> str:
+    """Sprint Installeur / IN7 (revu de visu) : ce que la fenêtre dit après un Confirmer ou un Annuler.
+    Le message du serveur d'abord (« Action annulée. Je retiens que tu l'as annulée. ») ; un résultat sans
+    message ne devient jamais « Réponse : success », et un échec se dit comme un échec."""
+    if not isinstance(data, dict):
+        return "Réponse inattendue du serveur : je ne sais pas si l'action a été faite."
+    status = data.get("status", "")
+    if status in ("cancelled", "expired", "error"):
+        return data.get("message") or {"cancelled": "Action annulée.",
+                                       "expired": "Confirmation expirée : rien n'a été fait."}.get(
+            status, "L'action n'a pas pu être faite.")
+    result = data.get("result")
+    if isinstance(result, dict):
+        if result.get("message"):
+            return str(result["message"])
+        if result.get("success") is False:
+            raison = result.get("error") or result.get("reason") or "sans motif donné"
+            return f"L'action n'a pas abouti ({raison})."
+        if result.get("success") is True:
+            return "Action exécutée."
+    elif isinstance(result, str) and result.strip():
+        return result.strip()
+    return data.get("message") or "Réponse du serveur sans détail : vérifie à l'écran si l'action a été faite."
+
+
 class AtlasDesktop:
     def __init__(self, root: tk.Tk):
         self.root = root
@@ -401,24 +426,18 @@ class AtlasDesktop:
 
         def _job():
             try:
-                with httpx.Client(timeout=30.0) as client:
+                # Un envoi de mail confirmé peut prendre plus de 30 s (le serveur du fournisseur)
+                with httpx.Client(timeout=120.0) as client:
                     r = client.post(
                         f"{base}/api/confirm",
                         json={"confirmation_id": confirmation_id, "accepted": accepted},
                     )
                     r.raise_for_status()
                     data = r.json()
-                status = data.get("status", "")
-                if status == "cancelled":
-                    self._messages.put(("atlas", "Action annulée."))
-                elif data.get("result", {}).get("message"):
-                    self._messages.put(("atlas", data["result"]["message"]))
-                elif status == "expired":
-                    self._messages.put(("atlas", "Confirmation expirée : rien n'a été fait."))
-                else:
-                    self._messages.put(("atlas", data.get("message") or f"Réponse : {status or 'inconnue'}."))
+                self._messages.put(("atlas", texte_resultat_confirmation(data)))
             except Exception as e:
-                self._messages.put(("system", f"Confirm request failed: {e}"))
+                self._messages.put(("system", f"Je n'ai pas pu transmettre ta réponse à Atlas ({type(e).__name__}) : "
+                                              "je ne sais pas si l'action a été faite."))
             finally:
                 self._messages.put(("busy", {"busy": False, "message": "Ready"}))
 

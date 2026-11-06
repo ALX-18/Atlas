@@ -820,3 +820,31 @@ def test_identite_le_paquet_n_emporte_pas_le_prenom_d_alexis(tmp_path):
     f = tmp_path / "atlas" / "config" / "settings.json"
     f.write_text(json.dumps({"utilisateur": {"prenom": "Alexis"}}), encoding="utf-8")
     assert any("un prénom" in x for x in c.verifier_paquet(tmp_path))
+
+
+# --------------------------------------------------------------------------- #
+#  IN7 — revu de visu : ce que la fenêtre de bureau dit après une confirmation
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("data,attendu", [
+    ({"status": "cancelled", "message": "Action annulée. Je retiens que tu l'as annulée."},
+     "Action annulée. Je retiens que tu l'as annulée."),
+    ({"status": "cancelled"}, "Action annulée."),
+    ({"status": "expired", "message": "Confirmation expirée : rien n'a été fait."}, "Confirmation expirée : rien n'a été fait."),
+    ({"status": "error", "message": "Refusé : processus système protégé."}, "Refusé : processus système protégé."),
+    ({"status": "success", "result": {"success": True, "message": "Mail accepté par le fournisseur."}},
+     "Mail accepté par le fournisseur."),
+    ({"status": "success", "result": {"success": True}}, "Action exécutée."),
+    ({"status": "success", "result": {"success": False, "error": "fenêtre introuvable"}},
+     "L'action n'a pas abouti (fenêtre introuvable)."),
+    ({"status": "success", "result": "Fenêtre fermée."}, "Fenêtre fermée."),
+    ({"status": "success", "result": None}, "Réponse du serveur sans détail : vérifie à l'écran si l'action a été faite."),
+    ("pas un dictionnaire", "Réponse inattendue du serveur : je ne sais pas si l'action a été faite."),
+])
+def test_in7_la_fenetre_dit_le_resultat_d_une_confirmation_en_francais(data, attendu):
+    sys.path.insert(0, str(ROOT / "desktop"))
+    import atlas_desktop
+
+    texte = atlas_desktop.texte_resultat_confirmation(data)
+    assert texte == attendu
+    assert "success" not in texte and "Confirm request" not in texte
