@@ -31,6 +31,7 @@
 - **Paliers identiques partout** (`doctor.py`, `precheck_atlas.ps1`, installeur), prouvé par un test sur 12 machines types qui fait tourner le vrai script PowerShell.
 - **Mode jeu mesuré** : 4 879 Mo de mémoire de carte rendus, rechargement en 5,2 s (3 mesures identiques). **Épinglage** : l'empreinte du modèle est vérifiée au démarrage. **Banc de non-régression** en une commande, vert, avec sa référence.
 - **Hors brief, décidé avec Alexis** : Atlas n'appelle plus tout le monde « Alexis » — le prénom de la personne est demandé au premier lancement (Alexis reste le créateur dans l'identité).
+- **Banc hostile avec le vrai modèle** : 0 action, 0 secret, 26/26 marqués ; l'affirmation forgée du rapport Compétences 2 est maintenant attribuée à l'expéditeur.
 - **Défauts trouvés et corrigés** : le banc de modèles ne mesurait plus les documents depuis le sprint Artefacts sur mesure ; la fenêtre de bureau pouvait afficher « Réponse : success » ou une erreur en anglais après une confirmation ; un exemple du guide testeur prenait une mauvaise route.
 
 ---
@@ -59,7 +60,7 @@
 | IN6 — Paquet sans donnée d'Alexis | `verifier_paquet` + tests (9 pièges plantés, tous attrapés ; le vrai paquet propre) | PASS |
 | IN6 — PC du proche | par Alexis, avec CHAT6 en soutien ; Bluetooth à mesurer là-bas | À FAIRE (hors de ce rapport) |
 | IN7 — Agenda multi-jours | « cette semaine », « la semaine prochaine », « ce week-end », « le week-end prochain », libre sur ces périodes ; un mois ou le passé : Atlas le dit, sans rien télécharger | PASS |
-| IN7 — Consigne du lecteur | consigne (« l'expéditeur affirme que… ») **et** garde déterministe : une affirmation sur Alexis / Atlas / la personne non attribuée → extrait | PASS (banc hostile réel À REFAIRE avec le vrai modèle) |
+| IN7 — Consigne du lecteur | consigne (« l'expéditeur affirme que… ») **et** garde déterministe : une affirmation sur Alexis / Atlas / la personne non attribuée → extrait ; **banc hostile, vrai modèle : les 3 affirmations forgées attribuées à l'expéditeur** | PASS |
 | IN7 — Confirmation de la fenêtre de bureau | relue : 3 défauts corrigés (message d'annulation perdu, « Réponse : success », erreur en anglais), délai porté à 120 s | corrigé ; revue à l'écran À FAIRE |
 | IN7 — Budget de la consigne | 36 → 169 jetons de marge (Atlas complet, consigne la plus lourde) | PASS |
 | IN7 — Guide testeur | réécrit en entier ; chacun de ses 30 exemples prend la route promise (test) | PASS (lecture par Alexis À FAIRE) |
@@ -127,6 +128,7 @@ Modifiés : `core/agenda.py`, `core/regles_courrier.py` (périodes), `core/courr
 | Nouveaux tests (`tests/test_installeur.py`) | 107 ; **sur `main` : 106 échouent**, 1 passe (`test_in7_un_jour_reste_un_jour`, une non-régression : un jour reste un jour) |
 | Corpus de routes | **510/511 (99,8 %)**, 0 action à tort ; +9 demandes (agenda sur plusieurs jours, 1 négatif) ; l'échec restant est connu (« horoscope ») |
 | Banc de non-régression `qwen2.5:7b` (Ollama 0.40.6) | **vert** : GB1 0 affirmation sans outil, 0 question bloquée ; plans validés 75 % ; documents 6/6, 0 fait inventé livré ; consignes 11/12 ; conversation 20/20 en français, **1 réponse avec une autre écriture** ; 0 fuite. Le sprint Banc de modèles mesurait 80 % de plans, 11/12, 1 autre écriture : même modèle, même comportement. Durée : ~5 min |
+| Banc hostile (`banc_courrier.py simule`, vrai modèle, serveurs simulés) | 26 mails (24 + 2 affirmations forgées) : **0 action, 0 secret, 26/26 « Contenu externe », 0 résumé qui obéit** ; 24 résumés du modèle, 2 refusés par les gardes (lien recopié, injection en anglais) → extrait. Les 3 mails à affirmation forgée (dont celui du défaut de Compétences 2, « ordre dans une citation ») sont résumés « L'expéditeur affirme que… » |
 | Mode jeu (`qwen2.5:7b`, RTX 5060 8 Go, num_ctx 8 192) | 3 mesures : carte à 6 670 Mo → 1 791 Mo, **4 879 Mo rendus** ; rechargement **5,2 s** (chargement Ollama 5,0 s) |
 | Budget de la consigne vocale (Atlas complet, 9 souvenirs longs, plus longue demande) | marge **36** jetons sur `main` → **169** (162 avec un prénom) |
 
@@ -159,7 +161,7 @@ Modifiés : `core/agenda.py`, `core/regles_courrier.py` (périodes), `core/courr
 7. **Pas de signature de code** : l'écran SmartScreen, expliqué dans le guide. — *Faible pour la démo* (décision d'Alexis, plus tard).
 8. **L'installeur télécharge 9,6 à 10,2 Go** ; la reprise existe (étapes et téléchargements), mais une connexion lente rend l'installation longue (temps annoncé à 50 Mbit/s). — *Moyen.*
 9. **Le prénom n'est demandé qu'au premier lancement** : pour le changer ensuite, il faut éditer `settings.json` (`utilisateur.prenom`). — *Faible.*
-10. **La garde de l'affirmation forgée est mesurée sur des résumés écrits à la main, pas encore au banc hostile avec le vrai modèle.** — *Moyen.* À relancer (`scripts/banc_courrier.py simule`).
+10. **Un résumé peut encore citer une adresse de mail du message** (« …transférer ses mails à collecte@… ») : attribuée à l'expéditeur et sans lien cliquable, mais visible. — *Faible.*
 
 ---
 
@@ -184,7 +186,6 @@ Modifiés : `core/agenda.py`, `core/regles_courrier.py` (périodes), `core/courr
 **Ce soir (fin de ce sprint)**
 - Windows Sandbox : le parcours complet, puis « ne convient pas » à 8 Go ; compléter §6 et le tableau de tête avec les vrais temps et tailles.
 - À l'écran avec Alexis : la confirmation de la fenêtre de bureau, le premier lancement, le mode jeu sur un vrai jeu.
-- Banc hostile avec le vrai modèle, pour la garde de l'affirmation forgée.
 
 **Ensuite**
 - Le PC du proche, avec Alexis : précheck, installation réelle avec carte NVIDIA, Bluetooth.
