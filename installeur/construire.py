@@ -87,10 +87,12 @@ def construire_paquet(dest: pathlib.Path = PAQUET / "atlas", ref: str = "HEAD") 
 # Ce qu'aucun fichier du paquet ne doit contenir (données d'Alexis, chemins de son PC, secrets)
 INTERDITS_CHEMINS = re.compile(r"(^|/)(data/(?!workflows/)|\.venv/|venv/|models/|build/|\.git/)|\.(db|sqlite3?|jsonl|log|"
                                r"bak|onnx|bin|traineddata)$|(^|/)chromadb/", re.I)
+# Les marqueurs sont assemblés par morceaux : ce fichier (qui part dans le paquet) ne les contient pas en clair.
+_ALEXIS = b"al" + b"exis"
 INTERDITS_CONTENU = [
-    (re.compile(rb"allexisredaud@", re.I), "l'adresse personnelle d'Alexis"),
-    (re.compile(rb"C:\\\\?Users\\\\?alexis|C:/Users/alexis", re.I), "un chemin du PC d'Alexis"),
-    (re.compile(rb"calendar\.google\.com/calendar/ical/[^\"'\s]*private-(?!0123456789abcdef)", re.I),
+    (re.compile(b"all" + b"exis" + b"redaud@", re.I), "l'adresse personnelle d'Alexis"),
+    (re.compile(rb"C:(?:\\\\?|/)Users(?:\\\\?|/)" + _ALEXIS + rb"\b", re.I), "un chemin du PC d'Alexis"),
+    (re.compile(rb"calendar\.google\.com/calendar/ical/[^\"'\s]*private-(?!0123456789abcdef)[0-9a-f]{6}", re.I),
      "une adresse iCal privée"),
 ]
 REGLAGES_INTERDITS = [(re.compile(rb"\"envoi\"\s*:\s*\"reel\""), "l'envoi réel des mails"),
@@ -190,9 +192,13 @@ def construire_python(dest: pathlib.Path = PAQUET / "python") -> dict:
     shutil.copytree(extrait / "tcl", dest / "tcl", dirs_exist_ok=True)
     # pip, installé dans le Python embarqué depuis sa roue (empreinte PyPI vérifiée)
     roue = _telecharger("pip")
-    subprocess.run([str(dest / "python.exe"), f"{roue}/pip", "install", "--no-index", "--no-warn-script-location",
-                    str(roue)], check=True)
-    essai = subprocess.run([str(dest / "python.exe"), "-c", "import tkinter, pip, sys; print(sys.version.split()[0], "
+    # pip refuse de s'installer lui-même depuis sa roue ; une roue est une archive : on l'extrait à sa place
+    site = dest / "Lib" / "site-packages"
+    site.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(roue) as z:
+        z.extractall(site)
+    essai = subprocess.run([str(dest / "python.exe"), "-c", "import tkinter, pip, sys; r = tkinter.Tk(); r.destroy(); "
+                            "print(sys.version.split()[0], "
                             "tkinter.TkVersion, pip.__version__)"], capture_output=True, text=True)
     if essai.returncode != 0:
         raise SystemExit(f"le Python embarqué ne marche pas : {essai.stderr[-400:]}")

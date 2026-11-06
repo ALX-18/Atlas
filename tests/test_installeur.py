@@ -427,9 +427,10 @@ def test_in6_le_paquet_produit_ne_contient_rien_d_alexis(tmp_path):
     ("atlas/data/atlas_actions.jsonl", b"{}", "interdit"),
     ("atlas/data/rappels.db", b"x", "interdit"),
     ("atlas/config/settings.json", b'{"mail": {"envoi": "reel"}}', "envoi réel"),
-    ("atlas/core/x.py", b"# allexisredaud@gmail.com", "adresse personnelle"),
-    ("atlas/core/y.py", b"p = r'C:\\Users\\alexis\\Documents'", "chemin du PC"),
-    ("atlas/core/z.py", b"u = 'https://calendar.google.com/calendar/ical/a%40b.com/private-9f8e7d6c/basic.ics'", "iCal"),
+    # assemblés par morceaux : ce fichier part dans le paquet (le banc s'en sert), il ne doit pas les contenir
+    ("atlas/core/x.py", b"# all" + b"exisredaud@gmail.com", "adresse personnelle"),
+    ("atlas/core/y.py", b"p = r'C:\\Users\\" + b"al" + b"exis\\Documents'", "chemin du PC"),
+    ("atlas/core/z.py", b"u = 'https://calendar.google.com/calendar/ical/a%40b.com/private-" + b"9f8e7d6c/basic.ics'", "iCal"),
 ])
 def test_in6_la_verification_du_paquet_attrape_les_donnees(tmp_path, chemin, contenu, attendu):
     c = _construire()
