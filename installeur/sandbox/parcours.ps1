@@ -47,6 +47,12 @@ if ($Mode -eq "ne_convient_pas") {
     Noter "fin" (Get-Date).ToString("s")
     exit 0
 }
+if ($code -ne 0) {
+    # Une étape a échoué (code 10) : la suite n'aurait pas de sens ; le détail est dans installation_premiere.log
+    Noter "arret" "installation inachevée (code $code)"
+    Noter "fin" (Get-Date).ToString("s")
+    exit 1
+}
 Noter "raccourci_menu" (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Atlas.lnk")
 Noter "raccourci_bureau" (Test-Path "$env:USERPROFILE\Desktop\Atlas.lnk")
 Noter "demarrage_windows" ((Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -ErrorAction SilentlyContinue).Atlas -ne $null)
