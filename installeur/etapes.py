@@ -293,7 +293,7 @@ def etape_dependances(progres, sur: str) -> dict:
         if not v.exists():
             raise Echec(f"fichier manquant dans l'installeur : {v.name}")
     cmd = [str(PY), "-m", "pip", "install", "--require-hashes", "--no-deps", "--only-binary", ":all:",
-           "--no-warn-script-location", "--disable-pip-version-check", "--find-links", str(ICI / "roues")]
+           "--no-cache-dir", "--no-warn-script-location", "--disable-pip-version-check", "--find-links", str(ICI / "roues")]
     for v in verrous:
         cmd += ["-r", str(v)]
     progres(None, "téléchargement des bibliothèques d'Atlas (quelques minutes)…")
