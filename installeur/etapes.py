@@ -32,6 +32,7 @@ import json
 import os
 import pathlib
 import shutil
+import ssl
 import subprocess
 import sys
 import threading
@@ -118,9 +119,29 @@ def verifier_empreinte(chemin: pathlib.Path, source: dict) -> None:
                     f"attendue {attendue[:12]}…). Il a été effacé ; relancez l'installation.")
 
 
+def contexte_tls() -> ssl.SSLContext:
+    """Les certificats de Windows, plus ceux de certifi (installé avec les bibliothèques, empreinte vérifiée).
+
+    Sur un Windows neuf, le magasin de Windows ne reçoit une racine qu'à la première visite d'un site par
+    Windows lui-même : Python ne la déclenche pas, et le téléchargement d'Ollama échouait (Sandbox, 09/11)."""
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+
+        ctx.load_verify_locations(cafile=certifi.where())
+    except Exception as e:  # certifi absent : les certificats de Windows seuls
+        journal(f"certifi indisponible ({e}) : certificats de Windows seuls")
+    return ctx
+
+
+def _ouvrir(req, timeout=60):
+    return urllib.request.urlopen(req, timeout=timeout, context=contexte_tls())
+
+
 def telecharger(source: dict, nom: str, progres: Callable[[float, str], None] = lambda f, t: None,
-                ouvrir=urllib.request.urlopen) -> pathlib.Path:
+                ouvrir=None) -> pathlib.Path:
     """Télécharge source["url"] dans le cache, reprend un fichier partiel, vérifie l'empreinte."""
+    ouvrir = ouvrir or _ouvrir
     url = source["url"]
     if not url.startswith("https://"):
         raise Echec(f"adresse refusée (pas en HTTPS) : {url}")

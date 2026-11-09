@@ -906,3 +906,36 @@ def test_in6_sandbox_sans_stockage_rien_ne_change(monkeypatch, tmp_path):
     wsb = (build / "sandbox_ne_convient_pas.wsb").read_text(encoding="utf-8")
     assert f"<HostFolder>{build / 'cache_sandbox'}</HostFolder>" in wsb
     assert ".ollama" not in wsb and "<MemoryInMB>8192</MemoryInMB>" in wsb
+
+
+def test_in2_telechargement_avec_les_certificats_de_certifi(monkeypatch, tmp_path):
+    """Sandbox, 09/11 : sur un Windows neuf, le magasin de Windows n'a pas encore la racine de GitHub
+    (CERTIFICATE_VERIFY_FAILED). Les téléchargements prennent aussi les certificats de certifi (épinglé)."""
+    import ssl
+
+    import certifi
+
+    e = _etapes(monkeypatch, tmp_path)
+    vus = {}
+
+    def faux_urlopen(req, timeout=None, context=None):
+        vus["context"] = context
+        return _Reponse(b"abc")
+
+    monkeypatch.setattr(e.urllib.request, "urlopen", faux_urlopen)
+    import hashlib
+
+    e.telecharger({"url": "https://exemple.test/f.bin", "sha256": hashlib.sha256(b"abc").hexdigest()}, "f.bin")
+    ctx = vus["context"]
+    assert isinstance(ctx, ssl.SSLContext) and ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    connus = {c["serialNumber"] for c in ctx.get_ca_certs()}
+    attendu = ssl.create_default_context(cafile=certifi.where())
+    assert {c["serialNumber"] for c in attendu.get_ca_certs()} <= connus
+
+
+def test_in2_installation_inachevee_rend_un_code_d_erreur():
+    """Sandbox, 09/11 : une étape ratée laissait l'installeur répondre 0 (réussi) en mode silencieux."""
+    iss = (ROOT / "installeur" / "atlas.iss").read_text(encoding="utf-8-sig")
+    assert "function GetCustomSetupExitCode" in iss
+    corps = iss.split("function GetCustomSetupExitCode", 1)[1].split("end;", 1)[0]
+    assert "Etapes <> 0" in corps and "Result := 10" in corps, "10 : hors des codes 1 à 8 propres à Inno Setup"
