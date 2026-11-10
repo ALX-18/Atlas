@@ -1038,3 +1038,314 @@ def test_in2_un_modele_qui_ne_repond_pas_a_temps_dit_trop_lent(monkeypatch, tmp_
     c = e.mesurer_capacite("gemma4:e4b", "processeur")
     assert c.contredit and "n'a pas répondu" in c.raison and "15 minutes" in c.raison
     assert c.jetons_s is None
+
+
+# --------------------------------------------------------------------------- #
+#  IF1 (brief Installeur — fin) — la fenêtre d'Ollama est fermée, son serveur tourne sans fenêtre
+# --------------------------------------------------------------------------- #
+
+class _AppOllama:
+    """Un faux « ollama app.exe » : la fenêtre que l'installeur d'Ollama ouvre à la fin (son [Run] postinstall)."""
+
+    def __init__(self, tous):
+        self.tous, self.tuee = tous, False
+        tous.append(self)
+
+    def kill(self):
+        self.tuee = True
+        self.tous.remove(self)
+
+
+def _ollama_a_installer(monkeypatch, e, tmp_path, apps, serveur):
+    """Ollama absent ; son installeur « tourne » ; le serveur répond quand serveur["ecoute"] est vrai."""
+    exe = tmp_path / "Ollama" / "ollama.exe"
+    installe = {"oui": False}
+    monkeypatch.setattr(e, "ollama_exe", lambda: exe if installe["oui"] else None)
+    monkeypatch.setattr(e, "telecharger", lambda src, nom, progres: tmp_path / "OllamaSetup.exe")
+
+    def run(cmd, timeout=None):
+        installe["oui"] = True
+        _AppOllama(apps)                        # l'installeur d'Ollama lance son application en partant
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr(e.subprocess, "run", run)
+
+    def api(chemin, corps=None, delai=10.0):
+        if not serveur["ecoute"]:
+            raise OSError("rien n'écoute")
+        return {"version": "0.40.6"}
+
+    monkeypatch.setattr(e, "_api", api)
+    monkeypatch.setattr(e, "apps_ollama", lambda: list(apps))
+    monkeypatch.setattr(e, "adresses_ecoute", lambda port=11434: ["127.0.0.1"])
+    monkeypatch.setattr(e.time, "sleep", lambda s: None)
+    demarres = []
+
+    def demarrer(exe_, journal_):
+        demarres.append(exe_)
+        serveur["ecoute"] = True
+
+    monkeypatch.setattr(e, "demarrer_ollama_sans_fenetre", demarrer)
+    return exe, demarres
+
+
+def test_if1_l_installeur_ferme_l_application_ollama_qu_il_vient_d_installer(monkeypatch, tmp_path):
+    """Sandbox, 10/11 : la fenêtre d'Ollama s'ouvre à la fin de son installation (onboarding, invitation à se
+    connecter à un compte). Décision d'Alexis : elle est fermée, le serveur tourne sans fenêtre."""
+    e = _etapes(monkeypatch, tmp_path)
+    apps, serveur = [], {"ecoute": False}
+    exe, demarres = _ollama_a_installer(monkeypatch, e, tmp_path, apps, serveur)
+    try:
+        m = e.etape_ollama(lambda f, t: None)
+    finally:
+        e.arreter_garde_app_ollama()
+    assert apps == [], "aucune fenêtre d'Ollama ne reste ouverte"
+    assert m["application_ollama_fermee"] >= 1
+    assert demarres == [exe], "le serveur est lancé par l'installeur, sans fenêtre"
+    assert m["ollama_version"] == "0.40.6"
+    assert "application Ollama fermée" in (tmp_path / "installation.log").read_text(encoding="utf-8")
+
+
+def test_if1_un_ollama_deja_installe_n_est_pas_touche(monkeypatch, tmp_path):
+    """Ollama n'est pas à nous : s'il était déjà là, son application (ouverte par la personne) reste ouverte."""
+    e = _etapes(monkeypatch, tmp_path)
+    apps = []
+    app = _AppOllama(apps)
+    monkeypatch.setattr(e, "ollama_exe", lambda: tmp_path / "ollama.exe")
+    monkeypatch.setattr(e, "_api", lambda chemin, corps=None, delai=10.0: {"version": "0.40.6"})
+    monkeypatch.setattr(e, "apps_ollama", lambda: list(apps))
+    monkeypatch.setattr(e, "adresses_ecoute", lambda port=11434: ["127.0.0.1"])
+    m = e.etape_ollama(lambda f, t: None)
+    assert not app.tuee and apps == [app]
+    assert m["ollama_deja_la"] and m["application_ollama_fermee"] == 0
+    assert e._GARDE is None
+
+
+def test_if1_si_fermer_l_application_emporte_le_serveur_il_est_relance_sans_fenetre(monkeypatch, tmp_path):
+    e = _etapes(monkeypatch, tmp_path)
+    apps, serveur = [], {"ecoute": True}
+    exe, demarres = _ollama_a_installer(monkeypatch, e, tmp_path, apps, serveur)
+    _AppOllama(apps)
+    garde = e.GardeAppOllama(exe)
+
+    def emporte():
+        serveur["ecoute"] = False                # le serveur de l'application part avec elle
+
+    apps[0].kill = (lambda a=apps[0]: (a.tous.remove(a), emporte()))
+    garde.balayer()
+    assert apps == [] and garde.fermees == 1
+    assert demarres == [exe], "le serveur est relancé sans fenêtre"
+    garde.balayer()
+    assert demarres == [exe], "pas de second serveur quand le premier répond"
+
+
+def test_if1_la_garde_est_arretee_a_la_fin_de_l_installation_meme_en_echec(monkeypatch, tmp_path):
+    e = _etapes(monkeypatch, tmp_path)
+    arretee = []
+
+    class Garde:
+        def arreter(self):
+            arretee.append(True)
+
+    monkeypatch.setattr(e, "_GARDE", Garde())
+
+    def echoue(progres, sur):
+        raise e.Echec("pas de réseau")
+
+    monkeypatch.setattr(e, "etape_dependances", echoue)
+    assert e.Deroule("gemma4:e4b", "processeur", True, e.Texte()).lancer() == 1
+    assert arretee == [True] and e._GARDE is None
+
+
+def test_if1_le_serveur_ollama_demarre_sans_fenetre_et_sur_127_0_0_1(tmp_path):
+    sys.path.insert(0, str(ROOT / "installeur"))
+    import lancer
+
+    appels = []
+    lancer.demarrer_ollama_sans_fenetre(tmp_path / "ollama.exe", tmp_path / "ollama_serveur.log",
+                                        popen=lambda *a, **k: appels.append((a, k)))
+    (args,), k = appels[0]
+    assert args == [str(tmp_path / "ollama.exe"), "serve"]
+    assert k["creationflags"] & lancer.subprocess.CREATE_NO_WINDOW
+    assert k["env"]["OLLAMA_HOST"] == "127.0.0.1:11434", "jamais ouvert au réseau, quel que soit l'environnement"
+
+
+@pytest.mark.parametrize("ecoute,exe,attendu", [
+    (True, "ollama.exe", "tourne"),
+    (False, "ollama.exe", "lance"),
+    (False, None, "absent"),
+])
+def test_if1_au_demarrage_atlas_lance_ollama_sans_fenetre_s_il_ne_tourne_pas(tmp_path, ecoute, exe, attendu):
+    sys.path.insert(0, str(ROOT / "installeur"))
+    import lancer
+
+    lances, notes = [], []
+    chemin = tmp_path / exe if exe else None
+    r = lancer.assurer_ollama(ecoute=lambda: ecoute, exe=lambda: chemin,
+                              demarrer=lambda e_, j: lances.append(e_), noter=notes.append)
+    assert r == attendu
+    assert lances == ([chemin] if attendu == "lance" else [])
+    if attendu == "lance":
+        assert any("Ollama ne tournait pas" in n and "sans fenêtre" in n for n in notes), notes
+    if attendu == "absent":
+        assert any("Ollama introuvable" in n for n in notes), notes
+    if attendu == "tourne":
+        assert notes == []
+
+
+def test_if1_le_lanceur_s_assure_d_ollama_avant_de_demarrer_atlas(monkeypatch):
+    sys.path.insert(0, str(ROOT / "installeur"))
+    import lancer
+
+    ordre = []
+    monkeypatch.setattr(lancer, "assurer_ollama", lambda **k: ordre.append("ollama"))
+    monkeypatch.setattr(lancer, "atlas_tourne", lambda: ordre.append("atlas?") or True)
+    assert lancer.main(["--sans-fenetre"]) == 0
+    assert ordre[0] == "ollama"
+
+
+def test_if1_le_guide_testeur_ne_parle_pas_de_la_fenetre_d_ollama():
+    import re
+
+    guide = (ROOT / "docs" / "beta" / "GUIDE_TESTEUR.md").read_text(encoding="utf-8")
+    assert not re.search(r"fen[eê]tre d.Ollama|compte Ollama|se connecter à Ollama|sign in", guide, re.I)
+
+
+def test_if1_l_installeur_trouve_le_lanceur_par_son_chemin(monkeypatch, tmp_path):
+    """Le Python embarqué (python312._pth) n'a que la racine d'Atlas sur son chemin : `import lancer` y échouerait."""
+    import subprocess
+
+    e = _etapes(monkeypatch, tmp_path)
+    appels = []
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: appels.append((a, k)))
+    e.demarrer_ollama_sans_fenetre(tmp_path / "ollama.exe", tmp_path / "ollama_serveur.log")
+    assert appels and appels[0][0][0] == [str(tmp_path / "ollama.exe"), "serve"]
+    assert appels[0][1]["env"]["OLLAMA_HOST"] == "127.0.0.1:11434"
+
+
+# --------------------------------------------------------------------------- #
+#  IF2 — CVE-2026-45833 (ChromaDB, injection de code) : le chemin d'attaque n'existe pas dans Atlas
+# --------------------------------------------------------------------------- #
+
+def test_if2_atlas_n_ouvre_aucun_chemin_vers_cve_2026_45833():
+    """GHSA-36p7-vc44-83pf : chromadb >= 0.4.17, <= 1.5.9 (1.5.1 comprise), aucune version corrigée. L'attaque :
+    une requête HTTP authentifiée (/api/v2/.../collections/{id}) qui pose une configuration de collection avec un
+    modèle distant et trust_remote_code ; chromadb la reconstruit ensuite (build_from_config). Atlas : client
+    intégré (PersistentClient), aucun serveur Chroma, aucune configuration de collection venue d'ailleurs.
+    Si ce test échoue, IF2 est à rouvrir avant toute installation chez un proche."""
+    import re
+
+    interdits = re.compile(r"chromadb\.HttpClient|chromadb\.AsyncHttpClient|chroma\s+run|chromadb\.app|"
+                           r"\.modify\(|configuration\s*=|embedding_function\s*=|trust_remote_code")
+    fautes = []
+    for dossier in ("core", "api", "tools", "desktop", "installeur", "core_conversational"):
+        for f in (ROOT / dossier).rglob("*.py"):
+            for n, ligne in enumerate(f.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                if interdits.search(ligne) and not ligne.lstrip().startswith("#"):
+                    fautes.append(f"{f.relative_to(ROOT)}:{n}: {ligne.strip()}")
+    principal = (ROOT / "main.py").read_text(encoding="utf-8")
+    assert not interdits.search(principal)
+    assert fautes == [], fautes
+    memoire = (ROOT / "core" / "memory_manager.py").read_text(encoding="utf-8")
+    assert "chromadb.PersistentClient(" in memoire
+
+
+# --------------------------------------------------------------------------- #
+#  IF3 — le relevé des journaux chez le proche : rien de personnel n'en revient
+# --------------------------------------------------------------------------- #
+
+def _relever():
+    sys.path.insert(0, str(ROOT / "installeur"))
+    import relever_journaux
+
+    return relever_journaux
+
+
+def test_if3_l_anonymisation_retire_session_ordinateur_prenom_et_adresses():
+    r = _relever()
+    texte = ("2026-11-12 Ollama : C:\\Users\\Mjardin\\AppData\\Local\\Programs\\Ollama\\ollama.exe\n"
+             "chemin JSON : C:\\\\Users\\\\Mjardin\\\\AppData ; machine PC-SALON-2 ; pc-salon-2.local\n"
+             "[VOIX] Phrase dite : Bonjour Martine, il est 20 h ; MARTINE ; martine.d@exemple.fr\n")
+    propre, n = r.anonymiser(texte, session="Mjardin", ordinateur="PC-SALON-2", prenom="Martine")
+    for interdit in ("Mjardin", "mjardin", "PC-SALON-2", "pc-salon-2", "Martine", "MARTINE", "martine.d@exemple.fr"):
+        assert interdit not in propre, interdit
+    assert "<session>" in propre and "<ordinateur>" in propre and "<prénom>" in propre and "<adresse>" in propre
+    assert "Ollama" in propre and "ollama.exe" in propre, "le reste du journal est gardé"
+    assert n >= 7
+
+
+def test_if3_un_prenom_trop_court_ou_absent_ne_ravage_pas_le_journal():
+    r = _relever()
+    propre, _ = r.anonymiser("modèle chargé en 3 s", session="", ordinateur="", prenom="")
+    assert propre == "modèle chargé en 3 s"
+    propre, _ = r.anonymiser("le modèle répond", session="", ordinateur="", prenom="E")
+    assert propre == "le modèle répond", "un prénom d'une lettre n'est pas remplacé partout"
+
+
+def _installation_factice(tmp_path):
+    import json
+
+    app = tmp_path / "Atlas"
+    for chemin, contenu in {
+        "installeur/installation.log": "étape ollama : faite ; C:\\Users\\Mjardin\\AppData\n",
+        "installeur/etat.json": json.dumps({"faites": ["ollama"], "mesures": {"ollama": {"duree_s": 166.2}}}),
+        "installeur/ollama_serveur.log": "listening on 127.0.0.1:11434\n",
+        "data/logs/atlas_serveur.log": "[lanceur] Ollama ne tournait pas ; [VOIX] Phrase dite : Bonjour Martine\n",
+        "data/chromadb/chroma.sqlite3": "SOUVENIR SECRET",
+        "data/apprentissage.db": "SOUVENIR SECRET",
+        "data/atlas_actions.jsonl": "SOUVENIR SECRET",
+        "config/settings.json": json.dumps({"utilisateur": {"prenom": "Martine"}, "mail": {"envoi": "simulation"}}),
+        "scripts/precheck_atlas.ps1": "# diagnostic",
+    }.items():
+        f = app / chemin
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(contenu, encoding="utf-8")
+    temp = tmp_path / "Temp"
+    temp.mkdir()
+    (temp / "Setup Log 2026-11-12 #001.txt").write_text("Setup application: Atlas\nDest: C:\\Users\\Mjardin\n",
+                                                        encoding="utf-8")
+    (temp / "Setup Log 2026-11-01 #001.txt").write_text("Setup application: AutreLogiciel\n", encoding="utf-8")
+    ollama = tmp_path / "Ollama"
+    ollama.mkdir()
+    (ollama / "server.log").write_text("inference compute ; C:\\Users\\Mjardin\\.ollama\n", encoding="utf-8")
+    (ollama / "app.log").write_text("starting hidden (Startup)\n", encoding="utf-8")
+    return app, temp, ollama
+
+
+def test_if3_le_releve_copie_les_journaux_et_rien_d_autre(tmp_path):
+    r = _relever()
+    app, temp, ollama = _installation_factice(tmp_path)
+    dest = tmp_path / "cle"
+    sortie = r.relever(app, dest, temp=temp, dossier_ollama=ollama, session="Mjardin", ordinateur="PC-SALON-2",
+                       precheck=lambda f: f.write_text("verdict=ok\nmodele=gemma4:e4b\n", encoding="utf-8"))
+    pris = sorted(p.relative_to(sortie).as_posix() for p in sortie.rglob("*") if p.is_file())
+    assert pris == sorted(["installeur/installation.log", "installeur/etat.json", "installeur/ollama_serveur.log",
+                           "atlas/atlas_serveur.log", "ollama/server.log", "ollama/app.log",
+                           "inno/Setup Log 2026-11-12 #001.txt", "precheck.txt", "RELEVE.txt"])
+    tout = "".join(p.read_text(encoding="utf-8") for p in sortie.rglob("*") if p.is_file())
+    for interdit in ("SOUVENIR SECRET", "Martine", "Mjardin", "PC-SALON-2", "AutreLogiciel"):
+        assert interdit not in tout, interdit
+    releve = (sortie / "RELEVE.txt").read_text(encoding="utf-8")
+    assert "atlas/atlas_serveur.log" in releve and "remplacement" in releve
+    assert "mails : simulation" in releve, "le point 9 (mails en simulation) se vérifie sans copier les réglages"
+
+
+def test_if3_le_releve_sans_atlas_installe_garde_ce_qui_reste(tmp_path):
+    """Après une désinstallation « garder », le code (et installation.log) est parti : le relevé prend le reste."""
+    import shutil
+
+    r = _relever()
+    app, temp, ollama = _installation_factice(tmp_path)
+    shutil.rmtree(app / "installeur")
+    sortie = r.relever(app, tmp_path / "cle", temp=temp, dossier_ollama=ollama, session="Mjardin",
+                       ordinateur="PC-SALON-2", precheck=lambda f: None)
+    assert (sortie / "atlas" / "atlas_serveur.log").exists()
+    assert "absent" in (sortie / "RELEVE.txt").read_text(encoding="utf-8")
+
+
+def test_if3_le_lanceur_du_releve_prend_le_python_d_atlas():
+    bat = (ROOT / "installeur" / "relever_journaux.bat").read_bytes()
+    assert bat.isascii(), "cmd.exe lit le .bat dans la page de code de la console : pas d'accents"
+    texte = bat.decode("ascii")
+    assert r"%LOCALAPPDATA%\Programs\Atlas\python\python.exe" in texte
+    assert "relever_journaux.py" in texte and "%~dp0" in texte
