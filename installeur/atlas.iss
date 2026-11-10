@@ -169,6 +169,15 @@ begin
   Result := Etapes = 0;
 end;
 
+{ Une étape ratée : l'installeur ne répond pas « réussi » (0), même en mode silencieux.
+  10, hors des codes 1 à 8 propres à Inno Setup. }
+function GetCustomSetupExitCode(): Integer;
+begin
+  Result := 0;
+  if Etapes <> 0 then
+    Result := 10;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Params: String;

@@ -32,6 +32,7 @@ import json
 import os
 import pathlib
 import shutil
+import ssl
 import subprocess
 import sys
 import threading
@@ -118,9 +119,29 @@ def verifier_empreinte(chemin: pathlib.Path, source: dict) -> None:
                     f"attendue {attendue[:12]}…). Il a été effacé ; relancez l'installation.")
 
 
+def contexte_tls() -> ssl.SSLContext:
+    """Les certificats de Windows, plus ceux de certifi (installé avec les bibliothèques, empreinte vérifiée).
+
+    Sur un Windows neuf, le magasin de Windows ne reçoit une racine qu'à la première visite d'un site par
+    Windows lui-même : Python ne la déclenche pas, et le téléchargement d'Ollama échouait (Sandbox, 09/11)."""
+    ctx = ssl.create_default_context()
+    try:
+        import certifi
+
+        ctx.load_verify_locations(cafile=certifi.where())
+    except Exception as e:  # certifi absent : les certificats de Windows seuls
+        journal(f"certifi indisponible ({e}) : certificats de Windows seuls")
+    return ctx
+
+
+def _ouvrir(req, timeout=60):
+    return urllib.request.urlopen(req, timeout=timeout, context=contexte_tls())
+
+
 def telecharger(source: dict, nom: str, progres: Callable[[float, str], None] = lambda f, t: None,
-                ouvrir=urllib.request.urlopen) -> pathlib.Path:
+                ouvrir=None) -> pathlib.Path:
     """Télécharge source["url"] dans le cache, reprend un fichier partiel, vérifie l'empreinte."""
+    ouvrir = ouvrir or _ouvrir
     url = source["url"]
     if not url.startswith("https://"):
         raise Echec(f"adresse refusée (pas en HTTPS) : {url}")
@@ -184,7 +205,9 @@ def ollama_exe() -> Optional[pathlib.Path]:
     return cand if cand.exists() else None
 
 
-def attendre_ollama(secondes: float = 90.0) -> str:
+def attendre_ollama(secondes: float = 300.0) -> str:
+    """Cinq minutes : sur un Windows neuf sans carte graphique, le premier démarrage d'Ollama est lent (l'antivirus
+    examine les bibliothèques qu'il vient d'écrire). 90 s ne suffisaient pas dans la Sandbox (10/11)."""
     fin = time.monotonic() + secondes
     while time.monotonic() < fin:
         try:
@@ -229,6 +252,7 @@ def etape_ollama(progres) -> dict:
             _api("/api/version", delai=3)
         except Exception:
             subprocess.Popen([str(exe), "serve"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    progres(None, "démarrage d'Ollama (jusqu'à cinq minutes la première fois)…")
     version = attendre_ollama()
     verifier_ollama_local(adresses_ecoute())
     ref = MODELES.get("ollama_reference")
@@ -293,7 +317,7 @@ def etape_dependances(progres, sur: str) -> dict:
         if not v.exists():
             raise Echec(f"fichier manquant dans l'installeur : {v.name}")
     cmd = [str(PY), "-m", "pip", "install", "--require-hashes", "--no-deps", "--only-binary", ":all:",
-           "--no-warn-script-location", "--disable-pip-version-check", "--find-links", str(ICI / "roues")]
+           "--no-cache-dir", "--no-warn-script-location", "--disable-pip-version-check", "--find-links", str(ICI / "roues")]
     for v in verrous:
         cmd += ["-r", str(v)]
     progres(None, "téléchargement des bibliothèques d'Atlas (quelques minutes)…")
@@ -389,11 +413,21 @@ def juger_capacite(modele: str, sur: str, part_carte_pct: Optional[int], jetons_
     return False, ""
 
 
+DELAI_CAPACITE_S = 900
+
+
 def mesurer_capacite(modele: str, sur: str) -> Capacite:
     t0 = time.perf_counter()
-    r = _api("/api/generate", {"model": modele, "stream": False, "keep_alive": "5m",
-                               "prompt": "Réponds en une phrase : quelle est la capitale de l'Italie ?",
-                               "options": {"num_ctx": 8192, "temperature": 0.2}}, delai=900)
+    try:
+        r = _api("/api/generate", {"model": modele, "stream": False, "keep_alive": "5m",
+                                   "prompt": "Réponds en une phrase : quelle est la capitale de l'Italie ?",
+                                   "options": {"num_ctx": 8192, "temperature": 0.2}}, delai=DELAI_CAPACITE_S)
+    except (TimeoutError, OSError) as e:
+        # muet dans le délai (Sandbox, 10/11) : pas une « erreur inattendue », une machine trop lente pour ce modèle
+        journal(f"test de capacité : pas de réponse ({type(e).__name__}: {e})")
+        return Capacite(modele, sur, None, None, None, round(time.perf_counter() - t0, 1), "", True,
+                        f"le modèle n'a pas répondu en {DELAI_CAPACITE_S // 60} minutes : cet ordinateur est trop "
+                        "lent pour lui")
     total = time.perf_counter() - t0
     part = None
     for m in _api("/api/ps").get("models", []):

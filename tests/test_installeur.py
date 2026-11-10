@@ -855,3 +855,186 @@ def test_in7_la_fenetre_dit_le_resultat_d_une_confirmation_en_francais(data, att
     texte = atlas_desktop.texte_resultat_confirmation(data)
     assert texte == attendu
     assert "success" not in texte and "Confirm request" not in texte
+
+
+# --------------------------------------------------------------------------- #
+#  IN6 (Sandbox) — pip ne garde pas de copie, la Sandbox range ses gros fichiers hors de C:
+# --------------------------------------------------------------------------- #
+
+def test_in2_pip_ne_garde_pas_de_copie_des_bibliotheques(monkeypatch, tmp_path):
+    e = _etapes(monkeypatch, tmp_path)
+    monkeypatch.setattr(e, "ICI", tmp_path)
+    (tmp_path / "requirements-verrou.txt").write_text("", encoding="utf-8")
+    vues = []
+
+    class _R:
+        returncode = 0
+
+    monkeypatch.setattr(e.subprocess, "run", lambda cmd, **k: vues.append(cmd) or _R())
+    e.etape_dependances(lambda *a: None, "processeur")
+    assert "--no-cache-dir" in vues[0], "le cache de pip doublerait plusieurs Go chez le proche"
+    assert "--require-hashes" in vues[0]
+
+
+def _preparer(monkeypatch, tmp_path):
+    sys.path.insert(0, str(ROOT / "installeur" / "sandbox"))
+    import preparer
+
+    build = tmp_path / "build"
+    build.mkdir()
+    (build / "AtlasSetup.exe").write_bytes(b"")
+    monkeypatch.setattr(preparer, "BUILD", build)
+    return preparer, build
+
+
+def test_in6_sandbox_stockage_ailleurs_que_c(monkeypatch, tmp_path, capsys):
+    p, build = _preparer(monkeypatch, tmp_path)
+    stockage = tmp_path / "stockage"
+    assert p.main(["--mode", "complet", "--stockage", str(stockage)]) == 0
+    wsb = (build / "sandbox_complet.wsb").read_text(encoding="utf-8")
+    assert f"<HostFolder>{stockage / 'cache'}</HostFolder><SandboxFolder>C:\\cache</SandboxFolder>" in wsb
+    modeles = f"<HostFolder>{stockage / 'ollama_models'}</HostFolder>"
+    assert modeles + r"<SandboxFolder>C:\modeles_prets</SandboxFolder>" in wsb
+    # Sandbox, 10/11 : servi directement depuis le dossier partagé, le modèle (6,6 Go, lu par morceaux) ne répondait
+    # pas en 15 minutes au test de capacité. Le dossier partagé n'est qu'une réserve, copiée d'un bloc dans la Sandbox.
+    assert r".ollama\models</SandboxFolder>" not in wsb
+    assert (stockage / "cache").is_dir() and (stockage / "ollama_models").is_dir()
+    assert "<MemoryInMB>16384</MemoryInMB>" in wsb and "<VGpu>Disable</VGpu>" in wsb
+
+
+def test_in6_sandbox_sans_stockage_rien_ne_change(monkeypatch, tmp_path):
+    p, build = _preparer(monkeypatch, tmp_path)
+    assert p.main(["--mode", "ne_convient_pas"]) == 0
+    wsb = (build / "sandbox_ne_convient_pas.wsb").read_text(encoding="utf-8")
+    assert f"<HostFolder>{build / 'cache_sandbox'}</HostFolder>" in wsb
+    assert ".ollama" not in wsb and "<MemoryInMB>8192</MemoryInMB>" in wsb
+
+
+def test_in2_telechargement_avec_les_certificats_de_certifi(monkeypatch, tmp_path):
+    """Sandbox, 09/11 : sur un Windows neuf, le magasin de Windows n'a pas encore la racine de GitHub
+    (CERTIFICATE_VERIFY_FAILED). Les téléchargements prennent aussi les certificats de certifi (épinglé)."""
+    import ssl
+
+    import certifi
+
+    e = _etapes(monkeypatch, tmp_path)
+    vus = {}
+
+    def faux_urlopen(req, timeout=None, context=None):
+        vus["context"] = context
+        return _Reponse(b"abc")
+
+    monkeypatch.setattr(e.urllib.request, "urlopen", faux_urlopen)
+    import hashlib
+
+    e.telecharger({"url": "https://exemple.test/f.bin", "sha256": hashlib.sha256(b"abc").hexdigest()}, "f.bin")
+    ctx = vus["context"]
+    assert isinstance(ctx, ssl.SSLContext) and ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    connus = {c["serialNumber"] for c in ctx.get_ca_certs()}
+    attendu = ssl.create_default_context(cafile=certifi.where())
+    assert {c["serialNumber"] for c in attendu.get_ca_certs()} <= connus
+
+
+def test_in2_installation_inachevee_rend_un_code_d_erreur():
+    """Sandbox, 09/11 : une étape ratée laissait l'installeur répondre 0 (réussi) en mode silencieux."""
+    iss = (ROOT / "installeur" / "atlas.iss").read_text(encoding="utf-8-sig")
+    assert "function GetCustomSetupExitCode" in iss
+    corps = iss.split("function GetCustomSetupExitCode", 1)[1].split("end;", 1)[0]
+    assert "Etapes <> 0" in corps and "Result := 10" in corps, "10 : hors des codes 1 à 8 propres à Inno Setup"
+
+
+def test_in2_ollama_a_cinq_minutes_pour_repondre_apres_son_installation(monkeypatch, tmp_path):
+    """Sandbox, 10/11 : Ollama installé à 04:59:16, abandon à 05:00:54 (90 s). Sur un Windows neuf sans carte
+    graphique, l'antivirus examine les bibliothèques qu'Ollama vient d'écrire : son premier démarrage est lent."""
+    import inspect
+
+    e = _etapes(monkeypatch, tmp_path)
+    assert inspect.signature(e.attendre_ollama).parameters["secondes"].default >= 300
+    horloge = [0.0]
+    monkeypatch.setattr(e.time, "monotonic", lambda: horloge[0])
+    monkeypatch.setattr(e.time, "sleep", lambda s: horloge.__setitem__(0, horloge[0] + s))
+
+    def api(chemin, corps=None, delai=10.0):
+        if horloge[0] < 200:
+            raise OSError("pas encore")
+        return {"version": "0.40.6"}
+
+    monkeypatch.setattr(e, "_api", api)
+    assert e.attendre_ollama() == "0.40.6"
+
+
+def test_in6_parcours_sandbox_lisible_par_powershell_5_et_sans_attente_des_enfants():
+    """PowerShell 5.1 lit un script sans BOM en ANSI (« préférée » serait déformé) ; `Start-Process -Wait`
+    attend aussi Ollama, lancé par son installeur, qui ne s'arrête jamais (Sandbox, 09-10/11)."""
+    brut = (ROOT / "installeur" / "sandbox" / "parcours.ps1").read_bytes()
+    assert brut.startswith(b"\xef\xbb\xbf")
+    code = [ligne for ligne in brut.decode("utf-8-sig").splitlines() if not ligne.lstrip().startswith("#")]
+    assert not any("-Wait" in ligne for ligne in code)
+
+
+# --------------------------------------------------------------------------- #
+#  IN6 (Sandbox, 10/11) — la bibliothèque C++ de Microsoft voyage avec le Python embarqué
+# --------------------------------------------------------------------------- #
+
+def _runtime(monkeypatch, tmp_path, versions=None, absent=()):
+    c = _construire()
+    source = tmp_path / "System32"
+    source.mkdir(parents=True)
+    for nom in c.RUNTIME_VC:
+        if nom not in absent:
+            (source / nom).write_bytes(b"MZ" + nom.encode())
+    dest = tmp_path / "python"
+    dest.mkdir()
+    (dest / "vcruntime140.dll").write_bytes(b"MZ ancienne")
+    signes = []
+    monkeypatch.setattr(c, "verifier_signature", lambda f, editeur: signes.append((f.name, editeur)))
+    vus = versions or {}
+    monkeypatch.setattr(c, "version_fichier",
+                        lambda f: vus.get(f.name, (14, 42, 34438, 0) if f.parent == dest else (14, 51, 36247, 0)))
+    return c, source, dest, signes
+
+
+def test_in6_runtime_vc_copie_signee_et_au_moins_aussi_recente(monkeypatch, tmp_path):
+    """onnxruntime (mot d'éveil, mémoire e5) et torch importent MSVCP140*.dll : absentes d'un Windows neuf,
+    « DLL load failed » dans la Sandbox. Elles partent avec le Python embarqué, signées Microsoft."""
+    c, source, dest, signes = _runtime(monkeypatch, tmp_path)
+    assert {"msvcp140.dll", "msvcp140_1.dll", "msvcp140_atomic_wait.dll", "vcruntime140.dll"} <= set(c.RUNTIME_VC)
+    info = c.copier_runtime_vc(dest, source)
+    for nom in c.RUNTIME_VC:
+        assert (dest / nom).read_bytes() == b"MZ" + nom.encode()
+    assert sorted(n for n, _ in signes) == sorted(c.RUNTIME_VC)
+    assert all(e == "Microsoft Corporation" for _, e in signes)
+    assert info["runtime_vc"] == "14.51.36247.0"
+
+
+def test_in6_runtime_vc_absent_ou_plus_ancien_que_celui_de_python_refuse(monkeypatch, tmp_path):
+    c, source, dest, _ = _runtime(monkeypatch, tmp_path, absent=("msvcp140_1.dll",))
+    with pytest.raises(SystemExit, match="msvcp140_1.dll"):
+        c.copier_runtime_vc(dest, source)
+    c, source, dest, _ = _runtime(monkeypatch, tmp_path / "b", versions={"msvcp140.dll": (14, 30, 0, 0)})
+    with pytest.raises(SystemExit, match="plus ancien"):
+        c.copier_runtime_vc(dest, source)
+
+
+def test_in6_un_paquet_sans_runtime_vc_est_refuse(tmp_path):
+    c = _construire()
+    (tmp_path / "python").mkdir()
+    (tmp_path / "python" / "python.exe").write_bytes(b"MZ")
+    fautes = c.verifier_paquet(tmp_path)
+    assert any("msvcp140.dll" in f for f in fautes), fautes
+
+
+def test_in2_un_modele_qui_ne_repond_pas_a_temps_dit_trop_lent(monkeypatch, tmp_path):
+    """Sandbox, 10/11 : le test de capacité dépassait son délai et l'installeur disait « erreur inattendue :
+    TimeoutError ». Un modèle muet dans le délai, c'est une machine trop lente pour lui : on le dit."""
+    e = _etapes(monkeypatch, tmp_path)
+
+    def api(chemin, corps=None, delai=10.0):
+        if chemin == "/api/generate":
+            raise TimeoutError("timed out")
+        return {"models": []}
+
+    monkeypatch.setattr(e, "_api", api)
+    c = e.mesurer_capacite("gemma4:e4b", "processeur")
+    assert c.contredit and "n'a pas répondu" in c.raison and "15 minutes" in c.raison
+    assert c.jetons_s is None

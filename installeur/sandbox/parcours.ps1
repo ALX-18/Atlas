@@ -1,4 +1,4 @@
-# Sprint Installeur / IN6 — le parcours complet dans Windows Sandbox (une machine vierge, sans carte NVIDIA).
+﻿# Sprint Installeur / IN6 — le parcours complet dans Windows Sandbox (une machine vierge, sans carte NVIDIA).
 # Lancé au démarrage de la Sandbox par atlas_sandbox.wsb. Rien ne touche le PC d'Alexis : la Sandbox est jetée
 # à la fermeture. Résultats dans C:\resultats (dossier partagé, le seul en écriture).
 #   installation silencieuse → Atlas répond → réinstallation par-dessus (rien n'est perdu) → désinstallation
@@ -18,16 +18,30 @@ function Chat($phrase) {
         return $r.message
     } catch { return "ERREUR: $($_.Exception.Message)" }
 }
-function Installer($etiquette) {
-    $t0 = Get-Date
-    $p = Start-Process -FilePath $Setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$R\setup_$etiquette.log" -Wait -PassThru
-    Noter "installation_$etiquette" @{ code = $p.ExitCode; minutes = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1) }
-    if (Test-Path "$App\installeur\etat.json") { Copy-Item "$App\installeur\etat.json" "$R\etat_$etiquette.json" -Force }
-    if (Test-Path "$App\installeur\installation.log") { Copy-Item "$App\installeur\installation.log" "$R\installation_$etiquette.log" -Force }
+# Attendre un installeur, et lui seul. `Start-Process -Wait` (PowerShell 5.1) attend aussi les programmes qu'il
+# lance : Ollama, démarré par son installeur, ne s'arrête jamais, et le parcours restait bloqué (Sandbox, 09-10/11).
+function Lancer($exe, $arguments) {
+    $p = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru
+    $null = $p.Handle
+    $p.WaitForExit()
+    # la désinstallation d'Inno Setup se relance depuis un dossier temporaire (_iu*.tmp) : l'attendre aussi
+    for ($i = 0; $i -lt 300; $i++) {
+        if (-not (Get-Process | Where-Object { $_.Name -like "_iu*" -or $_.Name -like "AtlasSetup*" })) { break }
+        Start-Sleep 2
+    }
     return $p.ExitCode
 }
+function Installer($etiquette) {
+    $t0 = Get-Date
+    $code = Lancer $Setup @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$R\setup_$etiquette.log")
+    Noter "installation_$etiquette" @{ code = $code; minutes = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1) }
+    if (Test-Path "$App\installeur\etat.json") { Copy-Item "$App\installeur\etat.json" "$R\etat_$etiquette.json" -Force }
+    if (Test-Path "$App\installeur\installation.log") { Copy-Item "$App\installeur\installation.log" "$R\installation_$etiquette.log" -Force }
+    return $code
+}
 function Demarrer() {
-    Start-Process -FilePath "$App\python\pythonw.exe" -ArgumentList "`"$App\installeur\lancer.py`"", "--sans-fenetre" -Wait
+    # sans attendre : lancer.py démarre Atlas, qui reste ouvert
+    Start-Process -FilePath "$App\python\pythonw.exe" -ArgumentList "`"$App\installeur\lancer.py`"", "--sans-fenetre"
     for ($i = 0; $i -lt 120; $i++) { try { Invoke-RestMethod "http://127.0.0.1:8550/api/health" -TimeoutSec 3 | Out-Null; return $true } catch { Start-Sleep 2 } }
     return $false
 }
@@ -36,16 +50,79 @@ function Arreter() {
     Start-Sleep 3
 }
 
+# Les journaux copiés toutes les 30 s : un parcours bloqué se lit depuis le PC, sans ouvrir la Sandbox
+Start-Job -ArgumentList $App, $R -ScriptBlock {
+    param($App, $R)
+    while ($true) {
+        if (Test-Path "$App\installeur\installation.log") { Copy-Item "$App\installeur\installation.log" "$R\en_cours.log" -Force -ErrorAction SilentlyContinue }
+        if (Test-Path "$env:LOCALAPPDATA\Ollama\server.log") { Copy-Item "$env:LOCALAPPDATA\Ollama\server.log" "$R\ollama_server.log" -Force -ErrorAction SilentlyContinue }
+        $ecoute = @(Get-NetTCPConnection -LocalPort 11434 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $_.LocalAddress }) -join ","
+        "$(Get-Date -Format s) port 11434 : [$ecoute]" | Add-Content "$R\ollama_port.txt"
+        # mémoire et processeur de la Sandbox : un test lent vient-il de la machine ou de la Sandbox ?
+        $os = Get-CimInstance Win32_OperatingSystem
+        $cpu = (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average
+        $gros = (Get-Process | Sort-Object CPU -Descending | Select-Object -First 3 | ForEach-Object { "$($_.Name)=$([int]$_.CPU)s" }) -join " "
+        "$(Get-Date -Format s) libre {0:N1} Go, processeur {1} % ({2} coeurs logiques), cumul : {3}" -f ($os.FreePhysicalMemory / 1MB), $cpu,
+            [Environment]::ProcessorCount, $gros | Add-Content "$R\ressources.txt"
+        Get-Process | Where-Object { $_.Path -and $_.Path -notlike "C:\Windows\*" } | Select-Object Name, Path, StartTime |
+            Out-File "$R\processus.txt" -Encoding utf8 -Width 300
+        Start-Sleep 30
+    }
+} | Out-Null
+
+# Sandbox seulement : la fenêtre de l'application Ollama (WebView2, sans carte graphique) fait planter la fenêtre de la
+# Sandbox (WindowsSandboxRemoteSession.exe, 0xc0000409, deux fois les 10/11, quelques secondes après son ouverture).
+# L'application est fermée dès qu'elle apparaît ; son serveur reste, ou est relancé sans fenêtre. Sur un vrai PC,
+# rien de cela : la fenêtre d'Ollama s'ouvre normalement.
+Start-Job -ArgumentList $R -ScriptBlock {
+    param($R)
+    $exe = "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
+    while ($true) {
+        $app = Get-Process "ollama app" -ErrorAction SilentlyContinue
+        if ($app) {
+            $app | Stop-Process -Force
+            "$(Get-Date -Format s) application Ollama fermée (Sandbox)" | Add-Content "$R\ollama_app.txt"
+            Start-Sleep 2
+        }
+        if ((Test-Path $exe) -and -not (Get-NetTCPConnection -LocalPort 11434 -State Listen -ErrorAction SilentlyContinue)) {
+            if (-not (Get-Process ollama -ErrorAction SilentlyContinue)) {
+                Start-Process -FilePath $exe -ArgumentList "serve" -WindowStyle Hidden
+                "$(Get-Date -Format s) serveur Ollama relancé sans fenêtre" | Add-Content "$R\ollama_app.txt"
+            }
+        }
+        Start-Sleep 2
+    }
+} | Out-Null
+
 $bilan["machine"] = @{ ram_go = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1);
                        cartes = @(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }) }
 Noter "etape" "debut"
 
+# 0. La réserve des modèles (preparer.py --stockage) : copiée d'un bloc à la place par défaut d'Ollama, jamais lue à
+#    travers le dossier partagé (trop lent : le test de capacité ne répondait pas en 15 minutes, 10/11)
+$Reserve = "C:\modeles_prets"
+$Modeles = "$env:USERPROFILE\.ollama\models"
+if (Test-Path "$Reserve\manifests") {
+    $t0 = Get-Date
+    robocopy $Reserve $Modeles /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    Noter "modeles_copies_depuis_la_reserve_s" ([math]::Round(((Get-Date) - $t0).TotalSeconds))
+}
+
 # 1. Installation silencieuse
 $code = Installer "premiere"
+if ($code -eq 0 -and (Test-Path $Reserve) -and -not (Test-Path "$Reserve\manifests") -and (Test-Path "$Modeles\manifests")) {
+    robocopy $Modeles $Reserve /E /NFL /NDL /NJH /NJS /NP | Out-Null   # pour les essais suivants
+}
 if ($Mode -eq "ne_convient_pas") {
     Noter "app_presente" (Test-Path $App)
     Noter "fin" (Get-Date).ToString("s")
     exit 0
+}
+if ($code -ne 0) {
+    # Une étape a échoué (code 10) : la suite n'aurait pas de sens ; le détail est dans installation_premiere.log
+    Noter "arret" "installation inachevée (code $code)"
+    Noter "fin" (Get-Date).ToString("s")
+    exit 1
 }
 Noter "raccourci_menu" (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Atlas.lnk")
 Noter "raccourci_bureau" (Test-Path "$env:USERPROFILE\Desktop\Atlas.lnk")
@@ -55,10 +132,12 @@ Noter "ollama_ecoute" @(Get-NetTCPConnection -LocalPort 11434 -State Listen -Err
 Noter "reglages" (Get-Content "$App\config\settings.json" -Raw | ConvertFrom-Json | Select-Object @{n="modele";e={$_.ollama.model}}, @{n="envoi";e={$_.mail.envoi}})
 
 # 2. Atlas répond, retient, et le coffre reçoit un secret de test (une valeur fictive de la Sandbox)
+$t0 = Get-Date
 if (Demarrer) {
-    Noter "reponse_heure" (Chat "quelle heure est-il ?")
+    Noter "demarrage_atlas_s" ([math]::Round(((Get-Date) - $t0).TotalSeconds))
+    $t1 = Get-Date; Noter "reponse_heure" (Chat "quelle heure est-il ?"); Noter "reponse_heure_s" ([math]::Round(((Get-Date) - $t1).TotalSeconds))
     Noter "retiens" (Chat "retiens que ma couleur préférée est le vert sapin")
-    Noter "question_libre" (Chat "explique-moi en une phrase ce qu'est la photosynthèse")
+    $t1 = Get-Date; Noter "question_libre" (Chat "explique-moi en une phrase ce qu'est la photosynthèse"); Noter "question_libre_s" ([math]::Round(((Get-Date) - $t1).TotalSeconds))
 } else { Noter "demarrage_atlas" "ECHEC" }
 cmdkey /generic:"Atlas:essai_sandbox" /user:"essai" /pass:"valeur-fictive-de-test" | Out-Null
 Arreter
@@ -70,9 +149,9 @@ Arreter
 
 # 4. Désinstallation silencieuse (réponse par défaut : garder la mémoire)
 $t0 = Get-Date
-$p = Start-Process -FilePath "$App\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$R\desinstallation_garder.log" -Wait -PassThru
+$codeD = Lancer "$App\unins000.exe" @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$R\desinstallation_garder.log")
 Start-Sleep 5
-Noter "desinstallation_garder" @{ code = $p.ExitCode; minutes = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1);
+Noter "desinstallation_garder" @{ code = $codeD; minutes = [math]::Round(((Get-Date) - $t0).TotalMinutes, 1);
     donnees_gardees = (Test-Path "$App\data"); code_retire = -not (Test-Path "$App\core");
     python_retire = -not (Test-Path "$App\python"); raccourci_retire = -not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Atlas.lnk");
     secret_retire = -not ((cmdkey /list) -match "Atlas:essai_sandbox");
@@ -82,7 +161,8 @@ Noter "desinstallation_garder" @{ code = $p.ExitCode; minutes = [math]::Round(((
 $code = Installer "retour"
 if (Demarrer) { Noter "rappel_apres_retour" (Chat "quelle est ma couleur préférée ?") }
 Arreter
-$p = Start-Process -FilePath "$App\unins000.exe" -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/MEMOIRE=effacer", "/LOG=$R\desinstallation_effacer.log" -Wait -PassThru
+$codeD = Lancer "$App\unins000.exe" @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/MEMOIRE=effacer", "/LOG=$R\desinstallation_effacer.log")
 Start-Sleep 5
-Noter "desinstallation_effacer" @{ code = $p.ExitCode; dossier_retire = -not (Test-Path $App) }
+Noter "desinstallation_effacer" @{ code = $codeD; dossier_retire = -not (Test-Path $App);
+    ollama_garde = (Test-Path "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe") }
 Noter "fin" (Get-Date).ToString("s")
