@@ -939,3 +939,32 @@ def test_in2_installation_inachevee_rend_un_code_d_erreur():
     assert "function GetCustomSetupExitCode" in iss
     corps = iss.split("function GetCustomSetupExitCode", 1)[1].split("end;", 1)[0]
     assert "Etapes <> 0" in corps and "Result := 10" in corps, "10 : hors des codes 1 à 8 propres à Inno Setup"
+
+
+def test_in2_ollama_a_cinq_minutes_pour_repondre_apres_son_installation(monkeypatch, tmp_path):
+    """Sandbox, 10/11 : Ollama installé à 04:59:16, abandon à 05:00:54 (90 s). Sur un Windows neuf sans carte
+    graphique, l'antivirus examine les bibliothèques qu'Ollama vient d'écrire : son premier démarrage est lent."""
+    import inspect
+
+    e = _etapes(monkeypatch, tmp_path)
+    assert inspect.signature(e.attendre_ollama).parameters["secondes"].default >= 300
+    horloge = [0.0]
+    monkeypatch.setattr(e.time, "monotonic", lambda: horloge[0])
+    monkeypatch.setattr(e.time, "sleep", lambda s: horloge.__setitem__(0, horloge[0] + s))
+
+    def api(chemin, corps=None, delai=10.0):
+        if horloge[0] < 200:
+            raise OSError("pas encore")
+        return {"version": "0.40.6"}
+
+    monkeypatch.setattr(e, "_api", api)
+    assert e.attendre_ollama() == "0.40.6"
+
+
+def test_in6_parcours_sandbox_lisible_par_powershell_5_et_sans_attente_des_enfants():
+    """PowerShell 5.1 lit un script sans BOM en ANSI (« préférée » serait déformé) ; `Start-Process -Wait`
+    attend aussi Ollama, lancé par son installeur, qui ne s'arrête jamais (Sandbox, 09-10/11)."""
+    brut = (ROOT / "installeur" / "sandbox" / "parcours.ps1").read_bytes()
+    assert brut.startswith(b"\xef\xbb\xbf")
+    code = [ligne for ligne in brut.decode("utf-8-sig").splitlines() if not ligne.lstrip().startswith("#")]
+    assert not any("-Wait" in ligne for ligne in code)

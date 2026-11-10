@@ -205,7 +205,9 @@ def ollama_exe() -> Optional[pathlib.Path]:
     return cand if cand.exists() else None
 
 
-def attendre_ollama(secondes: float = 90.0) -> str:
+def attendre_ollama(secondes: float = 300.0) -> str:
+    """Cinq minutes : sur un Windows neuf sans carte graphique, le premier démarrage d'Ollama est lent (l'antivirus
+    examine les bibliothèques qu'il vient d'écrire). 90 s ne suffisaient pas dans la Sandbox (10/11)."""
     fin = time.monotonic() + secondes
     while time.monotonic() < fin:
         try:
@@ -250,6 +252,7 @@ def etape_ollama(progres) -> dict:
             _api("/api/version", delai=3)
         except Exception:
             subprocess.Popen([str(exe), "serve"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    progres(None, "démarrage d'Ollama (jusqu'à cinq minutes la première fois)…")
     version = attendre_ollama()
     verifier_ollama_local(adresses_ecoute())
     ref = MODELES.get("ollama_reference")
