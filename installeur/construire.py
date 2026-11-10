@@ -119,6 +119,9 @@ def verifier_paquet(dossier: pathlib.Path) -> list[str]:
         en_trop = [p.relative_to(dossier).as_posix() for p in (dossier / "atlas" / "data").rglob("*")
                    if p.is_file() and not p.relative_to(dossier / "atlas" / "data").as_posix().startswith("workflows/")]
         fautes += [f"donnée d'Atlas dans le paquet : {x}" for x in en_trop]
+    if (dossier / "python").exists():
+        fautes += [f"bibliothèque C++ de Microsoft absente du Python embarqué : {n}" for n in RUNTIME_VC
+                   if not (dossier / "python" / n).exists()]
     return fautes
 
 
@@ -160,6 +163,46 @@ def verifier_signature(f: pathlib.Path, editeur: str) -> None:
         raise SystemExit(f"{f.name} : signature invalide ou d'un autre éditeur ({etat}, {sujet})")
 
 
+# La bibliothèque C++ de Microsoft (« Visual C++ Redistributable »). onnxruntime (mot d'éveil, mémoire e5) importe
+# MSVCP140.dll et MSVCP140_1.dll, torch MSVCP140_ATOMIC_WAIT.dll : absentes d'un Windows neuf (Sandbox, 10/11 :
+# « DLL load failed »). Le Python embarqué n'apporte que vcruntime140. Elles sont copiées à côté de python.exe
+# (déploiement local, prévu par Microsoft), depuis le System32 du PC qui construit : signature Microsoft vérifiée,
+# version au moins égale à celle du Python embarqué, toutes à la même version (vcruntime140 compris).
+RUNTIME_VC = ("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll", "msvcp140_1.dll", "msvcp140_2.dll",
+              "msvcp140_atomic_wait.dll", "msvcp140_codecvt_ids.dll", "concrt140.dll")
+
+
+def version_fichier(f: pathlib.Path) -> tuple:
+    r = subprocess.run(["powershell", "-NoProfile", "-Command",
+                        f"$v = (Get-Item -LiteralPath '{f}').VersionInfo; "
+                        "\"$($v.FileMajorPart).$($v.FileMinorPart).$($v.FileBuildPart).$($v.FilePrivatePart)\""],
+                       capture_output=True, text=True)
+    return tuple(int(x) for x in r.stdout.strip().split("."))
+
+
+def copier_runtime_vc(dest: pathlib.Path, source: pathlib.Path | None = None) -> dict:
+    source = source or pathlib.Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+    manquent = [n for n in RUNTIME_VC if not (source / n).exists()]
+    if manquent:
+        raise SystemExit("bibliothèque C++ de Microsoft absente de ce PC (" + ", ".join(manquent) + ") : installer "
+                         "« Microsoft Visual C++ Redistributable » (x64) avant de construire l'installeur")
+    minimum = version_fichier(dest / "vcruntime140.dll")
+    versions = {}
+    for n in RUNTIME_VC:
+        verifier_signature(source / n, "Microsoft Corporation")
+        versions[n] = version_fichier(source / n)
+        if versions[n] < minimum:
+            raise SystemExit(f"{n} {'.'.join(map(str, versions[n]))} plus ancien que le vcruntime140 du Python "
+                             f"embarqué ({'.'.join(map(str, minimum))}) : mettre à jour le Visual C++ Redistributable")
+    if len(set(versions.values())) != 1:
+        raise SystemExit(f"bibliothèque C++ de Microsoft à des versions mélangées : {versions}")
+    for n in RUNTIME_VC:
+        shutil.copy2(source / n, dest / n)
+    v = ".".join(map(str, versions[RUNTIME_VC[0]]))
+    print(f"  bibliothèque C++ de Microsoft : {len(RUNTIME_VC)} fichiers, version {v}")
+    return {"runtime_vc": v}
+
+
 PTH = """python312.zip
 .
 Lib
@@ -177,6 +220,7 @@ def construire_python(dest: pathlib.Path = PAQUET / "python") -> dict:
         z.extractall(dest)
     verifier_signature(dest / "python.exe", "Python Software Foundation")
     (dest / "python312._pth").write_text(PTH, encoding="ascii")
+    runtime = copier_runtime_vc(dest)
     # Tkinter : extrait de tcltk.msi (installation « administrative » : des fichiers, rien d'enregistré dans Windows)
     msi = _telecharger("tcltk")
     extrait = TELECHARGES / "tcltk"
@@ -203,7 +247,7 @@ def construire_python(dest: pathlib.Path = PAQUET / "python") -> dict:
     if essai.returncode != 0:
         raise SystemExit(f"le Python embarqué ne marche pas : {essai.stderr[-400:]}")
     print(f"  Python embarqué : {essai.stdout.strip()}")
-    return {"python": essai.stdout.strip()}
+    return {"python": essai.stdout.strip(), **runtime}
 
 
 # --------------------------------------------------------------------------- #

@@ -968,3 +968,55 @@ def test_in6_parcours_sandbox_lisible_par_powershell_5_et_sans_attente_des_enfan
     assert brut.startswith(b"\xef\xbb\xbf")
     code = [ligne for ligne in brut.decode("utf-8-sig").splitlines() if not ligne.lstrip().startswith("#")]
     assert not any("-Wait" in ligne for ligne in code)
+
+
+# --------------------------------------------------------------------------- #
+#  IN6 (Sandbox, 10/11) — la bibliothèque C++ de Microsoft voyage avec le Python embarqué
+# --------------------------------------------------------------------------- #
+
+def _runtime(monkeypatch, tmp_path, versions=None, absent=()):
+    c = _construire()
+    source = tmp_path / "System32"
+    source.mkdir(parents=True)
+    for nom in c.RUNTIME_VC:
+        if nom not in absent:
+            (source / nom).write_bytes(b"MZ" + nom.encode())
+    dest = tmp_path / "python"
+    dest.mkdir()
+    (dest / "vcruntime140.dll").write_bytes(b"MZ ancienne")
+    signes = []
+    monkeypatch.setattr(c, "verifier_signature", lambda f, editeur: signes.append((f.name, editeur)))
+    vus = versions or {}
+    monkeypatch.setattr(c, "version_fichier",
+                        lambda f: vus.get(f.name, (14, 42, 34438, 0) if f.parent == dest else (14, 51, 36247, 0)))
+    return c, source, dest, signes
+
+
+def test_in6_runtime_vc_copie_signee_et_au_moins_aussi_recente(monkeypatch, tmp_path):
+    """onnxruntime (mot d'éveil, mémoire e5) et torch importent MSVCP140*.dll : absentes d'un Windows neuf,
+    « DLL load failed » dans la Sandbox. Elles partent avec le Python embarqué, signées Microsoft."""
+    c, source, dest, signes = _runtime(monkeypatch, tmp_path)
+    assert {"msvcp140.dll", "msvcp140_1.dll", "msvcp140_atomic_wait.dll", "vcruntime140.dll"} <= set(c.RUNTIME_VC)
+    info = c.copier_runtime_vc(dest, source)
+    for nom in c.RUNTIME_VC:
+        assert (dest / nom).read_bytes() == b"MZ" + nom.encode()
+    assert sorted(n for n, _ in signes) == sorted(c.RUNTIME_VC)
+    assert all(e == "Microsoft Corporation" for _, e in signes)
+    assert info["runtime_vc"] == "14.51.36247.0"
+
+
+def test_in6_runtime_vc_absent_ou_plus_ancien_que_celui_de_python_refuse(monkeypatch, tmp_path):
+    c, source, dest, _ = _runtime(monkeypatch, tmp_path, absent=("msvcp140_1.dll",))
+    with pytest.raises(SystemExit, match="msvcp140_1.dll"):
+        c.copier_runtime_vc(dest, source)
+    c, source, dest, _ = _runtime(monkeypatch, tmp_path / "b", versions={"msvcp140.dll": (14, 30, 0, 0)})
+    with pytest.raises(SystemExit, match="plus ancien"):
+        c.copier_runtime_vc(dest, source)
+
+
+def test_in6_un_paquet_sans_runtime_vc_est_refuse(tmp_path):
+    c = _construire()
+    (tmp_path / "python").mkdir()
+    (tmp_path / "python" / "python.exe").write_bytes(b"MZ")
+    fautes = c.verifier_paquet(tmp_path)
+    assert any("msvcp140.dll" in f for f in fautes), fautes
