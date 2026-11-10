@@ -64,6 +64,30 @@ Start-Job -ArgumentList $App, $R -ScriptBlock {
     }
 } | Out-Null
 
+# Sandbox seulement : la fenêtre de l'application Ollama (WebView2, sans carte graphique) fait planter la fenêtre de la
+# Sandbox (WindowsSandboxRemoteSession.exe, 0xc0000409, deux fois les 10/11, quelques secondes après son ouverture).
+# L'application est fermée dès qu'elle apparaît ; son serveur reste, ou est relancé sans fenêtre. Sur un vrai PC,
+# rien de cela : la fenêtre d'Ollama s'ouvre normalement.
+Start-Job -ArgumentList $R -ScriptBlock {
+    param($R)
+    $exe = "$env:LOCALAPPDATA\Programs\Ollama\ollama.exe"
+    while ($true) {
+        $app = Get-Process "ollama app" -ErrorAction SilentlyContinue
+        if ($app) {
+            $app | Stop-Process -Force
+            "$(Get-Date -Format s) application Ollama fermée (Sandbox)" | Add-Content "$R\ollama_app.txt"
+            Start-Sleep 2
+        }
+        if ((Test-Path $exe) -and -not (Get-NetTCPConnection -LocalPort 11434 -State Listen -ErrorAction SilentlyContinue)) {
+            if (-not (Get-Process ollama -ErrorAction SilentlyContinue)) {
+                Start-Process -FilePath $exe -ArgumentList "serve" -WindowStyle Hidden
+                "$(Get-Date -Format s) serveur Ollama relancé sans fenêtre" | Add-Content "$R\ollama_app.txt"
+            }
+        }
+        Start-Sleep 2
+    }
+} | Out-Null
+
 $bilan["machine"] = @{ ram_go = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1);
                        cartes = @(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }) }
 Noter "etape" "debut"
