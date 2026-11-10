@@ -36,6 +36,17 @@ function Arreter() {
     Start-Sleep 3
 }
 
+# Le journal de l'installation copié toutes les 30 s : un parcours bloqué se lit depuis le PC, sans ouvrir la Sandbox
+Start-Job -ArgumentList $App, $R -ScriptBlock {
+    param($App, $R)
+    while ($true) {
+        if (Test-Path "$App\installeur\installation.log") { Copy-Item "$App\installeur\installation.log" "$R\en_cours.log" -Force -ErrorAction SilentlyContinue }
+        Get-Process | Where-Object { $_.Path -and $_.Path -notlike "C:\Windows\*" } | Select-Object Name, Path, StartTime |
+            Out-File "$R\processus.txt" -Encoding utf8 -Width 300
+        Start-Sleep 30
+    }
+} | Out-Null
+
 $bilan["machine"] = @{ ram_go = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1);
                        cartes = @(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }) }
 Noter "etape" "debut"
