@@ -894,8 +894,10 @@ def test_in6_sandbox_stockage_ailleurs_que_c(monkeypatch, tmp_path, capsys):
     wsb = (build / "sandbox_complet.wsb").read_text(encoding="utf-8")
     assert f"<HostFolder>{stockage / 'cache'}</HostFolder><SandboxFolder>C:\\cache</SandboxFolder>" in wsb
     modeles = f"<HostFolder>{stockage / 'ollama_models'}</HostFolder>"
-    assert modeles + r"<SandboxFolder>C:\Users\WDAGUtilityAccount\.ollama\models</SandboxFolder>" in wsb, \
-        "les modèles d'Ollama restent à leur place par défaut dans la Sandbox, stockés hors de C:"
+    assert modeles + r"<SandboxFolder>C:\modeles_prets</SandboxFolder>" in wsb
+    # Sandbox, 10/11 : servi directement depuis le dossier partagé, le modèle (6,6 Go, lu par morceaux) ne répondait
+    # pas en 15 minutes au test de capacité. Le dossier partagé n'est qu'une réserve, copiée d'un bloc dans la Sandbox.
+    assert r".ollama\models</SandboxFolder>" not in wsb
     assert (stockage / "cache").is_dir() and (stockage / "ollama_models").is_dir()
     assert "<MemoryInMB>16384</MemoryInMB>" in wsb and "<VGpu>Disable</VGpu>" in wsb
 
@@ -1020,3 +1022,19 @@ def test_in6_un_paquet_sans_runtime_vc_est_refuse(tmp_path):
     (tmp_path / "python" / "python.exe").write_bytes(b"MZ")
     fautes = c.verifier_paquet(tmp_path)
     assert any("msvcp140.dll" in f for f in fautes), fautes
+
+
+def test_in2_un_modele_qui_ne_repond_pas_a_temps_dit_trop_lent(monkeypatch, tmp_path):
+    """Sandbox, 10/11 : le test de capacité dépassait son délai et l'installeur disait « erreur inattendue :
+    TimeoutError ». Un modèle muet dans le délai, c'est une machine trop lente pour lui : on le dit."""
+    e = _etapes(monkeypatch, tmp_path)
+
+    def api(chemin, corps=None, delai=10.0):
+        if chemin == "/api/generate":
+            raise TimeoutError("timed out")
+        return {"models": []}
+
+    monkeypatch.setattr(e, "_api", api)
+    c = e.mesurer_capacite("gemma4:e4b", "processeur")
+    assert c.contredit and "n'a pas répondu" in c.raison and "15 minutes" in c.raison
+    assert c.jetons_s is None

@@ -413,11 +413,21 @@ def juger_capacite(modele: str, sur: str, part_carte_pct: Optional[int], jetons_
     return False, ""
 
 
+DELAI_CAPACITE_S = 900
+
+
 def mesurer_capacite(modele: str, sur: str) -> Capacite:
     t0 = time.perf_counter()
-    r = _api("/api/generate", {"model": modele, "stream": False, "keep_alive": "5m",
-                               "prompt": "Réponds en une phrase : quelle est la capitale de l'Italie ?",
-                               "options": {"num_ctx": 8192, "temperature": 0.2}}, delai=900)
+    try:
+        r = _api("/api/generate", {"model": modele, "stream": False, "keep_alive": "5m",
+                                   "prompt": "Réponds en une phrase : quelle est la capitale de l'Italie ?",
+                                   "options": {"num_ctx": 8192, "temperature": 0.2}}, delai=DELAI_CAPACITE_S)
+    except (TimeoutError, OSError) as e:
+        # muet dans le délai (Sandbox, 10/11) : pas une « erreur inattendue », une machine trop lente pour ce modèle
+        journal(f"test de capacité : pas de réponse ({type(e).__name__}: {e})")
+        return Capacite(modele, sur, None, None, None, round(time.perf_counter() - t0, 1), "", True,
+                        f"le modèle n'a pas répondu en {DELAI_CAPACITE_S // 60} minutes : cet ordinateur est trop "
+                        "lent pour lui")
     total = time.perf_counter() - t0
     part = None
     for m in _api("/api/ps").get("models", []):

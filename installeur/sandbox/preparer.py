@@ -9,9 +9,11 @@ Puis double-clic sur le .wsb produit (build/installeur/sandbox_<mode>.wsb). Doss
 seule), ce script (lecture seule), le cache des téléchargements (écriture : 1,6 Go d'Ollama, vérifiés par empreinte à
 chaque usage) et les résultats (écriture). Rien d'autre du PC n'est visible dans la Sandbox. Pas de carte graphique.
 
-Le disque de la Sandbox vit toujours sur C:. Avec --stockage, le cache des téléchargements et le dossier des modèles
-d'Ollama (plusieurs Go) sont rangés dans ce dossier ; dans la Sandbox, le dossier des modèles reste à sa place par
-défaut (C:\\Users\\WDAGUtilityAccount\\.ollama\\models) : l'installeur et Ollama ne voient aucune différence.
+Le disque de la Sandbox vit toujours sur C:. Avec --stockage, le cache des téléchargements et une réserve des modèles
+d'Ollama (plusieurs Go) sont rangés dans ce dossier. La réserve est vue dans la Sandbox en C:\\modeles_prets :
+parcours.ps1 la copie d'un bloc à la place par défaut d'Ollama avant d'installer (l'installeur trouve le modèle et
+vérifie son empreinte), ou l'y range après un premier téléchargement. Ollama ne lit jamais le modèle à travers le
+dossier partagé : lu ainsi par morceaux, il ne répondait pas en 15 minutes au test de capacité (Sandbox, 10/11).
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from xml.sax.saxutils import escape
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 BUILD = ROOT / "build" / "installeur"
-MODELES_SANDBOX = r"C:\Users\WDAGUtilityAccount\.ollama\models"
+MODELES_SANDBOX = r"C:\modeles_prets"
 
 WSB = """<Configuration>
   <VGpu>Disable</VGpu>

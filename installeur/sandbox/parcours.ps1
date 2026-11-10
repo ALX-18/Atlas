@@ -92,8 +92,21 @@ $bilan["machine"] = @{ ram_go = [math]::Round((Get-CimInstance Win32_ComputerSys
                        cartes = @(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name }) }
 Noter "etape" "debut"
 
+# 0. La réserve des modèles (preparer.py --stockage) : copiée d'un bloc à la place par défaut d'Ollama, jamais lue à
+#    travers le dossier partagé (trop lent : le test de capacité ne répondait pas en 15 minutes, 10/11)
+$Reserve = "C:\modeles_prets"
+$Modeles = "$env:USERPROFILE\.ollama\models"
+if (Test-Path "$Reserve\manifests") {
+    $t0 = Get-Date
+    robocopy $Reserve $Modeles /E /NFL /NDL /NJH /NJS /NP | Out-Null
+    Noter "modeles_copies_depuis_la_reserve_s" ([math]::Round(((Get-Date) - $t0).TotalSeconds))
+}
+
 # 1. Installation silencieuse
 $code = Installer "premiere"
+if ($code -eq 0 -and (Test-Path $Reserve) -and -not (Test-Path "$Reserve\manifests") -and (Test-Path "$Modeles\manifests")) {
+    robocopy $Modeles $Reserve /E /NFL /NDL /NJH /NJS /NP | Out-Null   # pour les essais suivants
+}
 if ($Mode -eq "ne_convient_pas") {
     Noter "app_presente" (Test-Path $App)
     Noter "fin" (Get-Date).ToString("s")
