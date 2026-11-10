@@ -58,6 +58,12 @@ Start-Job -ArgumentList $App, $R -ScriptBlock {
         if (Test-Path "$env:LOCALAPPDATA\Ollama\server.log") { Copy-Item "$env:LOCALAPPDATA\Ollama\server.log" "$R\ollama_server.log" -Force -ErrorAction SilentlyContinue }
         $ecoute = @(Get-NetTCPConnection -LocalPort 11434 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { $_.LocalAddress }) -join ","
         "$(Get-Date -Format s) port 11434 : [$ecoute]" | Add-Content "$R\ollama_port.txt"
+        # mémoire et processeur de la Sandbox : un test lent vient-il de la machine ou de la Sandbox ?
+        $os = Get-CimInstance Win32_OperatingSystem
+        $cpu = (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average
+        $gros = (Get-Process | Sort-Object CPU -Descending | Select-Object -First 3 | ForEach-Object { "$($_.Name)=$([int]$_.CPU)s" }) -join " "
+        "$(Get-Date -Format s) libre {0:N1} Go, processeur {1} % ({2} coeurs logiques), cumul : {3}" -f ($os.FreePhysicalMemory / 1MB), $cpu,
+            [Environment]::ProcessorCount, $gros | Add-Content "$R\ressources.txt"
         Get-Process | Where-Object { $_.Path -and $_.Path -notlike "C:\Windows\*" } | Select-Object Name, Path, StartTime |
             Out-File "$R\processus.txt" -Encoding utf8 -Width 300
         Start-Sleep 30
