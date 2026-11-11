@@ -232,11 +232,109 @@ def verifier_ollama_local(adresses: list[str]) -> None:
                     "puis relancez l'installation.")
 
 
+# L'installeur officiel d'Ollama (app/ollama.iss, v0.40.6) lance « ollama app.exe » en partant ([Run] postinstall,
+# sans skipifsilent : même en silence). Cette application ouvre sa fenêtre (accueil, invitation à se connecter à un
+# compte) quand son serveur répond : 2 min 45 après le lancement de son installeur dans la Sandbox (10/11).
+# Décision d'Alexis (10/11) : la fenêtre est fermée, le serveur tourne sans fenêtre. Seulement quand c'est
+# l'installeur d'Atlas qui vient d'installer Ollama : un Ollama déjà là n'est pas à nous.
+APP_OLLAMA = "ollama app.exe"
+JOURNAL_OLLAMA = ICI / "ollama_serveur.log"
+_GARDE: Optional["GardeAppOllama"] = None
+
+
+def apps_ollama() -> list:
+    import psutil
+
+    trouves = []
+    for p in psutil.process_iter(["name"]):
+        if (p.info.get("name") or "").lower() == APP_OLLAMA:
+            trouves.append(p)
+    return trouves
+
+
+def demarrer_ollama_sans_fenetre(exe: pathlib.Path, journal_: pathlib.Path) -> None:
+    """Celui du lanceur d'Atlas, chargé par son chemin : le Python embarqué (python312._pth) n'a que la racine
+    d'Atlas sur son chemin, pas le dossier de l'installeur."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("atlas_lanceur", ICI / "lancer.py")
+    lanceur = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(lanceur)
+    lanceur.demarrer_ollama_sans_fenetre(exe, journal_)
+
+
+class GardeAppOllama:
+    """Ferme l'application Ollama chaque fois qu'elle apparaît, jusqu'à la fin de l'installation. Si son serveur
+    part avec elle, le serveur est relancé sans fenêtre (`ollama serve`, sur 127.0.0.1)."""
+
+    def __init__(self, exe: pathlib.Path):
+        self.exe, self.fermees = exe, 0
+        self._stop = threading.Event()
+        self._fil: Optional[threading.Thread] = None
+        self._verrou = threading.Lock()
+
+    def balayer(self) -> int:
+        with self._verrou:
+            fermees = 0
+            for p in apps_ollama():
+                try:
+                    p.kill()
+                    fermees += 1
+                except Exception as e:
+                    journal(f"application Ollama : fermeture impossible ({type(e).__name__})")
+            if fermees:
+                self.fermees += fermees
+                journal("application Ollama fermée (ouverte par son installeur) : son serveur tourne sans fenêtre")
+                try:
+                    _api("/api/version", delai=3)
+                except Exception:
+                    journal("serveur d'Ollama parti avec son application : relancé sans fenêtre")
+                    demarrer_ollama_sans_fenetre(self.exe, JOURNAL_OLLAMA)
+            return fermees
+
+    def attendre_fermeture(self, secondes: float) -> None:
+        fin = time.monotonic() + secondes
+        while not self.fermees and time.monotonic() < fin:
+            self.balayer()
+            if not self.fermees:
+                time.sleep(1)
+
+    def demarrer(self) -> None:
+        def boucle():
+            while not self._stop.wait(1.0):
+                try:
+                    self.balayer()
+                except Exception as e:
+                    journal(f"garde de l'application Ollama : {type(e).__name__}: {e}")
+
+        self._fil = threading.Thread(target=boucle, name="garde-app-ollama", daemon=True)
+        self._fil.start()
+
+    def arreter(self) -> None:
+        self._stop.set()
+        if self._fil is not None:
+            self._fil.join(timeout=5)
+        self.balayer()
+
+
+def arreter_garde_app_ollama() -> None:
+    global _GARDE
+    if _GARDE is not None:
+        _GARDE.arreter()
+        _GARDE = None
+
+
 def etape_ollama(progres) -> dict:
+    global _GARDE
     src = SOURCES["ollama"]
     deja = ollama_exe()
     if deja:
         journal(f"Ollama déjà installé ({deja}) : gardé tel quel")
+        try:
+            _api("/api/version", delai=3)
+        except Exception:
+            journal("Ollama ne tournait pas : son serveur est lancé sans fenêtre")
+            demarrer_ollama_sans_fenetre(deja, JOURNAL_OLLAMA)
     else:
         if os.environ.get("OLLAMA_HOST", "").startswith("0.0.0.0"):
             raise Echec("La variable OLLAMA_HOST ouvre Ollama au réseau : retirez-la, puis relancez l'installation.")
@@ -251,13 +349,19 @@ def etape_ollama(progres) -> dict:
         try:
             _api("/api/version", delai=3)
         except Exception:
-            subprocess.Popen([str(exe), "serve"], creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            demarrer_ollama_sans_fenetre(exe, JOURNAL_OLLAMA)   # avant celui de l'application
+        _GARDE = GardeAppOllama(exe)
+        _GARDE.demarrer()
     progres(None, "démarrage d'Ollama (jusqu'à cinq minutes la première fois)…")
     version = attendre_ollama()
+    if _GARDE is not None and not deja:
+        _GARDE.attendre_fermeture(90)        # la fenêtre apparaît quand le serveur répond
+        version = attendre_ollama()
     verifier_ollama_local(adresses_ecoute())
     ref = MODELES.get("ollama_reference")
     return {"ollama_version": version, "ollama_reference": ref, "ollama_deja_la": bool(deja),
-            "ollama_meme_mineure": version.split(".")[:2] == (ref or "").split(".")[:2]}
+            "ollama_meme_mineure": version.split(".")[:2] == (ref or "").split(".")[:2],
+            "application_ollama_fermee": _GARDE.fermees if (_GARDE is not None and not deja) else 0}
 
 
 # --------------------------------------------------------------------------- #
@@ -515,6 +619,12 @@ class Deroule:
         return mesure
 
     def lancer(self) -> int:
+        try:
+            return self._lancer()
+        finally:
+            arreter_garde_app_ollama()
+
+    def _lancer(self) -> int:
         try:
             self._faire("dependances", lambda: etape_dependances(self.ui.progres, self.sur))
             self._faire("ollama", lambda: etape_ollama(self.ui.progres))
