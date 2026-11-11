@@ -1349,3 +1349,124 @@ def test_if3_le_lanceur_du_releve_prend_le_python_d_atlas():
     texte = bat.decode("ascii")
     assert r"%LOCALAPPDATA%\Programs\Atlas\python\python.exe" in texte
     assert "relever_journaux.py" in texte and "%~dp0" in texte
+
+
+
+# --------------------------------------------------------------------------- #
+#  IF3 (décision du superviseur, 11/11) — ni noms ni chemins de fichiers du proche dans le relevé
+# --------------------------------------------------------------------------- #
+
+_PROFIL = r"C:\Users\Mjardin"
+_RACINES = [_PROFIL + r"\AppData\Local\Programs\Atlas", _PROFIL + r"\AppData\Local\Programs\Ollama",
+            _PROFIL + r"\AppData\Local\Ollama", _PROFIL + r"\.ollama", r"C:\Program Files", r"C:\Windows"]
+_ATLAS = _RACINES[0]
+
+
+@pytest.mark.parametrize("ligne,interdits", [
+    # un outil exécuté : ses arguments portent le chemin du fichier ouvert
+    ("2026-11-12 20:01:02,123 [atlas.intent_engine] INFO — Tool 'open_file' executed: {'path': '"
+     + _PROFIL.replace("\\", "\\\\") + r"\Documents\Impots 2025.pdf'}", ["Impots", "Documents"]),
+    # un titre de fenêtre : le nom du document ouvert
+    ("2026-11-12 20:01:03,000 [atlas.grounding] INFO — fenêtre « Relevé de compte.pdf - Adobe Acrobat » trouvée",
+     ["Relevé de compte"]),
+    # une confirmation : sa cible
+    ("2026-11-12 20:01:04,000 [atlas.intent_engine] INFO — [CONFIRMATION] c1 → « move_file » en attente : "
+     r"D:\Photos\vacances_nice.jpg", ["vacances_nice", "Photos"]),
+    # la transcription de ce qui est dit
+    ("2026-11-12 20:01:05,000 [atlas.voice] INFO — [VOIX] Transcription (0.52s, cuda) : 'ouvre mon dossier impôts'",
+     ["impôts", "ouvre mon dossier"]),
+    ("2026-11-12 20:01:05,500 [atlas.voice] WARNING — [VOIX] « supprime lettre notaire » entendu alors qu'une "
+     "confirmation attend : rien fait", ["lettre notaire"]),
+    # une exception qui cite un chemin, hors du format d'Atlas (trace)
+    (r"PermissionError: [Errno 13] Permission denied: 'E:\Perso\Bulletin salaire.pdf'",
+     ["Perso", "Bulletin"]),
+    # un document créé par Atlas dans ses données : son titre est personnel
+    (_ATLAS + r"\data\documents\Lettre au notaire.docx écrit", ["Lettre au notaire"]),
+    # un nom de fichier seul, et une adresse web
+    ("ouverture de Bulletin_salaire_mars.pdf depuis https://www.impots.gouv.fr/espace?id=12",
+     ["Bulletin_salaire_mars", "impots.gouv"]),
+    # une requête HTTP locale avec sa recherche
+    ('INFO:     127.0.0.1:51234 - "GET /api/fichiers?q=impots+2025 HTTP/1.1" 200 OK', ["impots"]),
+])
+def test_if3_le_releve_retire_noms_et_chemins_de_fichiers(ligne, interdits):
+    r = _relever()
+    propre, n = r.nettoyer_contenu(ligne, _RACINES)
+    for interdit in interdits:
+        assert interdit not in propre, (interdit, propre)
+    assert n >= 1
+
+
+@pytest.mark.parametrize("ligne,gardes", [
+    ("2026-11-12 20:00:01,000 [atlas] INFO — 📡 Modèle Ollama : gemma4:e4b", ["Modèle Ollama", "gemma4:e4b"]),
+    ("2026-11-12 20:00:02,000 [atlas.memory] INFO — Mémoire ouverte — " + _ATLAS + r"\data\chromadb — collection",
+     [r"\data\chromadb", "Mémoire ouverte"]),
+    ("2026-11-12 20:00:03,000 [atlas.voice] INFO — [VOIX] Transcription préchauffée en 4.1s (device=cpu)",
+     ["préchauffée en 4.1s"]),
+    (r'  File "' + _ATLAS + r'\core\voice_engine.py", line 431, in _boucle', [r"\core\voice_engine.py", "line 431"]),
+    (r"Tesseract : C:\Program Files\Tesseract-OCR\tesseract.exe", [r"C:\Program Files\Tesseract-OCR\tesseract.exe"]),
+    ('étape dependances : faite {"verrous": ["requirements-verrou.txt"]}', ["requirements-verrou.txt"]),
+    ("pulling https://registry.ollama.ai/v2/library/gemma4/manifests/e4b", ["https://registry.ollama.ai/v2/library"]),
+    ('INFO:     127.0.0.1:51234 - "POST /api/chat HTTP/1.1" 200 OK', ['"POST /api/chat HTTP/1.1" 200']),
+    ("2026-11-12 20:00:04,000 [lanceur] Ollama ne tournait pas : son serveur est lancé sans fenêtre",
+     ["Ollama ne tournait pas : son serveur est lancé sans fenêtre"]),
+])
+def test_if3_le_releve_garde_ce_qui_sert_au_diagnostic(ligne, gardes):
+    r = _relever()
+    propre, _ = r.nettoyer_contenu(ligne, _RACINES)
+    for garde in gardes:
+        assert garde in propre, (garde, propre)
+
+
+def test_if3_un_module_inconnu_ne_dit_que_son_heure_et_son_niveau():
+    """Liste blanche : un module qui n'est pas technique (outils, fenêtres, courrier…) garde l'heure, le module et
+    le niveau, jamais le message. Un nouveau module est donc retiré par défaut."""
+    r = _relever()
+    propre, _ = r.nettoyer_contenu("2026-11-12 20:01:02,123 [atlas.nouveau_module] ERROR — n'importe quoi de perso",
+                                   _RACINES)
+    assert propre.startswith("2026-11-12 20:01:02,123 [atlas.nouveau_module] ERROR — ")
+    assert "perso" not in propre
+
+
+def test_if3_le_releve_nettoie_les_journaux_d_atlas_pour_de_vrai(tmp_path):
+    r = _relever()
+    app, temp, ollama = _installation_factice(tmp_path)
+    (app / "data" / "logs" / "atlas_serveur.log").write_text(
+        "2026-11-12 20:01:02,123 [atlas.intent_engine] INFO — Tool 'open_file' executed: {'path': 'D:\\Perso\\x.pdf'}\n"
+        "2026-11-12 20:01:03,000 [atlas] INFO — 📡 Modèle Ollama : gemma4:e4b\n", encoding="utf-8")
+    sortie = r.relever(app, tmp_path / "cle", temp=temp, dossier_ollama=ollama, session="Mjardin",
+                       ordinateur="PC-SALON-2", precheck=lambda f: None, racines=[str(app)])
+    texte = (sortie / "atlas" / "atlas_serveur.log").read_text(encoding="utf-8")
+    assert "Perso" not in texte and "x.pdf" not in texte
+    assert "gemma4:e4b" in texte
+
+
+
+@pytest.mark.parametrize("chemin", [
+    _ATLAS + r"\data\voices\fr_FR-siwis-medium.onnx",
+    _ATLAS + r"\data\workflows\mode_travail.yaml",
+    _PROFIL + r"\.cache\huggingface\hub\models--Systran--faster-whisper-base\snapshots\ebe41f70",
+])
+def test_if3_les_modeles_et_les_voix_d_atlas_restent_lisibles(monkeypatch, tmp_path, chemin):
+    """Essai sur les journaux de la Sandbox (11/11) : les voix (data\voices) et la transcription (cache de Hugging
+    Face) étaient masquées, alors qu'elles ne disent rien de la personne et servent au diagnostic."""
+    r = _relever()
+    monkeypatch.setenv("USERPROFILE", _PROFIL)
+    monkeypatch.setenv("LOCALAPPDATA", _PROFIL + r"\AppData\Local")
+    propre, _ = r.nettoyer_contenu("[OK] prêt : " + chemin, r.racines_techniques(pathlib.Path(_ATLAS)))
+    assert chemin in propre, propre
+
+
+
+@pytest.mark.parametrize("ligne,interdits", [
+    # trouvé par l'essai sur un vrai journal d'Atlas (11/11) : le souvenir recopié par la mémoire
+    ("2026-11-11 05:12:05,661 [atlas.memory] INFO — Souvenir sauvegardé [user_fact] : la clé de la cabane est sous "
+     "le pot bleu", ["cabane", "pot bleu"]),
+    ("2026-11-11 05:12:06,000 [atlas.memory] INFO — Ingestion document 'Contrat location Martin' : 4/4 chunks stockés",
+     ["Contrat location", "Martin"]),
+])
+def test_if3_la_memoire_ne_recopie_pas_ses_souvenirs_dans_le_releve(ligne, interdits):
+    r = _relever()
+    propre, _ = r.nettoyer_contenu(ligne, _RACINES)
+    for interdit in interdits:
+        assert interdit not in propre, (interdit, propre)
+    assert "[atlas.memory] INFO — " in propre and "<contenu retiré>" in propre

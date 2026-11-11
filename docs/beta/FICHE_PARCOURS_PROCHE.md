@@ -40,4 +40,11 @@
 - les réglages ;
 - les secrets.
 
-Le nom de la session Windows, le nom de l'ordinateur, le prénom et les adresses mail sont remplacés dans chaque fichier. `RELEVE.txt` dit ce qui a été pris, et combien de remplacements ont été faits.
+Dans chaque fichier, le relevé remplace ou retire :
+- le nom de la session Windows, le nom de l'ordinateur, le prénom et les adresses mail ;
+- les noms et chemins de fichiers du proche, et les adresses web qu'il a visitées ;
+- ce qui a été dit ou retenu.
+
+Des journaux d'Atlas, il ne garde le message que pour les modules techniques : démarrage, Ollama, modèle, mémoire, voix. Pour les autres, il ne garde que l'heure et le module.
+
+`RELEVE.txt` dit ce qui a été pris, et combien de remplacements ont été faits.
