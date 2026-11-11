@@ -99,7 +99,27 @@
 - [ ] Mode jeu mesuré sur un vrai jeu ; confirmation revue à l'écran
 - [ ] `python -m pytest tests/ -q` → code 0, avec et sans Ollama
 
-## 4. Rappels
+## 4. Décisions du superviseur sur le rapport intermédiaire (11/11)
+
+**Rapport intermédiaire validé**, ainsi que la fiche `docs/beta/FICHE_PARCOURS_PROCHE.md`. La branche peut être fusionnée et l'installeur construit depuis `main`.
+
+**CVE-2026-45833 (ChromaDB) : pas bloquant pour la démo.**
+- L'attaque demande un serveur Chroma joignable en HTTP et un compte authentifié qui modifie une collection. Atlas n'a ni serveur, ni port, ni configuration de collection venue d'ailleurs.
+- Écrire dans `data/chromadb` demande déjà la main sur la session.
+- **Conditions :**
+  - le test de garde `test_if2_…` reste obligatoire ;
+  - Atlas ne lance **jamais** de serveur Chroma, sans réunion préalable ;
+  - montée de version dès qu'un correctif paraît, avec une sauvegarde vérifiée d'abord ;
+  - la veille hebdomadaire surveille l'avis GHSA-36p7-vc44-83pf.
+
+**La faille Ollama de l'article : acceptée comme non vérifiable.** Les deux fuites identifiées sont corrigées avant la version 0.40.6, Ollama n'écoute que sur 127.0.0.1, et ses modèles sont épinglés.
+
+**Une vérification avant le départ (risque 8 du rapport) :**
+- Le journal `atlas_serveur.log` contient-il des **noms ou chemins de fichiers** du proche, par exemple via l'index des fichiers au premier lancement ? Le remplacement de `<session>` masque le dossier du profil, mais pas les noms de fichiers.
+- Si oui, le relevé retire ces lignes ou ces noms, avec un test rouge d'abord, avant de construire l'installeur.
+- Si non, l'écrire dans le rapport.
+
+## 5. Rappels
 
 - Aucun installeur ne part chez un proche avant que ce brief soit validé.
 - En cas de doute sur les données d'Alexis : ne pas exécuter, demander.
