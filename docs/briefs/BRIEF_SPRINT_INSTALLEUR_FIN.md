@@ -119,7 +119,57 @@
 - Si oui, le relevé retire ces lignes ou ces noms, avec un test rouge d'abord, avant de construire l'installeur.
 - Si non, l'écrire dans le rapport.
 
-## 5. Rappels
+## 5. Changement d'Alexis (11/11 au soir) : test sur un compte neuf, puis envoi à distance
+
+**Ce qui change :** les testeurs sont à Paris et en Guadeloupe, et Alexis ne peut pas s'y rendre pour le moment.
+
+- **IF3 se joue sur un compte Windows neuf du PC d'Alexis**, et non plus chez un proche.
+- Les testeurs reçoivent ensuite l'installeur **à distance** et l'installent **seuls**.
+
+La fiche doit donc tenir sans Alexis à côté.
+
+### IF3 bis — Le parcours sur un compte neuf du PC d'Alexis
+
+**Avant :**
+- CHAT6 relève **où l'installeur écrit** : Atlas dans `%LOCALAPPDATA%` du compte, Ollama par compte ou pour toute la machine, Tesseract dans `Program Files`.
+- Il confirme par écrit que l'installation et les données d'Alexis ne seront pas touchées. Dans le doute : sauvegarde de `data/` d'Alexis, vérifiée par les données.
+- Alexis crée un **compte local** (`AtlasTest`, sans compte Microsoft).
+- Il **se déconnecte complètement** de son compte habituel : changer de compte ne suffit pas, son Ollama garderait le port 11434 et la VRAM.
+
+**Pendant :**
+- Alexis suit la fiche, étapes 1 à 7, sur `AtlasTest`. Bluetooth : pas ici.
+- On attend le cas « déjà là » pour Tesseract : l'installeur le reconnaît, n'écrase rien et le dit.
+- On attend le palier 8 Go → `qwen2.5:7b`, et un test de capacité mesuré sur la carte.
+- Relevé n° 1 et relevé n° 2 sur une clé ou un dossier partagé, puis **désinstallation « effacer »** à la fin, puisqu'on ne garde rien sur ce compte.
+
+**Après :**
+- Alexis revient sur son compte. Atlas démarre et retrouve sa mémoire, vérifié par une vraie question.
+- Alexis supprime lui-même le compte `AtlasTest`.
+- CHAT6 lit les relevés, corrige avec un test rouge d'abord, et reconstruit l'installeur.
+
+### IF6 — L'envoi aux testeurs à distance
+
+**Le partage :**
+- **Google Drive plutôt que WeTransfer.** Le lien ne disparaît pas après quelques jours, une nouvelle version remplace l'ancienne au même endroit, et l'accès se limite aux personnes nommées : jamais « tous ceux qui ont le lien ».
+- **L'empreinte SHA-256 de `AtlasSetup.exe`** est donnée dans un **autre canal** que le lien, par exemple par message. Le guide dit en une ligne comment la vérifier, sans l'imposer.
+
+**Le guide du testeur, à distance (`docs/beta/`) :**
+- La fiche réécrite pour une personne seule :
+  - `precheck_atlas.bat` d'abord, et si c'est ❌, on s'arrête ;
+  - SmartScreen ;
+  - le premier lancement ;
+  - les phrases d'essai ;
+  - que faire en cas d'échec ;
+  - comment faire le relevé et le renvoyer.
+- Le testeur **peut ouvrir son relevé avant de l'envoyer** : le guide le dit.
+
+**Le retour des relevés :** un dossier Drive où chaque testeur peut déposer son relevé, ou un envoi par message. Pas de mail en pièce jointe : Gmail bloque souvent les archives qui contiennent des scripts.
+
+**L'aide à distance :** si un testeur bloque, une prise en main à distance (RustDesk, choisi au début du projet) est possible **seulement à sa demande, sous ses yeux, et coupée à la fin**. Ce n'est pas l'étape par défaut.
+
+**La règle qui ne change pas :** aucun lien n'est envoyé avant que le parcours sur `AtlasTest` soit passé et que les corrections soient reconstruites.
+
+## 6. Rappels
 
 - Aucun installeur ne part chez un proche avant que ce brief soit validé.
 - En cas de doute sur les données d'Alexis : ne pas exécuter, demander.
