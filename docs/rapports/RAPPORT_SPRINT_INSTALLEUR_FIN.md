@@ -3,7 +3,7 @@
 **Développeur :** CHAT6 (Claude Opus, Claude Code Windows)
 **Brief :** `docs/briefs/BRIEF_SPRINT_INSTALLEUR_FIN.md` (IF0 à IF5)
 **Branche :** `sprint-installeur-fin`, partie de `main` après la fusion de la PR 16 (`5b1253b`)
-**Date :** 10 novembre 2026, en soirée
+**Dates :** 10 novembre 2026 en soirée, et 11 novembre (vérification demandée par le superviseur)
 
 > Ce rapport couvre ce qui se fait sur le PC d'Alexis :
 > - IF0, la base ;
@@ -25,6 +25,7 @@
 | IF2 — CVE-2026-45833 (ChromaDB) | **Version concernée, chemin d'attaque absent dans Atlas.** La 1.5.1 est dans la plage touchée (`>= 0.4.17, <= 1.5.9`), sans version corrigée. L'attaque passe par l'API HTTP d'un serveur Chroma. Atlas n'utilise que le client intégré : pas de serveur, pas de port, aucune configuration de collection venue d'ailleurs. Un test le verrouille (§6.2). |
 | IF2 — fuite mémoire et de consignes sur Ollama | **Pas concerné, pour les deux fuites recensées en 2026 par le NVD** : CVE-2026-7482, corrigée en 0.17.1, et CVE-2026-5757, touchant jusqu'à 0.13.5. Ollama 0.40.6 est postérieure aux deux. **Non vérifiable** que ce soit bien la faille de l'article de la veille : l'article refuse la lecture automatique (HTTP 403). |
 | Le mode jeu sur un vrai jeu | **À FAIRE** (IF4, avec Alexis) |
+| Vérification du superviseur (11/11) : des noms ou chemins de fichiers du proche dans `atlas_serveur.log` ? | **Oui.** Pas par l'index des fichiers, qui n'en écrit aucun au niveau INFO, mais par les arguments des outils, les cibles des confirmations, les titres de fenêtre, les exceptions, les transcriptions et le souvenir recopié par la mémoire. **Le relevé les retire désormais**, avec 25 tests rouges d'abord. Essayé sur le vrai journal d'un Atlas d'essai : aucune phrase dite, aucun souvenir, aucun chemin personnel restant (§6.3). |
 
 ---
 
@@ -34,7 +35,7 @@
 - **IF1 : la fenêtre d'Ollama est fermée.** L'installeur ferme l'application qu'il vient d'installer, chaque fois qu'elle apparaît, jusqu'à la fin de l'installation. Le serveur tourne sans fenêtre, sur 127.0.0.1. Au démarrage, le lanceur d'Atlas démarre Ollama sans fenêtre s'il ne tourne pas, et le note dans son journal. **Rien n'est changé chez Ollama.** Son installeur ne pose aucun démarrage avec Windows. C'est l'application qui pose, à son premier lancement, un raccourci dans le dossier Démarrage, et ce raccourci la relance **cachée** (code d'Ollama 0.40.6, §4) : il n'y a rien à retirer.
 - **IF2 :** voir le tableau de tête. **Le point ChromaDB est à trancher par le superviseur** avant la démo : la version est touchée, mais le chemin d'attaque n'existe pas dans l'usage d'Atlas.
 - **IF3 :** une fiche d'une page pour Alexis, et un relevé des journaux qui remplace la session Windows, le nom de l'ordinateur, le prénom et les adresses. Essayé sur les vrais journaux de la Sandbox : 2 400 remplacements, aucun nom de session restant.
-- **Tests :** `pytest tests/ -q` : **1 669 réussis** avec Ollama (0 ignoré) ; **1 666 réussis + 3 ignorés justifiés** sans lui ; code 0 les deux fois. **17 tests nouveaux.**
+- **Tests :** `pytest tests/ -q` : **1 669 réussis** avec Ollama (0 ignoré) ; **1 666 réussis + 3 ignorés justifiés** sans lui ; code 0 les deux fois. **17 tests nouveaux.** Le 11/11, après la vérification du superviseur : **1 694** avec Ollama, **1 691 + 3 ignorés justifiés** sans, code 0, avec **25 tests nouveaux**.
 
 ---
 
@@ -56,6 +57,7 @@
 | IF3 — Au retour : lire les journaux, corriger avec un test rouge, reconstruire | **À FAIRE** | FAIL (pas encore) |
 | IF4 — Résultat d'une confirmation dans la fenêtre de bureau | **À FAIRE** (avec Alexis) | FAIL (pas encore) |
 | IF4 — Mode jeu sur un vrai jeu, sans Parsec | **À FAIRE** (avec Alexis) | FAIL (pas encore) |
+| Décision du 11/11 — `atlas_serveur.log` contient-il des noms ou chemins de fichiers du proche ? Si oui, le relevé les retire (test rouge d'abord) avant de construire l'installeur | Oui : relevé corrigé (§4, §6.3) ; installeur à reconstruire depuis `main` après la fusion de `sprint-installeur-fin-releve` | PASS (relevé) ; installeur **à reconstruire** |
 | IF5 — Rapport, pytest code 0 avec et sans Ollama, règle C3 et garde BM0 | Ce document ; §5 ; §6.4 | PARTIEL (rapport à compléter au retour) |
 
 ---
@@ -147,6 +149,15 @@ Lu dans le dépôt officiel, à l'étiquette `v0.40.6` :
 
   Le remplacement ne touche que des mots entiers, en ignorant la casse. Une valeur de moins de deux lettres n'est pas remplacée.
 - **`RELEVE.txt`** : ce qui a été pris ou manquait, et le nombre de remplacements. Il ne redit jamais les valeurs remplacées.
+- **`nettoyer_contenu(texte, racines)`** a été ajouté après la décision du superviseur du 11/11. Il passe avant `anonymiser`, sur chaque fichier copié, et applique trois règles dans cet ordre :
+  1. **Liste blanche des modules.** Une ligne au format d'Atlas (`date [module] NIVEAU — message`) ne garde son message que si le module est technique : `atlas`, `atlas.ollama`, `atlas.modele_local`, `atlas.memory`, `atlas.memory_core`, `atlas.voice`, `atlas.systray`, `atlas.diagnostics`, `atlas.donnees_reelles`, `atlas.file_indexer`. Pour tout autre module, y compris un module ajouté plus tard, il reste `date [module] NIVEAU — <contenu retiré>`.
+     - Même dans un module technique, ce qui suit un début de message « dit » est retiré : `[VOIX] Transcription (…)`, `[VOIX] «`, `Phrase dite`, `Souvenir sauvegardé`, `Ingestion document`, `[AUTOMATION]`…
+  2. **Chemins.** Tout chemin hors des dossiers techniques devient `<chemin>`. Les dossiers techniques sont : Atlas, Ollama, `.ollama`, le cache de Hugging Face, Program Files, Windows, et le dossier temporaire de l'installeur.
+     - Sous Atlas, `data\` n'est gardé que pour `logs`, `chromadb`, `voices` et `workflows`. Les documents et les captures portent des noms qui appartiennent à la personne.
+  3. **Noms, adresses, recherches.**
+     - Un nom de document seul devient `<fichier>`, sauf quelques noms techniques (`requirements-*.txt`, `precheck.txt`…).
+     - Une adresse web non technique devient `<url>`. Restent lisibles : 127.0.0.1, GitHub, Ollama, Hugging Face, PyPI, python.org, Microsoft.
+     - La recherche d'une requête HTTP (`?q=…`) devient `<retiré>`.
 - **Le `.bat`** :
   - il est en ASCII, parce que `cmd` le lit dans la page de code de la console ;
   - il lance le Python d'Atlas (`%LOCALAPPDATA%\Programs\Atlas\python\python.exe`) ;
@@ -201,6 +212,21 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
 
 `tests/test_installeur.py` seul : **135 réussis**.
 
+**11/11 : la vérification du superviseur (§6.3).** 25 nouveaux tests, **tous vus rouges** avant le code :
+- `test_if3_le_releve_retire_noms_et_chemins_de_fichiers` ×9 : outil exécuté, titre de fenêtre, confirmation, transcription, phrase entendue pendant une confirmation, exception, document d'Atlas, nom de fichier et adresse web, requête HTTP ;
+- `test_if3_le_releve_garde_ce_qui_sert_au_diagnostic` ×9 ;
+- `test_if3_un_module_inconnu_ne_dit_que_son_heure_et_son_niveau` ;
+- `test_if3_le_releve_nettoie_les_journaux_d_atlas_pour_de_vrai` ;
+- `test_if3_les_modeles_et_les_voix_d_atlas_restent_lisibles` ×3, trouvé par l'essai sur les journaux de la Sandbox ;
+- `test_if3_la_memoire_ne_recopie_pas_ses_souvenirs_dans_le_releve` ×2, trouvé par l'essai sur un vrai journal d'Atlas.
+
+`tests/test_installeur.py` seul : **160 réussis**.
+
+| Passage du 11/11 (branche `sprint-installeur-fin-releve`) | Résultat | Code |
+|---|---|---|
+| Avec Ollama | **1 694 réussis, 0 ignoré** (10 min 28) | 0 |
+| Sans Ollama | **1 691 réussis, 3 ignorés justifiés**, les mêmes trois (10 min 18) | 0 |
+
 **Non-régression :** les autres suites du dépôt passent toutes dans les deux passages complets ci-dessus, dont le recensement des écrivains de `data/` (CM0), toujours vert.
 
 ---
@@ -254,6 +280,43 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
 - **Conclusion : pas concerné pour les deux fuites identifiables. Non vérifiable que ce soit la faille de l'article.**
 - Chez le proche, Ollama n'écoute que sur 127.0.0.1, vérifié par l'installeur. N'y sont tirés que les modèles épinglés, dont l'empreinte est vérifiée.
 
+### 6.3 Vérification du superviseur (11/11) : des noms ou chemins de fichiers dans `atlas_serveur.log` ?
+
+**Réponse : oui, avant cette correction.**
+
+**Ce que j'ai fait :**
+- Relevé dans le code d'Atlas : 99 appels de journal peuvent porter un chemin, un nom ou un titre.
+- **L'index des fichiers n'écrit aucun nom au niveau INFO**, seulement « démarré » et « arrêté ». Ses messages d'erreur peuvent toutefois citer un chemin.
+- Les autres sources de noms et de contenu :
+  - `Tool '…' executed: {'path': …}` (atlas.intent_engine) ;
+  - les cibles des confirmations ;
+  - les titres de fenêtre (atlas.grounding, atlas.window_controller) : nom du document ou de la page ;
+  - les messages d'exception ;
+  - les transcriptions (atlas.voice) ;
+  - **le souvenir recopié** : `Souvenir sauvegardé [user_fact] : …` et `Ingestion document '…'` (atlas.memory).
+
+**Essai réel :**
+- Un Atlas d'essai, lancé depuis le dépôt sur des **données entièrement vides** : mémoire neuve, index, journal des actions, habitudes, apprentissage et rappels dans un dossier jetable. **Rien n'a été copié de la mémoire d'Alexis.**
+- Il a reçu deux messages, « Quelle heure est-il ? » et la phrase de la fiche « Retiens que la clé de la cabane est sous le pot bleu. », puis il a été arrêté proprement.
+- Son vrai journal (70 lignes, 21 modules) est passé au nettoyage. Le brut a été effacé, et seul le nettoyé a été lu.
+
+| Essai | Phrase dite ou souvenir dans le nettoyé | Chemins hors dossiers techniques restants | Retraits |
+|---|---|---|---|
+| 1 (relevé de la veille, sans `Souvenir sauvegardé`) | **« cabane », « pot bleu » encore là**, par `atlas.memory` | 0 | 29 |
+| 2 (après la correction, test rouge d'abord) | **aucun** | 0 | 30 |
+
+**Lignes gardées par le nettoyage, qui suffisent au diagnostic :**
+- le démarrage et le modèle ;
+- Tesseract (version, français) ;
+- l'état de la mémoire ;
+- la voix (GPU ou processeur, préchauffage en 2,6 s) ;
+- l'échec ou la réussite du préchauffage d'Ollama ;
+- l'index démarré ou arrêté ;
+- les requêtes HTTP sans leur contenu ;
+- l'arrêt propre.
+
+**Sur les journaux de l'essai Sandbox 8**, les voix (`data\voices`) et le modèle de transcription (cache de Hugging Face) étaient masqués à tort. C'est corrigé, avec un test rouge d'abord.
+
 ### 6.4 Données réelles (règle C3, garde BM0)
 
 - **`data/` (règle C3) :** **aucun fichier modifié** par le sprint. Les 198 fichiers ont été relevés après chacune des deux suites complètes, et aucun n'est plus récent que le début du sprint (17:30). La mémoire réelle n'a été ni ouverte ni écrite, donc il n'y avait rien à retirer et aucune sauvegarde n'était nécessaire.
@@ -262,9 +325,16 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
   - le lanceur (`installeur/lancer.py`) écrivait déjà `data/logs/atlas_serveur.log`. Il y ajoute ses lignes `[lanceur]` et `data/logs/ollama_serveur.log`. C'est Atlas lui-même, installé, qui démarre : rien ne tourne sur les vraies données pendant les tests, où `noter` et `demarrer` sont remplacés ;
   - le relevé (`relever_journaux.py`) **lit** des journaux et deux clés de réglages, et **n'écrit que sur la clé USB**.
 - **Les essais du relevé** ont tourné sur des copies des journaux de la Sandbox, dans le dossier jetable de la session. **Jamais sur les journaux ni les réglages d'Alexis.**
+- **Les deux Atlas d'essai du 11/11 (§6.3) :**
+  - les six redirections `ATLAS_*` pointaient vers un dossier jetable et vide, donc le garde BM0 a interdit les données réelles (« Atlas d'essai (…) : données réelles interdites ») ;
+  - **seul `data/atlas.lock` a été réécrit**. C'est le verrou qui empêche deux Atlas de tourner ensemble : il est pris au démarrage et libéré à l'arrêt ;
+  - aucun autre fichier de `data/` n'est plus récent que le repère posé juste avant les essais ;
+  - le journal de développement `logs/atlas.log`, à la racine du dépôt et hors de `data/`, a reçu les **112 lignes** des deux essais, comme pour les rejeux précédents ;
+  - le dossier jetable a été effacé, et le journal brut aussi.
 - **Ollama d'Alexis :**
-  - arrêté puis relancé pour la suite « sans Ollama », comme à chaque sprint (0.40.6 répond) ;
-  - un `ollama serve` lancé par erreur s'est arrêté seul (R3, §7).
+  - arrêté puis relancé pour chaque suite « sans Ollama », comme à chaque sprint (0.40.6 répond) ;
+  - un `ollama serve` lancé par erreur s'est arrêté seul (R3, §7) ;
+  - **le 11/11 au matin, il était arrêté sans que je l'aie arrêté.** Le premier essai l'a montré (« Préchauffage du modèle impossible »). Son journal s'arrête au 10/11 à 18:24, quand je l'avais relancé, sans ligne d'arrêt. Le PC n'a pas redémarré et `ollama.exe` n'a pas changé. La cause n'est pas établie. Je l'ai relancé (0.40.6 répond).
 - **Configuration :** `config/settings.json` local d'Alexis en `"reel"` (son choix), jamais commité ; le dépôt reste en `"simulation"`.
 
 ---
@@ -294,9 +364,14 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
    - Mitigation : le test `test_if1_l_installeur_trouve_le_lanceur_par_son_chemin` remplace `Popen` avant le chargement.
 7. **Une assertion n'a pas été vue rouge.** La ligne « mails : simulation » du relevé a été écrite dans le même envoi que son code.
    - Sévérité : **Faible**.
-8. **Le relevé remplace des valeurs connues** (session, ordinateur, prénom, adresses). Une phrase du proche qui ne contient aucune de ces valeurs resterait lisible dans `atlas_serveur.log`.
-   - Sévérité : **Moyen**.
-   - Mitigation : la fiche donne des phrases d'essai inventées, et le parcours est mené par Alexis seul au clavier et à la voix.
+8. **Le relevé et le contenu du proche.**
+   - **Ce qui était vrai au premier rapport :** le relevé ne remplaçait que des valeurs connues (session, ordinateur, prénom, adresses). Le superviseur l'a relevé, et c'est corrigé le 11/11 (§6.3) :
+     - liste blanche des modules ;
+     - chemins hors des dossiers techniques et noms de documents retirés ;
+     - phrases dites et souvenirs retirés.
+   - **Ce qui reste :** un module technique qui ajouterait demain une ligne de contenu, sous un début qui n'est pas dans la liste `DITS`, la laisserait passer.
+   - Sévérité : **Faible**.
+   - Mitigation : la fiche donne des phrases d'essai inventées ; le parcours est mené par Alexis ; les modules non techniques sont retirés par défaut.
 
 ---
 
@@ -307,7 +382,7 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
 - [x] Fiche d'une page pour Alexis, prête avant le départ — `docs/beta/FICHE_PARCOURS_PROCHE.md`, relevé `installeur/relever_journaux.bat` (l'installeur reste à construire depuis `main`)
 - [ ] Parcours complet sur le PC du proche : precheck, installation, test de capacité mesuré, premier lancement guidé — **À FAIRE**
 - [ ] Atlas répond, retient, le souvenir survit à une réinstallation et à une désinstallation « garder » — **À FAIRE**
-- [ ] Aucune donnée personnelle du proche dans ce qui est rapporté ; Atlas laissé installé, mails en `simulation` — **relevé anonymisé prêt et essayé (R4) ; à constater au retour**
+- [ ] Aucune donnée personnelle du proche dans ce qui est rapporté ; Atlas laissé installé, mails en `simulation` — **relevé prêt, corrigé après la vérification du superviseur et essayé sur un vrai journal d'Atlas (R4, §6.3) ; à constater au retour**
 - [ ] Mode jeu mesuré sur un vrai jeu ; confirmation revue à l'écran — **À FAIRE (IF4)**
 - [x] `python -m pytest tests/ -q` → code 0, avec et sans Ollama — §5 (1 669 ; 1 666 + 3 ignorés justifiés)
 
