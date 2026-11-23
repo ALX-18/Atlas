@@ -1,9 +1,9 @@
 # RAPPORT SPRINT — INSTALLEUR, FIN : la fenêtre d'Ollama, la sécurité de la veille, la préparation du parcours chez le proche
 
 **Développeur :** CHAT6 (Claude Opus, Claude Code Windows)
-**Brief :** `docs/briefs/BRIEF_SPRINT_INSTALLEUR_FIN.md` (IF0 à IF5)
+**Brief :** `docs/briefs/BRIEF_SPRINT_INSTALLEUR_FIN.md` (IF0 à IF5 ; §5 du 11/11 au soir : IF3 bis et IF6)
 **Branche :** `sprint-installeur-fin`, partie de `main` après la fusion de la PR 16 (`5b1253b`)
-**Dates :** 10 novembre 2026 en soirée, et 11 novembre (vérification demandée par le superviseur)
+**Dates :** 10 novembre 2026 en soirée, 11 novembre (vérification demandée par le superviseur), et 23 novembre (IF3 bis : préparation du compte neuf ; IF6 : préparation de l'envoi). Branche du 23/11 : `sprint-installeur-compte-neuf`, partie de `main` (`d706b67`)
 
 > Ce rapport couvre ce qui se fait sur le PC d'Alexis :
 > - IF0, la base ;
@@ -25,6 +25,8 @@
 | IF2 — CVE-2026-45833 (ChromaDB) | **Version concernée, chemin d'attaque absent dans Atlas.** La 1.5.1 est dans la plage touchée (`>= 0.4.17, <= 1.5.9`), sans version corrigée. L'attaque passe par l'API HTTP d'un serveur Chroma. Atlas n'utilise que le client intégré : pas de serveur, pas de port, aucune configuration de collection venue d'ailleurs. Un test le verrouille (§6.2). |
 | IF2 — fuite mémoire et de consignes sur Ollama | **Pas concerné, pour les deux fuites recensées en 2026 par le NVD** : CVE-2026-7482, corrigée en 0.17.1, et CVE-2026-5757, touchant jusqu'à 0.13.5. Ollama 0.40.6 est postérieure aux deux. **Non vérifiable** que ce soit bien la faille de l'article de la veille : l'article refuse la lecture automatique (HTTP 403). |
 | Le mode jeu sur un vrai jeu | **À FAIRE** (IF4, avec Alexis) |
+| 23/11 — IF3 bis, avant : où l'installeur écrit sur un compte neuf, et le compte d'Alexis est-il touché ? | **Non touché, à une condition : Alexis complètement déconnecté.** Atlas, Ollama et le modèle vont dans le profil d'`AtlasTest`. Tesseract est déjà installé pour toute la machine et gardé, rien n'est écrit dans `Program Files`. Mais `127.0.0.1` est commun aux sessions : une session d'Alexis restée ouverte prêterait son Ollama, et son Atlas, à `AtlasTest` (§6.5). Sauvegarde de `data/` faite et vérifiée par empreintes. |
+| 23/11 — Installeur construit depuis `main` | **Fait** : `d706b67`, `AtlasSetup.exe` 15,8 Mo, SHA-256 `b4186856c191dac47fc49cd25498d81ff1e7c16478a0f9c2e19f083a94f5aa4e`. Paquet vérifié : aucune faute, mails en `simulation`, prénom vide, relevé corrigé du 11/11 identique à `main`. |
 | Vérification du superviseur (11/11) : des noms ou chemins de fichiers du proche dans `atlas_serveur.log` ? | **Oui.** Pas par l'index des fichiers, qui n'en écrit aucun au niveau INFO, mais par les arguments des outils, les cibles des confirmations, les titres de fenêtre, les exceptions, les transcriptions et le souvenir recopié par la mémoire. **Le relevé les retire désormais**, avec 25 tests rouges d'abord. Essayé sur le vrai journal d'un Atlas d'essai : aucune phrase dite, aucun souvenir, aucun chemin personnel restant (§6.3). |
 
 ---
@@ -35,6 +37,12 @@
 - **IF1 : la fenêtre d'Ollama est fermée.** L'installeur ferme l'application qu'il vient d'installer, chaque fois qu'elle apparaît, jusqu'à la fin de l'installation. Le serveur tourne sans fenêtre, sur 127.0.0.1. Au démarrage, le lanceur d'Atlas démarre Ollama sans fenêtre s'il ne tourne pas, et le note dans son journal. **Rien n'est changé chez Ollama.** Son installeur ne pose aucun démarrage avec Windows. C'est l'application qui pose, à son premier lancement, un raccourci dans le dossier Démarrage, et ce raccourci la relance **cachée** (code d'Ollama 0.40.6, §4) : il n'y a rien à retirer.
 - **IF2 :** voir le tableau de tête. **Le point ChromaDB est à trancher par le superviseur** avant la démo : la version est touchée, mais le chemin d'attaque n'existe pas dans l'usage d'Atlas.
 - **IF3 :** une fiche d'une page pour Alexis, et un relevé des journaux qui remplace la session Windows, le nom de l'ordinateur, le prénom et les adresses. Essayé sur les vrais journaux de la Sandbox : 2 400 remplacements, aucun nom de session restant.
+- **23/11 (§5 du brief : compte neuf, puis envoi à distance) :**
+  - **IF3 bis, avant : fait.** Où l'installeur écrit sur `AtlasTest` est relevé, et la confirmation est écrite : le compte d'Alexis n'est pas touché, **s'il est complètement déconnecté**. Sa mémoire est sauvegardée, et `data/` est copié et vérifié fichier par fichier.
+  - **L'installeur est construit depuis `main`.**
+  - **Un écart corrigé :** l'installeur ne disait pas que Tesseract était déjà là.
+  - **IF6 est préparé, rien n'est envoyé.**
+  - **Le parcours sur `AtlasTest` attend Alexis.**
 - **Tests :** `pytest tests/ -q` : **1 669 réussis** avec Ollama (0 ignoré) ; **1 666 réussis + 3 ignorés justifiés** sans lui ; code 0 les deux fois. **17 tests nouveaux.** Le 11/11, après la vérification du superviseur : **1 694** avec Ollama, **1 691 + 3 ignorés justifiés** sans, code 0, avec **25 tests nouveaux**.
 
 ---
@@ -51,7 +59,11 @@
 | IF1 — Test rouge d'abord ; le guide testeur ne parle plus de la fenêtre | 9 tests rouges vus avant le code. Le guide n'en parlait déjà pas : un test le garde. | PASS |
 | IF2 — CVE-2026-45833 (ChromaDB) | Version dans la plage touchée ; mode intégré sans le chemin d'attaque ; sources §6.2 ; test de garde | PASS (tranché : **version concernée, non exposée**) |
 | IF2 — Fuite mémoire et de consignes sur Ollama | Les deux fuites de 2026 au NVD sont corrigées avant 0.40.6 ; l'article de la veille n'a pas pu être lu | PARTIEL (pas concerné pour ce qui est identifiable ; l'article est **non vérifiable**) |
-| IF3 — Installeur construit depuis `main` après IF1, suite verte | **À FAIRE** après la fusion de cette branche : l'installeur doit sortir de `main` | FAIL (pas encore) |
+| IF3 — Installeur construit depuis `main` après IF1, suite verte | 23/11 : construit depuis `main` (`d706b67`), paquet vérifié, SHA-256 `b4186856…aa4e` (§6.5) | PASS |
+| IF3 bis — Avant : relever où l'installeur écrit, confirmer par écrit que l'installation et les données d'Alexis ne sont pas touchées ; dans le doute, sauvegarde de `data/` vérifiée par les données | Relevé et confirmation écrite dans `docs/beta/FICHE_COMPTE_NEUF.md` et au §6.5, avec la condition de la déconnexion complète. Sauvegarde de la mémoire, et copie complète de `data/` vérifiée fichier par fichier. | PASS |
+| IF3 bis — On attend Tesseract « déjà là » : reconnu, rien d'écrasé, **et dit** | Reconnu et gardé, oui. **Mais l'installeur ne le disait pas** : une clé `tesseract_deja_la` dans son journal, rien à l'écran. Corrigé sur la branche, avec 5 tests (4 vus rouges d'abord, un garde-fou vert dès le départ) : une ligne au journal et une phrase dans le message de fin. **Pas encore dans l'installeur construit depuis `main`.** | PASS (code et tests) ; installeur **à reconstruire** après fusion |
+| IF3 bis — Pendant et après, sur `AtlasTest` | **À FAIRE** (Alexis) | FAIL (pas encore) |
+| IF6 — Partage Drive, empreinte par un autre canal, guide du testeur seul, retour des relevés, aide à distance | Préparé : `docs/beta/GUIDE_INSTALLATION_A_DISTANCE.md` (pour le testeur) et `docs/beta/ENVOI_TESTEURS.md` (pour Alexis). Dossier `build/installeur/cle_usb` assemblé. **Aucun lien envoyé** : la règle l'interdit avant le passage sur `AtlasTest`. | PARTIEL (prêt, pas envoyé) |
 | IF3 — Fiche d'une page : quoi faire, quoi noter, quels journaux copier, que faire en cas d'échec | `docs/beta/FICHE_PARCOURS_PROCHE.md` ; relevé `installeur/relever_journaux.bat` et `.py` | PASS |
 | IF3 — Parcours sur place, étapes 1 à 9 | **À FAIRE** (Alexis, sur place) | FAIL (pas encore) |
 | IF3 — Au retour : lire les journaux, corriger avec un test rouge, reconstruire | **À FAIRE** | FAIL (pas encore) |
@@ -66,12 +78,16 @@
 
 ```
 installeur/
-  etapes.py                 (garde de l'application Ollama ; serveur sans fenêtre ; arrêt de la garde à la fin)
+  etapes.py                 (garde de l'application Ollama ; serveur sans fenêtre ; arrêt de la garde à la fin ;
+                             23/11 : Ollama et Tesseract déjà là, dits dans le journal et le message de fin)
   lancer.py                 (Ollama assuré sans fenêtre avant Atlas ; journal du lanceur)
   relever_journaux.py       ← NOUVEAU (relevé anonymisé des journaux, IF3)
   relever_journaux.bat      ← NOUVEAU (le relevé lancé depuis la clé USB, avec le Python d'Atlas)
 docs/beta/
   FICHE_PARCOURS_PROCHE.md  ← NOUVEAU (la fiche d'une page)
+  FICHE_COMPTE_NEUF.md      ← NOUVEAU 23/11 (IF3 bis : où l'installeur écrit, avant, pendant, après)
+  GUIDE_INSTALLATION_A_DISTANCE.md  ← NOUVEAU 23/11 (IF6 : le testeur seul, du lien au relevé renvoyé)
+  ENVOI_TESTEURS.md         ← NOUVEAU 23/11 (IF6 : le partage Drive, l'empreinte, le retour des relevés)
 docs/rapports/
   RAPPORT_SPRINT_INSTALLEUR_FIN.md  ← NOUVEAU (ce document)
 tests/
@@ -229,6 +245,28 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
 
 **Non-régression :** les autres suites du dépôt passent toutes dans les deux passages complets ci-dessus, dont le recensement des écrivains de `data/` (CM0), toujours vert.
 
+**23/11 : IF3 bis, Tesseract « déjà là » dit.** 5 nouveaux tests :
+- `test_if3bis_tesseract_deja_la_est_garde_sans_rien_telecharger_et_le_journal_le_dit` : vu rouge, il n'y avait pas de ligne au journal ;
+- `test_if3bis_la_fin_dit_ce_qui_etait_deja_la_et_garde` ×4 :
+  - Tesseract seul, Ollama seul, les deux : les trois cas vus rouges ;
+  - aucun des deux : garde-fou, vert dès le départ.
+
+`tests/test_installeur.py` seul : **165 réussis**.
+
+| Passage du 23/11 (branche `sprint-installeur-compte-neuf`) | Résultat | Code |
+|---|---|---|
+| Avec Ollama, 1er passage | **1 698 réussis, 1 échec** : `test_checkup.py::test_ck4_une_sonde_qui_ment_fait_echouer_la_suite` (10 min 32) | **1** |
+| Avec Ollama, 2e passage | **1 699 réussis, 0 ignoré** (10 min 01) | 0 |
+| Sans Ollama | **1 696 réussis, 3 ignorés justifiés**, les mêmes trois (10 min 32) ; Ollama relancé ensuite (0.40.6 répond) | 0 |
+
+**L'échec du 1er passage :**
+- Le test lance un pytest à part, dans un dossier temporaire. Ce pytest s'est arrêté **au chargement** (« 1 error during collection »), sur un message tronqué par l'assertion : « …st introuvabl… ».
+- C'est probablement un « Le fichier spécifié est introuvable » ou « Le chemin d'accès spécifié est introuvable » de Windows. **La cause n'est pas établie.**
+- Le test passe seul (3 sur 3 pour CK4), puis dans le 2e passage complet.
+- Le changement du jour, l'installeur et ses tests, ne touche ni `tests/conftest.py` ni `test_checkup.py`.
+- Je ne l'ai **pas** relancé jusqu'à passer : un seul nouveau passage complet, qui est vert.
+- **Instable, à surveiller** (§7, point 13).
+
 ---
 
 ## 6. Comportement observé en scénarios réels
@@ -336,6 +374,82 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
   - un `ollama serve` lancé par erreur s'est arrêté seul (R3, §7) ;
   - **le 11/11 au matin, il était arrêté sans que je l'aie arrêté.** Le premier essai l'a montré (« Préchauffage du modèle impossible »). Son journal s'arrête au 10/11 à 18:24, quand je l'avais relancé, sans ligne d'arrêt. Le PC n'a pas redémarré et `ollama.exe` n'a pas changé. La cause n'est pas établie. Je l'ai relancé (0.40.6 répond).
 - **Configuration :** `config/settings.json` local d'Alexis en `"reel"` (son choix), jamais commité ; le dépôt reste en `"simulation"`.
+- **23/11 :**
+  - **aucun fichier de `data/` n'a changé.** Après les trois passages complets, les 198 fichiers ont été comparés un à un aux empreintes SHA-256 de la copie de 08:57 : 0 différence ;
+  - la mémoire réelle n'a été **ouverte qu'en lecture**, par `backup_memory.py`, pour la sauvegarde et sa vérification, Atlas arrêté ;
+  - aucun Atlas d'essai n'a été lancé ;
+  - le diagnostic `precheck_atlas.ps1` est en lecture seule, et sa sortie a été effacée de `%TEMP%` ;
+  - **hors du dépôt**, j'ai créé `C:\Users\Public\AtlasTest`, pour le compte neuf, et deux sauvegardes dans `%USERPROFILE%\Atlas_backups`.
+
+### 6.5 IF3 bis, avant (23/11) : où l'installeur écrit sur un compte neuf
+
+**Relevé sur le PC d'Alexis, en lecture seule :**
+- les variables de la machine et de son compte (noms seulement) ;
+- les dossiers de Tesseract et d'Ollama ;
+- les entrées « Applications » ;
+- les comptes locaux ;
+- les ports à l'écoute ;
+- les droits de `C:\Users\Public`.
+
+**Lu aussi dans le code :**
+- `atlas.iss` ;
+- `etapes.py` (Ollama, Tesseract) ;
+- `desinstaller.py` ;
+- `lancer.py` ;
+- `core/file_indexer.py` (racines, exclusions) ;
+- `core/memory_manager.py`.
+
+| Quoi | Où, sur `AtlasTest` | Preuve |
+|---|---|---|
+| Atlas, son Python, ses données | `%LOCALAPPDATA%\Programs\Atlas` d'`AtlasTest` | `PrivilegesRequired=lowest`, `DefaultDirName={autopf}\Atlas` ; mémoire en `PersistentClient` dans `data/chromadb` du dossier d'Atlas |
+| Raccourcis, démarrage avec Windows, désinstallation | menu Démarrer, Bureau, `HKCU` d'`AtlasTest` | `{autoprograms}`, `{autodesktop}`, `Root: HKCU` |
+| Ollama | **un Ollama neuf pour `AtlasTest`** : `%LOCALAPPDATA%\Programs\Ollama` et `%USERPROFILE%\.ollama` d'`AtlasTest` | Celui d'Alexis (0.40.6) est dans son profil, et son dossier est dans son PATH **utilisateur** (entrée `HKCU`). `ollama_exe()` ne le trouve donc pas depuis `AtlasTest`. |
+| Tesseract | **déjà là, gardé** : `C:\Program Files\Tesseract-OCR`, 5.5.0.20241111, dans le PATH **machine**, avec `fra.traineddata` | `tesseract_exe()` le trouve ; le français est présent, donc aucune copie (`francais_ajoute` faux) |
+| Secrets | le coffre de Windows d'`AtlasTest` | `win32cred`, propre à chaque compte |
+| Index des fichiers | **lecture** des disques fixes ; les autres profils (`C:\Users\<compte d'Alexis>`) sont exclus | `Exclusions.exclu` : « les profils des AUTRES utilisateurs, jamais le sien » |
+| Désinstallation « effacer » | seulement les Python du dossier d'Atlas d'`AtlasTest`, ses secrets `Atlas:`, son `data` | `desinstaller.arreter` filtre sur `ROOT` ; `effacer_donnees` sur `ROOT / "data"` |
+
+- Aucune variable `OLLAMA_*`, `TESS*`, `ATLAS*` ou `PYTHON*` n'est définie pour la machine.
+- Il reste 50,8 Go libres sur C:.
+- `C:\Users\Public` donne la modification à `INTERACTIF`, hérité : `C:\Users\Public\AtlasTest` est lisible et inscriptible depuis les deux comptes.
+- Le diagnostic (`precheck_atlas.ps1`, lecture seule) donne `verdict=ok`, `modele=qwen2.5:7b`, `sur=carte`, non provisoire.
+
+**Confirmation écrite :** l'installation et les données d'Alexis ne sont pas touchées par le parcours sur `AtlasTest`, **à condition qu'Alexis soit déconnecté de sa session**.
+- **Pourquoi la condition :** `127.0.0.1` est commun à toutes les sessions ouvertes.
+- **Avec la session d'Alexis encore ouverte, et son Ollama qui écoute sur 11434 :**
+  - l'installeur d'`AtlasTest` installe bien son propre Ollama, mais il le trouve « déjà à l'écoute » et ne le démarre pas ;
+  - le modèle est alors tiré **dans les fichiers d'Alexis** ;
+  - le serveur d'`AtlasTest`, lui, ne peut pas prendre le port.
+- **Avec, en plus, l'Atlas d'Alexis qui tourne sur 8550 :** `lancer.py` sur `AtlasTest` ouvre sa fenêtre sur **cet** Atlas. La phrase de la cabane irait dans **la mémoire d'Alexis**.
+- **Dans la fiche :** la déconnexion complète (pas « changer d'utilisateur »), et un contrôle dans le Gestionnaire des tâches, onglet Utilisateurs.
+
+**Sauvegarde dans le doute, faite avant tout essai :**
+- **`backup_memory.py backup`** → `%USERPROFILE%\Atlas_backups\memoire\chromadb_20261123_085718`.
+  - Les empreintes de la copie sont identiques à l'original.
+  - Collections relevées : 489, 276, 20, 19 et 8 éléments, et `habits.db` avec 144 habitudes.
+  - **`verify` a échoué une fois** sur « Error creating hnsw segment reader: Nothing found on disk ». C'est le défaut connu de ChromaDB 1.5.1, déjà noté aux sprints précédents. Il n'a **pas** été relancé jusqu'à passer : c'est la règle.
+- **Copie complète de `data/`**, Atlas arrêté (rien sur 8550) → `%USERPROFILE%\Atlas_backups\data_complet_20261123_085754`.
+  - **198 fichiers, chacun avec la même empreinte SHA-256 que l'original**, et la source n'a pas bougé pendant la copie.
+  - Le fichier `SHA256SUMS` est joint.
+  - C'est la vérification « par les données » que demande le brief.
+
+**L'installeur construit depuis `main` (`d706b67`) :**
+- `construire.py --ref origin/main` : code 0. Inno Setup a compilé en 20,8 s.
+- `AtlasSetup.exe` fait 15 786 811 octets. SHA-256 : `b4186856c191dac47fc49cd25498d81ff1e7c16478a0f9c2e19f083a94f5aa4e`.
+- `verifier_paquet` ne trouve **aucune faute**. Dans les réglages installés : `mail.envoi = "simulation"`, `prenom = ""`.
+- `relever_journaux.py` du paquet est **identique** à celui de `main`, avec `nettoyer_contenu` du 11/11.
+- Les fichiers sont copiés dans deux dossiers :
+  - `build/installeur/cle_usb`, pour Drive : l'installeur, les deux `precheck`, `relever_journaux.bat`, `GUIDE_INSTALLATION_A_DISTANCE.md` et `GUIDE_TESTEUR.md` ;
+  - `C:\Users\Public\AtlasTest`, pour le compte neuf : les mêmes scripts, avec les deux fiches.
+- Le même SHA-256 est relevé dans les deux dossiers.
+
+**Écart trouvé avant l'essai :**
+- La §5 attend que l'installeur reconnaisse Tesseract déjà là, n'écrase rien, **et le dise**.
+- Il le reconnaissait et n'écrasait rien. Mais il ne le disait pas : une clé `tesseract_deja_la` dans `installation.log`, rien à l'écran.
+- **Corrigé**, avec 5 tests : 4 vus rouges d'abord, et un garde-fou vert dès le départ (rien de déjà là, aucune phrase ajoutée) :
+  - une ligne « Tesseract déjà installé (…) : gardé tel quel » dans le journal ;
+  - le message de fin dit ce qui était déjà là : Ollama, Tesseract, ou les deux.
+- Cette correction est sur la branche. **L'installeur de `main` du 23/11 ne la contient pas** : il sera reconstruit après la fusion, avant l'essai si Alexis le souhaite.
 
 ---
 
@@ -372,6 +486,26 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
    - **Ce qui reste :** un module technique qui ajouterait demain une ligne de contenu, sous un début qui n'est pas dans la liste `DITS`, la laisserait passer.
    - Sévérité : **Faible**.
    - Mitigation : la fiche donne des phrases d'essai inventées ; le parcours est mené par Alexis ; les modules non techniques sont retirés par défaut.
+9. **23/11 — Une session d'Alexis restée ouverte pendant le parcours sur `AtlasTest`** prêterait son Ollama, et son Atlas, au compte neuf : `127.0.0.1` est commun aux sessions (§6.5).
+   - Sévérité : **Élevé** si cela arrive : la phrase d'essai irait dans la vraie mémoire d'Alexis.
+   - Mitigation :
+     - la fiche impose la déconnexion complète, contrôlée dans le Gestionnaire des tâches ;
+     - la sauvegarde de `data/` est faite et vérifiée par empreintes ;
+     - après le parcours, une vraie question est posée sur le compte d'Alexis, et on vérifie que « cabane » n'est pas dans sa mémoire.
+   - **Non fait, à décider :** un garde dans `lancer.py` et `etapes.py` qui refuserait un Atlas ou un Ollama à l'écoute **lancé par un autre compte**. Aujourd'hui, les deux s'y attachent sans regarder à qui il appartient. Ce serait une ligne de défense dans le code, en plus de la fiche. Je ne l'ai pas ajouté : ce n'est pas dans la §5.
+10. **23/11 — `verify` de la sauvegarde mémoire a échoué** (hnsw, ChromaDB 1.5.1).
+    - Sévérité : **Faible**.
+    - Mitigation : la copie complète de `data/` est vérifiée fichier par fichier. La sauvegarde de `backup_memory.py` a des empreintes identiques.
+11. **23/11 — IF6 : le Contrôle intelligent des applications** d'un Windows 11 installé à neuf peut bloquer `AtlasSetup.exe`, qui n'est pas signé, sans bouton pour continuer.
+    - Sévérité : **Moyen** pour les testeurs à distance : c'est un arrêt net.
+    - Mitigation : le guide dit de s'arrêter et de ne pas désactiver ce contrôle. Seule une signature de l'installeur réglerait ça.
+    - Non mesuré : ni le PC d'Alexis ni la Sandbox n'ont ce contrôle actif.
+12. **23/11 — Le `GUIDE_TESTEUR.md` existant a été écrasé par erreur** par mon premier brouillon du guide à distance, puis aussitôt restauré depuis git (`git checkout`), avant tout commit.
+    - Sévérité : **Faible** : aucune perte, `git diff` est vide sur ce fichier.
+    - Le guide à distance a pris son propre nom, `GUIDE_INSTALLATION_A_DISTANCE.md`.
+13. **23/11 — `test_ck4_une_sonde_qui_ment_fait_echouer_la_suite` a échoué une fois** dans une suite complète : un pytest à part s'est arrêté au chargement sur « …introuvable… » (§5).
+    - Sévérité : **Faible**. Il passe seul, puis dans le passage complet suivant.
+    - Mitigation, à décider : faire afficher à ce test la fin de la sortie d'erreur, et pas seulement le début, pour que la cause soit lisible la prochaine fois. Non fait : ce n'est pas dans la §5.
 
 ---
 
@@ -385,12 +519,22 @@ Les deux garde-fous verts dès le départ sont marqués dans la liste. S'y ajout
 - [ ] Aucune donnée personnelle du proche dans ce qui est rapporté ; Atlas laissé installé, mails en `simulation` — **relevé prêt, corrigé après la vérification du superviseur et essayé sur un vrai journal d'Atlas (R4, §6.3) ; à constater au retour**
 - [ ] Mode jeu mesuré sur un vrai jeu ; confirmation revue à l'écran — **À FAIRE (IF4)**
 - [x] `python -m pytest tests/ -q` → code 0, avec et sans Ollama — §5 (1 669 ; 1 666 + 3 ignorés justifiés)
+- [x] 23/11 — IF3 bis, avant : où l'installeur écrit relevé, confirmation écrite, sauvegarde de `data/` vérifiée par les données — §6.5, `docs/beta/FICHE_COMPTE_NEUF.md`
+- [x] 23/11 — Installeur construit depuis `main`, paquet vérifié, SHA-256 noté — §6.5
+- [x] 23/11 — `python -m pytest tests/ -q` → code 0 avec Ollama (2e passage : 1 699 ; le 1er : 1 échec instable, §5) et sans (1 696 + 3 ignorés justifiés)
+- [ ] 23/11 — IF3 bis, pendant et après, sur `AtlasTest` — **À FAIRE (Alexis)**
+- [ ] 23/11 — IF6 : partage, guide, retour des relevés — **préparé** (`docs/beta/GUIDE_INSTALLATION_A_DISTANCE.md`, `docs/beta/ENVOI_TESTEURS.md`) ; **aucun lien envoyé**, comme la règle le demande
 
 ---
 
 ## 9. Recommandations pour le sprint suivant
 
-- **P1 :**
+- **P1, au 23/11 :**
+  - fusionner `sprint-installeur-compte-neuf` (Tesseract « déjà là » dit à l'écran), puis reconstruire l'installeur depuis `main` et le recopier dans `C:\Users\Public\AtlasTest` et `cle_usb` ;
+  - jouer IF3 bis sur `AtlasTest` (`docs/beta/FICHE_COMPTE_NEUF.md`), puis lire les deux relevés, corriger avec un test rouge d'abord, reconstruire ;
+  - décider du garde « Atlas ou Ollama d'un autre compte » (§7, point 9) ;
+  - ensuite seulement, IF6 : le partage Drive et l'empreinte par message (`docs/beta/ENVOI_TESTEURS.md`).
+- **P1, au 11/11 :**
   - fusionner cette branche ;
   - construire l'installeur depuis `main` ;
   - jouer la fiche chez le proche, puis lire les deux relevés et compléter ce rapport ;

@@ -383,7 +383,9 @@ def tesseract_exe() -> Optional[pathlib.Path]:
 def etape_tesseract(progres) -> dict:
     exe = tesseract_exe()
     deja = exe is not None
-    if not deja:
+    if deja:
+        journal(f"Tesseract déjà installé ({exe}) : gardé tel quel")
+    else:
         src = SOURCES["tesseract"]
         setup = telecharger(src, "tesseract-setup.exe", progres)
         progres(None, "installation de Tesseract (Windows peut demander une autorisation)…")
@@ -618,6 +620,18 @@ class Deroule:
             mesure["arret"] = True
         return mesure
 
+    def deja_la(self) -> str:
+        """Ce que l'installeur a trouvé déjà installé, et n'a pas touché (IF3 bis : Tesseract pour toute la machine)."""
+        m = self.etat["mesures"]
+        noms = [n for n, cle, champ in (("Ollama", "ollama", "ollama_deja_la"),
+                                        ("Tesseract", "tesseract", "tesseract_deja_la"))
+                if m.get(cle, {}).get(champ)]
+        if not noms:
+            return ""
+        if len(noms) == 1:
+            return f"\n\n{noms[0]} était déjà installé sur cet ordinateur : il est gardé tel quel."
+        return f"\n\n{' et '.join(noms)} étaient déjà installés sur cet ordinateur : ils sont gardés tels quels."
+
     def lancer(self) -> int:
         try:
             return self._lancer()
@@ -648,7 +662,7 @@ class Deroule:
         self.etat["installee_une_fois"] = True
         ecrire_etat(self.etat)
         provisoire = " (provisoire)" if self.provisoire else ""
-        self.ui.fin(True, f"Atlas est installé, avec le modèle {self.palier}{provisoire}.")
+        self.ui.fin(True, f"Atlas est installé, avec le modèle {self.palier}{provisoire}." + self.deja_la())
         return 0
 
 

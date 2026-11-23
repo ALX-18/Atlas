@@ -1470,3 +1470,50 @@ def test_if3_la_memoire_ne_recopie_pas_ses_souvenirs_dans_le_releve(ligne, inter
     for interdit in interdits:
         assert interdit not in propre, (interdit, propre)
     assert "[atlas.memory] INFO — " in propre and "<contenu retiré>" in propre
+
+
+# --------------------------------------------------------------------------- #
+#  IF3 bis — le compte neuf : Tesseract déjà là (pour toute la machine), reconnu, gardé, et dit
+# --------------------------------------------------------------------------- #
+
+def test_if3bis_tesseract_deja_la_est_garde_sans_rien_telecharger_et_le_journal_le_dit(monkeypatch, tmp_path):
+    e = _etapes(monkeypatch, tmp_path)
+    dossier = tmp_path / "Tesseract-OCR"
+    (dossier / "tessdata").mkdir(parents=True)
+    (dossier / "tesseract.exe").write_bytes(b"")
+    (dossier / "tessdata" / "fra.traineddata").write_bytes(b"fr")
+    monkeypatch.setattr(e, "tesseract_exe", lambda: dossier / "tesseract.exe")
+    telecharges = []
+    monkeypatch.setattr(e, "telecharger", lambda *a, **k: telecharges.append(a) or None)
+    monkeypatch.setattr(e.subprocess, "run", lambda *a, **k: pytest.fail("aucun installeur ne doit être lancé"))
+    m = e.etape_tesseract(lambda *a: None)
+    assert m["tesseract_deja_la"] is True and m["francais_ajoute"] is False and telecharges == []
+    assert (dossier / "tessdata" / "fra.traineddata").read_bytes() == b"fr"
+    journal_ = (tmp_path / "installation.log").read_text(encoding="utf-8")
+    assert "Tesseract déjà installé" in journal_ and "gardé tel quel" in journal_
+
+
+@pytest.mark.parametrize("ollama_deja, tesseract_deja, attendu, absent", [
+    (False, True, "Tesseract était déjà installé sur cet ordinateur : il est gardé tel quel.", "Ollama était"),
+    (True, False, "Ollama était déjà installé sur cet ordinateur : il est gardé tel quel.", "Tesseract était"),
+    (True, True, "Ollama et Tesseract étaient déjà installés sur cet ordinateur : ils sont gardés tels quels.", None),
+    (False, False, None, "déjà installé"),
+])
+def test_if3bis_la_fin_dit_ce_qui_etait_deja_la_et_garde(monkeypatch, tmp_path, ollama_deja, tesseract_deja, attendu,
+                                                          absent):
+    e = _etapes(monkeypatch, tmp_path)
+    monkeypatch.setattr(e, "etape_dependances", lambda *a: {})
+    monkeypatch.setattr(e, "etape_ollama", lambda *a: {"ollama_deja_la": ollama_deja})
+    monkeypatch.setattr(e, "etape_tesseract", lambda *a: {"tesseract_deja_la": tesseract_deja})
+    monkeypatch.setattr(e, "etape_modele", lambda *a: {})
+    monkeypatch.setattr(e, "etape_voix", lambda *a: {})
+    monkeypatch.setattr(e, "mesurer_capacite", lambda m, s: e.Capacite(m, s, 100, 40.0, 2.0, 3.0, "Rome."))
+    monkeypatch.setattr(e, "etape_reglages", lambda *a: {})
+    ui = e.Texte()
+    assert e.Deroule("qwen2.5:7b", "carte", False, ui).lancer() == 0
+    fin = next(j for j in ui.journal if j.startswith("fin:True:"))
+    assert fin.startswith("fin:True:Atlas est installé, avec le modèle qwen2.5:7b.")
+    if attendu:
+        assert attendu in fin
+    if absent:
+        assert absent not in fin
