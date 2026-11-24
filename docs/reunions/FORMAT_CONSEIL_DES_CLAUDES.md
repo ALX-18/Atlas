@@ -23,9 +23,11 @@ Seulement pour une **décision d'architecture** ou une décision qui **touche un
 ## Déroulé
 
 1. **Dossier** : le superviseur écrit le sujet dans `docs/reunions/REUNION_ATLAS_NN_<SUJET>.md` (contexte, invariants, faits mesurés, options, recommandation et ses risques, questions).
-2. **Tour 1, indépendant** : chaque rôle lit le dossier **et le dépôt**, puis rend son avis (300 mots au plus), sans voir les autres. Chaque fait cité renvoie à un fichier du dépôt ou à une source ouverte.
-3. **Tour 2, critique croisée** : chaque rôle lit les deux autres avis et donne la critique la plus utile (120 mots au plus) : une erreur, un risque sous-estimé, une mesure qui manque.
-4. **Avis extérieur, seulement si la décision touche un invariant ou la sécurité** : le dossier et les avis sont soumis à GPT par Alexis, pour une famille de modèles différente.
+2. **Tour 1, indépendant** : chaque rôle lit le dossier **et le dépôt**, puis rend son avis sans voir les autres. Chaque fait cité renvoie à un fichier du dépôt ou à une source ouverte.
+   - **Pas de limite de longueur, mais des axes obligatoires**, dans cet ordre : Position ; Risques ou coûts, preuves à l'appui ; Ce que le dossier oublie ; Condition minimale avant la prochaine étape ; Ce que je n'ai pas pu vérifier.
+   - Un axe vide porte « rien à signaler » avec la raison. Rien n'est écrit hors des axes.
+3. **Tour 2, critique croisée** : chaque rôle lit les deux autres avis et répond sur ces axes : L'erreur ou le risque sous-estimé le plus important ; Les autres points de désaccord ; La mesure qui manque.
+4. **Avis extérieur, seulement si la décision touche un invariant ou la sécurité** : le dossier et les avis sont soumis à GPT par Alexis, pour une famille de modèles différente, avec `docs/reunions/PROMPT_AVIS_EXTERIEUR_GPT.md` (des axes, pas de limite de longueur).
 5. **Conclusion** : le superviseur tranche dans le même fichier (« Avis reçus », « Conclusion »), en disant ce qu'il retient, ce qu'il écarte et pourquoi, chiffres à l'appui.
 6. **Validation** : Alexis.
 

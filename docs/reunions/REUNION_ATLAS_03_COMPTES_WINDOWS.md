@@ -137,11 +137,53 @@ Risques de cette recommandation :
 - Aucun fichier de l'installeur ne change cette valeur, et l'installeur ne livre pas l'extension.
 - **Sur chaque PC de testeur, le pont 9999 écouterait donc sans aucun client légitime.**
 
-### Avis extérieur (GPT)
+### Avis extérieur (GPT, 24/11), résumé
 
-*(à soumettre par Alexis : ce dossier, avis compris)*
+- **Position :** A élargi, plus **une version minimale de B, avant l'envoi**. Si B dépasse le délai, la démo se fait sur une machine maîtrisée, avec des données fictives.
+- **Le pont démarre sans lire `browser_bridge.enabled`.** De plus, l'installeur garde les réglages existants. Corriger le fichier livré ne suffit donc pas. Le contrôle décisif : **aucune écoute sur 9999**, après une installation neuve **et** après une mise à jour.
+- **B minimal :**
+  - une clé aléatoire stable par installation, dans un fichier lisible par le seul compte, vérifiée par toutes les routes sensibles ;
+  - la fenêtre vérifie l'identité du serveur **avant** d'envoyer la clé, y compris après une reconnexion ;
+  - clé absente ou illisible : une erreur qui dit comment réparer ;
+  - après un changement de clé, on la relit, **sans rejouer d'action** ;
+  - l'entrée « Ouvrir » de l'icône près de l'horloge mène à la fenêtre native.
+- **Le web et l'extension sont retirés du paquet testeur.** Plus tard :
+  - pour le web : un code d'ouverture à usage unique, puis une session distincte de la clé ;
+  - pour l'extension : Chrome Native Messaging, enregistré par compte.
+- **Ollama :**
+  - vérifier le propriétaire dès le diagnostic, puis sur la connexion utilisée avant le téléchargement ou l'envoi de données ;
+  - garder l'identité du processus lancé par Atlas.
+  - Aujourd'hui, « Quitter » coupe le serveur net et court-circuite son nettoyage.
+- **Critères d'envoi :** sur le paquet final, avec deux comptes standard et des données fictives :
+  - l'autre compte est refusé, sans rien lire ni modifier ;
+  - un changement de serveur, fenêtre ouverte, coupe la connexion ;
+  - un Ollama étranger ou dont le propriétaire est illisible bloque le téléchargement ;
+  - « Quitter » ne libère que l'Ollama lancé par Atlas ;
+  - le pont reste fermé après une mise à jour.
+- **Les messages :** ils nomment le composant et ne disent que ce qu'Atlas a vérifié. Par exemple : « Atlas n'a pas pu vérifier à qui appartient Ollama. »
 
-## Conclusion du superviseur (23/11, provisoire jusqu'à l'avis extérieur et la validation d'Alexis)
+**Vérifié par le superviseur dans le code (24/11) :**
+- `main.py` l.511 : `bridge.start()` est appelé **sans condition**. Le réglage `enabled` n'est lu nulle part dans `main.py`.
+- `installeur/atlas.iss` l.47 : `settings.json` est en `onlyifdoesntexist`.
+- `main.py` l.490 : « Quitter » fait `os._exit(0)`.
+- `main.py` l.469 : « Ouvrir » ouvre le navigateur.
+
+Ce sont quatre faits exacts. Le premier est **une nouvelle occurrence du défaut récurrent** : « une couche promet ce qu'une autre n'applique pas ». Notre conclusion du 23/11, point 1, serait tombée dedans.
+
+## Conclusion du superviseur (24/11) — validée par Alexis le 24/11 : clé minimale **avant** l'envoi
+
+La conclusion du 23/11, ci-dessous, est **gardée et complétée** :
+- **Point 1 corrigé :** le serveur **lit** `browser_bridge.enabled` avant de démarrer le pont. Le paquet testeur le force à `false`, **y compris lors d'une mise à jour qui garde les réglages**. Le critère : aucune écoute sur 9999, après une installation neuve et après une mise à jour d'une version où le pont était actif.
+- **Point 4 complété :** « Quitter » passe par un arrêt ordonné : verrou libéré, Ollama lancé par Atlas arrêté, identifié par son PID. Plus de `os._exit(0)` direct, sauf en dernier recours après un délai, et alors noté au journal.
+- **B minimal entre AVANT l'envoi**, dans le seul middleware existant :
+  - une clé par installation, dans le dossier d'Atlas du compte ;
+  - **la fenêtre native seulement** : l'interface web est **coupée dans le paquet testeur**, et « Ouvrir » mène à la fenêtre native ;
+  - l'extension n'est pas livrée ;
+  - `doctor.py` dit un 401 clairement.
+- **Les critères d'envoi de GPT sont adoptés tels quels.** Ils sont mesurés sur `AtlasTest`, avec la session d'Alexis ouverte puis fermée, et des données fictives.
+- **Les messages** suivent la règle de GPT : nommer le composant, ne dire que ce qui a été vérifié.
+
+## Conclusion du superviseur (23/11), complétée le 24/11 ci-dessus
 
 **Les trois rôles sont d'accord : A élargi avant l'envoi, B juste après la démo.** Je retiens leur accord, avec trois précisions apportées au tour 2 : une vérification à chaque connexion, et pas seulement au lancement ; le cas Ollama traité en premier ; aucune impasse pour la personne.
 
