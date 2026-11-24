@@ -192,7 +192,14 @@ La fiche doit donc tenir sans Alexis à côté.
 - **CK4** : le test affiche la fin de la sortie d'erreur, pas seulement le début.
 - **`C:\Users\Public\AtlasTest`** est inscriptible par tous les comptes : il est effacé après le parcours.
 
-**Pas encore d'envoi aux testeurs.** L'avis extérieur de GPT sur la Réunion n° 3 est attendu, puis la validation d'Alexis.
+**Mis à jour le 24/11 :** l'avis de GPT est reçu, et Alexis a validé.
+- **IF7 = la conclusion de la Réunion n° 3, version du 24/11**, qui passe en premier :
+  - le pont lu à l'exécution ;
+  - « Quitter » en arrêt ordonné ;
+  - **la clé minimale par compte avant l'envoi** ;
+  - le web et l'extension coupés dans le paquet testeur.
+- **Les critères d'envoi de GPT** sont ceux d'IF7. Chacun a son test rouge d'abord, et ceux qui exigent deux comptes se mesurent sur `AtlasTest`.
+- **Pas d'envoi aux testeurs avant que tous les critères soient mesurés.**
 
 ## 7. Rappels
 
