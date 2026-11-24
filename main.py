@@ -8,10 +8,10 @@ import logging
 import os
 import pathlib
 import socket
+import subprocess
 import sys
 import asyncio
 import threading
-import webbrowser
 from contextlib import asynccontextmanager
 
 # Sprint G / G3 : « 100 % local » doit être vrai. Le serveur ChromaDB (docker-compose)
@@ -46,8 +46,7 @@ _import_ctranslate2_without_torch()
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import HTMLResponse
 
 # --------------------------------------------------------------------------- #
 #  Logging
@@ -88,6 +87,35 @@ HOST = CONFIG["server"]["host"]
 PORT = CONFIG["server"]["port"]
 LOCK_FILE = pathlib.Path(__file__).parent / "data" / "atlas.lock"
 _INSTANCE_LOCK_FH = None
+PAQUET_PATH = pathlib.Path(__file__).parent / "config" / "paquet.json"
+
+
+def _lire_paquet() -> dict:
+    """IF7 : les réglages imposés par le paquet testeur (installeur/construire.py). Ce fichier est remplacé à chaque
+    installation, y compris une mise à jour qui garde settings.json. Absent du dépôt : rien n'est imposé chez Alexis."""
+    try:
+        return json.loads(PAQUET_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except Exception as e:
+        logger.warning("config/paquet.json illisible (%s) : le pont navigateur reste fermé par prudence", e)
+        return {"browser_bridge_enabled": False}
+
+
+def pont_actif(config: dict, paquet: dict) -> bool:
+    """IF7 : le pont navigateur ne démarre que si son réglage le permet, et si le paquet ne le ferme pas."""
+    if paquet.get("browser_bridge_enabled") is False:
+        return False
+    return bool((config.get("browser_bridge") or {}).get("enabled", True))
+
+
+def ouvrir_fenetre_native() -> None:
+    """IF7 : « Ouvrir » de l'icône près de l'horloge ouvre la fenêtre d'Atlas (l'interface web est coupée)."""
+    exe = pathlib.Path(sys.executable)
+    fenetre = exe.with_name("pythonw.exe")
+    racine = pathlib.Path(__file__).resolve().parent
+    subprocess.Popen([str(fenetre if fenetre.exists() else exe), str(racine / "desktop" / "atlas_desktop.py")],
+                     cwd=str(racine))
 
 
 def _verifier_memoire(mem) -> None:
@@ -338,6 +366,18 @@ async def lifespan(app: FastAPI):
         raise RuntimeError(lock_msg)
     logger.info("🔒 Mono-instance lock acquis")
 
+    # IF7 : la clé locale de cette installation (créée une fois, restreinte au compte). Sans elle, aucune demande
+    # n'est acceptée : Atlas refuse de démarrer plutôt que de tourner ouvert aux autres comptes.
+    from core import cle_locale
+
+    try:
+        cle_locale.installer(cle_locale.preparer())
+        logger.info("🔑 Clé locale prête (%s)", cle_locale.chemin().name)
+    except Exception as e:
+        logger.error("⛔ Démarrage refusé : clé locale impossible (%s: %s)", type(e).__name__, e)
+        release_instance_lock()
+        raise RuntimeError(f"Démarrage refusé : clé locale impossible ({e})") from e
+
     # Pré-beta / PB3 : processus, CPU et GPU échantillonnés en arrière-plan ; une demande lit
     # le dernier état au lieu d'attendre ~2 s. Arrêté au shutdown ci-dessous.
     start_sampler()
@@ -468,9 +508,9 @@ async def lifespan(app: FastAPI):
 
         def _on_open_ui():
             try:
-                webbrowser.open(f"http://{HOST}:{PORT}")
+                ouvrir_fenetre_native()
             except Exception as e:
-                logger.debug("Open UI from systray failed: %s", e)
+                logger.warning("« Ouvrir » : la fenêtre d'Atlas ne s'ouvre pas (%s: %s)", type(e).__name__, e)
 
         def _on_toggle_voice(new_enabled: bool):
             if voice_engine is None:
@@ -488,8 +528,11 @@ async def lifespan(app: FastAPI):
             loop.call_soon_threadsafe(lambda: asyncio.create_task(_apply()))
 
         def _on_quit_app():
-            # pystray callback runs in dedicated thread; hard-exit is the most reliable here.
-            os._exit(0)
+            # IF7 : un arrêt ordonné (verrou libéré, Ollama lancé par Atlas arrêté), plus d'arrêt net du processus.
+            # Le dernier recours, s'il le faut, est noté au journal (core/arret.py).
+            from core import arret
+
+            arret.arret_ordonne(liberer=release_instance_lock, arreter_ollama=_arreter_ollama_lance)
 
         systray = AtlasSystray(
             on_open=_on_open_ui,
@@ -508,15 +551,19 @@ async def lifespan(app: FastAPI):
 
             signaler("voix", f"{type(e).__name__}: {e}")
 
-    # Démarrer le Browser Bridge WebSocket (MVP 2.2)
+    # Démarrer le Browser Bridge WebSocket (MVP 2.2). IF7 : seulement si son réglage le permet ; le paquet
+    # testeur le ferme (l'extension n'y est pas livrée : le pont n'aurait aucun client légitime).
     bridge = get_bridge()
-    try:
-        await bridge.start()
-        logger.info("🔌 Browser Bridge : WebSocket prêt sur le port %d", bridge.port)
-    except Exception as e:
-        from core_conversational.degradations import signaler
+    if pont_actif(CONFIG, _lire_paquet()):
+        try:
+            await bridge.start()
+            logger.info("🔌 Browser Bridge : WebSocket prêt sur le port %d", bridge.port)
+        except Exception as e:
+            from core_conversational.degradations import signaler
 
-        signaler("browser_bridge", f"{type(e).__name__}: {e}")
+            signaler("browser_bridge", f"{type(e).__name__}: {e}")
+    else:
+        logger.info("🔌 Browser Bridge : désactivé par le réglage (rien n'écoute sur le port %d)", bridge.port)
 
     file_indexer = get_file_indexer()
     if file_indexer.enabled():
@@ -597,9 +644,27 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.debug("Port release check warning: %s", e)
 
+    # IF7 : l'Ollama que le lanceur ou l'installeur a lancé pour Atlas est arrêté ; jamais un Ollama trouvé déjà en
+    # marche. Un Atlas d'essai n'arrête aucun Ollama (ollama_lance.arreter, seulement si autorise()).
+    _arreter_ollama_lance()
+
     release_instance_lock()
     logger.info("🔓 Mono-instance lock libéré")
     logger.info("Atlas arrêt propre.")
+
+
+def _arreter_ollama_lance() -> None:
+    from core import ollama_lance
+    from core.donnees_reelles import autorise
+
+    if not autorise():
+        return
+    try:
+        r = ollama_lance.arreter()
+        if r != "aucun":
+            logger.info("🧹 Ollama lancé par Atlas : %s", r)
+    except Exception as e:
+        logger.warning("Ollama lancé par Atlas : arrêt impossible (%s: %s)", type(e).__name__, e)
 
 
 # --------------------------------------------------------------------------- #
@@ -651,29 +716,45 @@ def _refus_autre_origine(request) -> str:
     return ""
 
 
+_SANS_CLE = {"/"}          # IF7 : la seule page sans clé, celle qui dit que l'interface web est coupée
+
+
 @app.middleware("http")
 async def _seul_atlas(request, call_next):
+    from fastapi.responses import JSONResponse
+
     motif = _refus_autre_origine(request)
     if motif:
-        from fastapi.responses import JSONResponse
-
         logger.warning("[SECURITE] Requête refusée (%s) : %s %s", motif, request.method, request.url.path)
         return JSONResponse(status_code=403,
                             content={"detail": "Atlas n'accepte que les demandes venant d'Atlas lui-même."})
+    # IF7 (Réunion n° 3) : un programme d'un autre compte Windows du PC n'envoie ni Origin ni Sec-Fetch-Site ; il
+    # n'a pas, en revanche, la clé locale de ce compte. Une demande sans la bonne clé n'est ni lue ni exécutée.
+    if request.url.path not in _SANS_CLE:
+        from core import cle_locale
+
+        fournie = request.headers.get(cle_locale.ENTETE)
+        if not cle_locale.acceptee(fournie):
+            logger.warning("[SECURITE] Requête refusée (clé locale %s) : %s %s", "fausse" if fournie else "absente",
+                           request.method, request.url.path)
+            return JSONResponse(status_code=401, content={
+                "detail": "Atlas refuse cette demande : elle ne porte pas la clé locale de ce compte."})
     return await call_next(request)
 
 # Mount API routes
 from api.routes import router as api_router
 app.include_router(api_router, prefix="/api")
 
-# Serve static UI files
-UI_DIR = pathlib.Path(__file__).parent / "ui"
-app.mount("/static", StaticFiles(directory=str(UI_DIR)), name="static")
+# IF7 (décision d'Alexis, 24/11) : l'interface web est coupée, partout. Seule la fenêtre native porte la clé.
+_PAGE_COUPEE = """<!doctype html><html lang="fr"><meta charset="utf-8"><title>Atlas</title>
+<body style="font-family:Segoe UI,sans-serif;max-width:40em;margin:3em auto;line-height:1.5">
+<h1>Atlas</h1><p>L'interface web d'Atlas est coupée dans cette version : seule la fenêtre d'Atlas peut lui parler.</p>
+<p>Ouvrez-la avec le raccourci <b>Atlas</b>, ou par l'icône près de l'horloge, puis <b>Ouvrir</b>.</p></body></html>"""
 
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(str(UI_DIR / "index.html"))
+    return HTMLResponse(_PAGE_COUPEE)
 
 
 @app.get("/health")
@@ -721,11 +802,19 @@ if __name__ == "__main__":
     # Active le reload uniquement si demandé explicitement via ATLAS_RELOAD=1.
     reload_enabled = os.getenv("ATLAS_RELOAD", "0") == "1"
 
-    uvicorn.run(
-        "main:app",
-        host=HOST,
-        port=actual_port,
-        reload=reload_enabled,
-        reload_excludes=["logs/*", "data/*"],
-        log_level="info",
-    )
+    if reload_enabled:
+        uvicorn.run(
+            "main:app",
+            host=HOST,
+            port=actual_port,
+            reload=reload_enabled,
+            reload_excludes=["logs/*", "data/*"],
+            log_level="info",
+        )
+    else:
+        # IF7 : le serveur est gardé (core/arret.py) pour que « Quitter » demande un arrêt ordonné.
+        from core import arret
+
+        serveur = uvicorn.Server(uvicorn.Config("main:app", host=HOST, port=actual_port, log_level="info"))
+        arret.SERVEUR = serveur
+        serveur.run()

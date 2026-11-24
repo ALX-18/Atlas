@@ -1197,9 +1197,13 @@ def test_if1_le_lanceur_s_assure_d_ollama_avant_de_demarrer_atlas(monkeypatch):
     sys.path.insert(0, str(ROOT / "installeur"))
     import lancer
 
+    from core.proprietaire import Verdict
+
     ordre = []
     monkeypatch.setattr(lancer, "assurer_ollama", lambda **k: ordre.append("ollama"))
-    monkeypatch.setattr(lancer, "atlas_tourne", lambda: ordre.append("atlas?") or True)
+    # IF7 : le lanceur demande « à qui est l'Atlas qui écoute ? », plus seulement « quelqu'un écoute-t-il ? »
+    monkeypatch.setattr(lancer, "verdict_atlas", lambda: ordre.append("atlas?") or Verdict("a_moi", pid=1))
+    monkeypatch.setattr(lancer, "demarrer_serveur", lambda: pytest.fail("aucun vrai serveur dans les tests"))
     assert lancer.main(["--sans-fenetre"]) == 0
     assert ordre[0] == "ollama"
 

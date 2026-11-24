@@ -19,6 +19,7 @@ Réponds en 1-2 phrases maximum, langage naturel parlé, zéro markdown.
 # v6.0 Identity Card + P2 garde linguistique — délégués au package cross-platform
 # core_conversational (v6.0.1). SYSTEM_PROMPT_IDENTITY = identité Atlas de base.
 from core_conversational.identity import ATLAS_BASE_IDENTITY as SYSTEM_PROMPT_IDENTITY
+from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
 from core_conversational.llm_client import (
     contains_non_latin_script, LANG_FALLBACK_MESSAGE, DEFAULT_NUM_CTX, fit_messages,
 )
@@ -86,6 +87,7 @@ def prewarm() -> "asyncio.Task":
 
     async def _run():
         try:
+            garde_ollama()
             async with httpx.AsyncClient(timeout=180.0) as client:
                 await client.post(f"{BASE_URL}/api/generate",
                                   json={**champs_modele(), "keep_alive": KEEP_ALIVE, "options": ollama_options()})
@@ -229,6 +231,7 @@ async def chat_stream(
     url = f"{BASE_URL}/api/chat"
     logger.info("Ollama request → %s  model=%s  keep_alive=%s  stream_timeout=%ds", url, MODEL, KEEP_ALIVE, STREAM_TIMEOUT)
 
+    garde_ollama()
     async with httpx.AsyncClient(timeout=120.0) as client:
         async with client.stream("POST", url, json=payload) as resp:
             resp.raise_for_status()
@@ -288,6 +291,7 @@ async def _chat_full_raw(
         }
         url = f"{BASE_URL}/api/chat"
         parts: list[str] = []
+        garde_ollama()
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream("POST", url, json=payload) as resp:
                 resp.raise_for_status()

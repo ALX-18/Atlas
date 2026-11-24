@@ -83,11 +83,13 @@ SCHEMA_DOCUMENT = {"type": "object", "properties": {
 def _generer_json(systeme: str, consigne: str, schema: dict, temperature: float = 0.4) -> Optional[dict]:
     """Un appel à Ollama, sortie JSON imposée par le schéma. None si l'appel ou le JSON échoue."""
     from core.ollama_client import BASE_URL, KEEP_ALIVE, champs_modele, ollama_options
+    from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
 
     payload = {**champs_modele(), "stream": False, "keep_alive": KEEP_ALIVE, "format": schema,
                "options": ollama_options(temperature=temperature),
                "messages": [{"role": "system", "content": systeme}, {"role": "user", "content": consigne}]}
     try:
+        garde_ollama()
         r = httpx.post(f"{BASE_URL}/api/chat", json=payload, timeout=240.0)
         r.raise_for_status()
         return json.loads(r.json()["message"]["content"])

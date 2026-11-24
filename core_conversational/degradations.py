@@ -153,6 +153,15 @@ CATALOGUE: dict[str, dict] = {
         "vecue": True,
         "message": "Mon écoute ne démarre pas : tu ne peux pas me parler pour le moment, seulement m'écrire.",
     },
+    "ollama_autre_compte": {
+        "composant": "Ollama (le moteur qui fait réfléchir Atlas)",
+        "declencheur": "l'Ollama qui écoute sur ce PC appartient à un autre compte Windows, ou son "
+                       "propriétaire est illisible (IF7)",
+        "perte": "Atlas ne réfléchit plus : il ne s'en sert pas, et rien ne lui est envoyé",
+        "vecue": True,
+        "message": "Je ne peux pas réfléchir pour le moment : le moteur Ollama de ce PC est lancé par une autre "
+                   "session Windows (ou je n'ai pas pu vérifier à qui il appartient), et je ne m'en sers pas.",
+    },
     "browser_bridge": {
         "composant": "Pont navigateur",
         "declencheur": "le serveur WebSocket du pont ne démarre pas (port occupé…)",

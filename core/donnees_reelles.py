@@ -44,6 +44,8 @@ ECRIVAINS_HORS_GARDE = {
     "scripts/prototype_sans_docker.py": "mesure : travaille sur une copie dans un dossier jetable",
     "scripts/mesure_ressources.py": "mesure : lit data/voices, travaille sur une copie de la mémoire",
     "scripts/checkup_dynamique.py": "mesure : Atlas sur une copie de la mémoire (redirections ATLAS_*)",
+    "core/ollama_lance.py": "IF7 : le lanceur et l'installeur notent l'Ollama qu'ils lancent (un numéro de processus, "
+                            "rien des données d'Alexis), relu et retiré par Atlas à son arrêt",
     "scripts/download_voice_models.py": "installation : télécharge les voix dans data/voices, à la demande",
     "scripts/non_regression_modele.py": "banc : le banc tourne sur des données jetables (banc_modeles, garde BM0) ; "
                                         "n'écrit dans data/ que son propre bilan (non_regression.json, non_regression/)",

@@ -68,6 +68,24 @@ def check_url(url, allow_empty: bool = False) -> tuple[str, str]:
     return url, ""
 
 
+def origine_acceptee(origine: Optional[str]) -> bool:
+    """IF7 (Réunion n° 3) : seule l'extension Atlas (Origin chrome-extension://…) se connecte au pont. Une page web
+    (Origin http/https), « null » ou un programme sans Origin (un autre compte du PC, un script) est refusé : le pont
+    envoie navigate et type au premier client connecté, et lit ses réponses comme le contenu des pages."""
+    o = (origine or "").strip().lower()
+    return o.startswith("chrome-extension://") and len(o) > len("chrome-extension://")
+
+
+def _verifier_origine(connexion, requete):
+    from http import HTTPStatus
+
+    origine = requete.headers.get("Origin")
+    if origine_acceptee(origine):
+        return None
+    logger.warning("[SECURITE] Pont navigateur : connexion refusée (origine %s)", origine or "absente")
+    return connexion.respond(HTTPStatus.FORBIDDEN, "Seule l'extension Atlas peut se connecter.")
+
+
 # --------------------------------------------------------------------------- #
 #  Browser Bridge
 # --------------------------------------------------------------------------- #
@@ -95,6 +113,7 @@ class BrowserBridge:
                 self._handle_connection,
                 "127.0.0.1",
                 self.port,
+                process_request=_verifier_origine,
             )
             self._running = True
             logger.info("🔌 Browser Bridge WebSocket démarré sur ws://127.0.0.1:%d", self.port)

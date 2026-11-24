@@ -33,6 +33,11 @@ import psutil
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PY = sys.executable
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from core import cle_locale  # noqa: E402  IF7 : l'Atlas d'essai et ce script partagent une clé jetable
+
+cle_locale.pour_essai()
 MB = 1024 * 1024
 
 
@@ -285,14 +290,15 @@ def mesure_composants() -> list[dict]:
 # --------------------------------------------------------------------------- #
 
 def _get(url, timeout=3):
-    with urllib.request.urlopen(url, timeout=timeout) as r:
+    with urllib.request.urlopen(urllib.request.Request(url, headers=cle_locale.entetes_si_prete()),
+                                timeout=timeout) as r:
         return json.loads(r.read() or b"{}")
 
 
 def _chat(msg, timeout=180):
     req = urllib.request.Request("http://127.0.0.1:8550/api/chat",
                                  data=json.dumps({"message": msg, "history": []}).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json", **cle_locale.entetes()})
     t = time.perf_counter()
     with urllib.request.urlopen(req, timeout=timeout) as r:
         body = json.loads(r.read())
@@ -303,7 +309,7 @@ def _wait_http(url, timeout=180) -> bool:
     t = time.perf_counter()
     while time.perf_counter() - t < timeout:
         try:
-            urllib.request.urlopen(url, timeout=2)
+            urllib.request.urlopen(urllib.request.Request(url, headers=cle_locale.entetes_si_prete()), timeout=2)
             return True
         except Exception:
             time.sleep(1)

@@ -40,6 +40,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 PY = str(ROOT / ".venv" / "Scripts" / "python.exe")
 API = "http://127.0.0.1:8550/api"
 DATA = ROOT / "data"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from core import cle_locale  # noqa: E402  IF7 : l'Atlas d'essai et ce script partagent une clé jetable
+
+cle_locale.pour_essai()
 def copies_journal_et_apprentissage(copie: pathlib.Path) -> dict:
     """Apprentissage 2 : un Atlas d'essai écrit son journal des actions et ce qu'il apprend à côté de
     la copie de la mémoire — jamais dans data/ (le journal d'Alexis est la source de ses habitudes)."""
@@ -68,7 +73,8 @@ def _empreinte(p: pathlib.Path) -> str:
 
 def req(path: str, body=None, timeout=240):
     data = json.dumps(body).encode() if body is not None else None
-    r = urllib.request.Request(API + path, data=data, headers={"Content-Type": "application/json"})
+    r = urllib.request.Request(API + path, data=data, headers={"Content-Type": "application/json",
+                                                              **cle_locale.entetes()})
     t = time.perf_counter()
     out = json.loads(urllib.request.urlopen(r, timeout=timeout).read() or b"{}")
     return out, round(time.perf_counter() - t, 2)
@@ -78,7 +84,7 @@ def attendre(url: str, timeout=300) -> bool:
     t = time.perf_counter()
     while time.perf_counter() - t < timeout:
         try:
-            urllib.request.urlopen(url, timeout=2)
+            urllib.request.urlopen(urllib.request.Request(url, headers=cle_locale.entetes_si_prete()), timeout=2)
             return True
         except Exception:
             time.sleep(0.5)

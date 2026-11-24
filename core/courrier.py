@@ -226,11 +226,13 @@ def _modele_json(systeme: str, consigne: str, schema: dict) -> Optional[dict]:
     import httpx
 
     from core.ollama_client import BASE_URL, KEEP_ALIVE, champs_modele, ollama_options
+    from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
 
     payload = {**champs_modele(), "stream": False, "keep_alive": KEEP_ALIVE, "format": schema,
                "options": ollama_options(temperature=0.2),
                "messages": [{"role": "system", "content": systeme}, {"role": "user", "content": consigne}]}
     try:
+        garde_ollama()
         r = httpx.post(f"{BASE_URL}/api/chat", json=payload, timeout=120.0)
         r.raise_for_status()
         return json.loads(r.json()["message"]["content"])

@@ -12,6 +12,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from core.ollama_client import BASE_URL, KEEP_ALIVE, champs_modele, ollama_options
+from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
 
 logger = logging.getLogger("atlas.web_reader")
 
@@ -142,6 +143,7 @@ async def summarize_url(url: str, max_chars: int = READER_MAX_CHARS) -> dict[str
     }
 
     try:
+        garde_ollama()
         async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(f"{BASE_URL}/api/chat", json=payload)
             resp.raise_for_status()

@@ -10,6 +10,7 @@ import re
 from typing import AsyncGenerator, Optional
 
 import httpx
+from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
 
 # --- Détection de scripts non-latins (dérive linguistique) ---
 _NON_LATIN_RE = re.compile(
@@ -123,6 +124,7 @@ class LLMClient:
         """Yield les tokens en streaming."""
         payload = self._payload(system_prompt, user_message, history)
         url = f"{self.base_url}/api/chat"
+        garde_ollama()
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             async with client.stream("POST", url, json=payload) as resp:
                 resp.raise_for_status()

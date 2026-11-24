@@ -10,15 +10,26 @@ from __future__ import annotations
 import json
 import pathlib
 import queue
+import sys
 import threading
 import time
 import tkinter as tk
 from tkinter import ttk
 
-import httpx
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 SETTINGS_PATH = ROOT / "config" / "settings.json"
+
+from core.cle_locale import CleIntrouvable  # noqa: E402
+from desktop.connexion import CleChangee, ConnexionAtlas, ServeurRefuse  # noqa: E402
+
+
+def texte_erreur(e: Exception, quoi: str) -> str:
+    """IF7 : un refus (autre compte), une clé introuvable ou changée se disent tels quels, avec la sortie."""
+    if isinstance(e, (ServeurRefuse, CleIntrouvable, CleChangee)):
+        return str(e)
+    return f"{quoi} ({type(e).__name__}: {e})"
 
 
 def texte_resultat_confirmation(data) -> str:
@@ -71,6 +82,9 @@ class AtlasDesktop:
 
         self._messages = queue.Queue()
         self._shown_confirmations: set[str] = set()
+        # IF7 : toutes les demandes passent par cette connexion, qui vérifie le serveur avant d'envoyer la clé
+        self.atlas = ConnexionAtlas(self._load_api_base(), self._load_port())
+        self._coupure_dite = False
         self._build_ui()
         self._apply_theme()
         self._tick_queue()
@@ -83,6 +97,17 @@ class AtlasDesktop:
         host = cfg.get("server", {}).get("host", "127.0.0.1")
         port = int(cfg.get("server", {}).get("port", 8550))
         return f"http://{host}:{port}"
+
+    def _load_port(self) -> int:
+        with open(SETTINGS_PATH, encoding="utf-8") as f:
+            return int(json.load(f).get("server", {}).get("port", 8550))
+
+    def _dire_coupure(self, e: Exception) -> None:
+        """La connexion est coupée (serveur d'un autre compte) : dit une seule fois."""
+        if not self._coupure_dite:
+            self._coupure_dite = True
+            self._messages.put(("system", str(e)))
+            self._messages.put(("health", {"status": "refusé"}))
 
     def _build_ui(self):
         container = ttk.Frame(self.root, padding=14)
@@ -422,19 +447,16 @@ class AtlasDesktop:
         dlg.focus_set()
 
     def _send_confirm(self, confirmation_id: str, accepted: bool):
-        base = self._load_api_base()
-
         def _job():
             try:
                 # Un envoi de mail confirmé peut prendre plus de 30 s (le serveur du fournisseur)
-                with httpx.Client(timeout=120.0) as client:
-                    r = client.post(
-                        f"{base}/api/confirm",
-                        json={"confirmation_id": confirmation_id, "accepted": accepted},
-                    )
-                    r.raise_for_status()
-                    data = r.json()
+                r = self.atlas.post("/api/confirm", timeout=120.0,
+                                    json={"confirmation_id": confirmation_id, "accepted": accepted})
+                r.raise_for_status()
+                data = r.json()
                 self._messages.put(("atlas", texte_resultat_confirmation(data)))
+            except (ServeurRefuse, CleIntrouvable, CleChangee) as e:
+                self._messages.put(("system", str(e)))      # rien n'est parti : on le sait, on le dit
             except Exception as e:
                 self._messages.put(("system", f"Je n'ai pas pu transmettre ta réponse à Atlas ({type(e).__name__}) : "
                                               "je ne sais pas si l'action a été faite."))
@@ -480,27 +502,34 @@ class AtlasDesktop:
         interroge désormais /api/voice/state, qui ne lit que l'état en mémoire, et un échec
         n'écrit rien dans la conversation.
         """
-        base = self._load_api_base()
+        if self.atlas.coupee:
+            return                                   # IF7 : connexion coupée, plus rien n'est demandé
 
         def _job():
             try:
-                with httpx.Client(timeout=2.0) as client:
-                    r = client.get(f"{base}/api/voice/state")
-                    r.raise_for_status()
-                    self._messages.put(("voice", r.json()))
-                    # Sprint F : une confirmation demandée à la voix doit apparaître ici.
-                    c = client.get(f"{base}/api/confirmations")
-                    if c.status_code == 200:
-                        for item in c.json().get("pending", []):
-                            self._messages.put(("confirmation", item))
-                    # Sprint Artefacts : un document rédigé en arrière-plan est prêt (ou a échoué).
-                    # Artefacts sur mesure : par numéro, sans vider la file — la fenêtre web les voit aussi.
-                    a = client.get(f"{base}/api/annonces", params={"depuis": getattr(self, "_annonce_vue", 0)})
-                    if a.status_code == 200:
-                        corps = a.json()
-                        for item in corps.get("annonces", []):
-                            self._messages.put(("atlas", item.get("message", "")))
-                        self._annonce_vue = max(getattr(self, "_annonce_vue", 0), int(corps.get("dernier") or 0))
+                r = self.atlas.get("/api/voice/state", timeout=2.0)
+                r.raise_for_status()
+                self._messages.put(("voice", r.json()))
+                # Sprint F : une confirmation demandée à la voix doit apparaître ici.
+                # IF7 : chaque demande revérifie le serveur (un autre a pu prendre le port entre-temps).
+                c = self.atlas.get("/api/confirmations", timeout=2.0)
+                if c.status_code == 200:
+                    for item in c.json().get("pending", []):
+                        self._messages.put(("confirmation", item))
+                # Sprint Artefacts : un document rédigé en arrière-plan est prêt (ou a échoué).
+                a = self.atlas.get("/api/annonces", timeout=2.0,
+                                   params={"depuis": getattr(self, "_annonce_vue", 0)})
+                if a.status_code == 200:
+                    corps = a.json()
+                    for item in corps.get("annonces", []):
+                        self._messages.put(("atlas", item.get("message", "")))
+                    self._annonce_vue = max(getattr(self, "_annonce_vue", 0), int(corps.get("dernier") or 0))
+            except ServeurRefuse as e:
+                self._dire_coupure(e)
+            except CleIntrouvable as e:
+                if not getattr(self, "_cle_dite", False):
+                    self._cle_dite = True
+                    self._messages.put(("system", str(e)))
             except Exception:
                 self._messages.put(("voice", None))   # backend pas encore prêt : silence
 
@@ -512,17 +541,21 @@ class AtlasDesktop:
         t.start()
 
     def refresh_health(self):
-        base = self._load_api_base()
-
         def _job():
             last_error = None
             for _ in range(4):
                 try:
-                    with httpx.Client(timeout=4.0) as client:
-                        r = client.get(f"{base}/api/health")
-                        r.raise_for_status()
-                        data = r.json()
+                    r = self.atlas.get("/api/health", timeout=4.0)
+                    r.raise_for_status()
+                    data = r.json()
                     self._messages.put(("health", data))
+                    return
+                except ServeurRefuse as e:
+                    self._dire_coupure(e)
+                    return
+                except CleIntrouvable as e:
+                    self._messages.put(("health", {"status": "down"}))
+                    self._messages.put(("system", str(e)))
                     return
                 except Exception as e:
                     last_error = e
@@ -534,14 +567,11 @@ class AtlasDesktop:
         self._run_request(_job)
 
     def fetch_errors(self):
-        base = self._load_api_base()
-
         def _job():
             try:
-                with httpx.Client(timeout=8.0) as client:
-                    r = client.get(f"{base}/api/errors/recent", params={"limit": 5})
-                    r.raise_for_status()
-                    data = r.json()
+                r = self.atlas.get("/api/errors/recent", timeout=8.0, params={"limit": 5})
+                r.raise_for_status()
+                data = r.json()
                 count = data.get("count", 0)
                 if count == 0:
                     self._messages.put(("atlas", "Aucune erreur recente."))
@@ -551,19 +581,16 @@ class AtlasDesktop:
                     lines.append(f"- {e.get('error_code', 'ERR')} | {e.get('tool', '?')} | {e.get('error', '')}")
                 self._messages.put(("atlas", "\n".join(lines)))
             except Exception as e:
-                self._messages.put(("system", f"Error endpoint failed: {e}"))
+                self._messages.put(("system", texte_erreur(e, "Error endpoint failed")))
 
         self._run_request(_job)
 
     def fetch_index_status(self):
-        base = self._load_api_base()
-
         def _job():
             try:
-                with httpx.Client(timeout=8.0) as client:
-                    r = client.get(f"{base}/api/files/index/status")
-                    r.raise_for_status()
-                    data = r.json()
+                r = self.atlas.get("/api/files/index/status", timeout=8.0)
+                r.raise_for_status()
+                data = r.json()
                 self._messages.put((
                     "atlas",
                     "File index status: "
@@ -571,7 +598,7 @@ class AtlasDesktop:
                     f"count={data.get('count')} generated_at={data.get('generated_at')}",
                 ))
             except Exception as e:
-                self._messages.put(("system", f"Index status failed: {e}"))
+                self._messages.put(("system", texte_erreur(e, "Index status failed")))
 
         self._run_request(_job)
 
@@ -583,8 +610,6 @@ class AtlasDesktop:
         self._append("user", text)
         self._messages.put(("busy", {"busy": True, "message": "Waiting for backend..."}))
 
-        base = self._load_api_base()
-
         def _job():
             payload = {
                 "message": text,
@@ -592,10 +617,9 @@ class AtlasDesktop:
                 "origine": "bureau",      # Apprentissage 1 : une demande d'Alexis
             }
             try:
-                with httpx.Client(timeout=60.0) as client:
-                    r = client.post(f"{base}/api/chat", json=payload)
-                    r.raise_for_status()
-                    data = r.json()
+                r = self.atlas.post("/api/chat", timeout=60.0, json=payload)
+                r.raise_for_status()
+                data = r.json()
 
                 if data.get("type") == "confirmation_required":
                     self._messages.put(("confirmation", data))
@@ -615,7 +639,7 @@ class AtlasDesktop:
                 else:
                     self._messages.put(("atlas", data.get("message", "")))
             except Exception as e:
-                self._messages.put(("system", f"Request failed: {e}"))
+                self._messages.put(("system", texte_erreur(e, "Request failed")))
             finally:
                 self._messages.put(("busy", {"busy": False, "message": "Ready"}))
 

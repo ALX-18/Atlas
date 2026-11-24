@@ -18,6 +18,7 @@ import httpx
 from api.models import ChatRequest, ConfirmationResponse, MemoryIngestRequest
 from core.context_monitor import collect_context
 from core.ollama_client import chat_stream, chat_full, OllamaStreamTimeout, STREAM_TIMEOUT, too_long_reply
+from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
 from core.intent_engine import process_ai_response, execute_confirmed, get_execution_engine
 from core.intent_classifier import get_classifier
 from core.validator import get_validator, honest_reply
@@ -39,6 +40,15 @@ router = APIRouter()
 # --------------------------------------------------------------------------- #
 
 _WEB_TOOLS = {"web_search", "read_url", "browser_open"}
+
+
+def _erreur_modele(e: Exception, message: str) -> dict:
+    """IF7 : l'Ollama d'un autre compte (ou au propriétaire illisible) est refusé — dit tel quel, pas « indisponible »."""
+    from core.proprietaire import AutreCompte
+
+    if isinstance(e, AutreCompte):
+        return _api_error(str(e), "ERR_OLLAMA_AUTRE_COMPTE")
+    return _api_error(message, "ERR_MODEL_UNAVAILABLE", details=str(e))
 
 
 def _api_error(message: str, error_code: str, *, details: str | None = None, tool_results: list | None = None) -> dict:
@@ -123,11 +133,7 @@ async def _chat(req: ChatRequest):
             )
         except Exception as e:
             logger.warning("Ollama error on /chat : %s", e)
-            return _api_error(
-                "Le modèle local est indisponible pour le moment.",
-                "ERR_MODEL_UNAVAILABLE",
-                details=str(e),
-            )
+            return _erreur_modele(e, "Le modèle local est indisponible pour le moment.")
         # P2 v6.0.1 — garde linguistique : retry FR si dérive non-latine détectée
         from core.ollama_client import contains_non_latin_script, chat_full
         if contains_non_latin_script(full_response):
@@ -179,8 +185,8 @@ async def _chat(req: ChatRequest):
                     full_response += token
             except (httpx.ReadTimeout, asyncio.TimeoutError):
                 return _api_error("Timeout Atlas.", "ERR_MODEL_TIMEOUT")
-            except Exception:
-                return _api_error("Le modèle local est indisponible.", "ERR_MODEL_UNAVAILABLE")
+            except Exception as e:
+                return _erreur_modele(e, "Le modèle local est indisponible.")
             full_response, blocked = honest_reply(full_response)   # GB1
             mem.add_to_session("assistant", full_response)
             ws.add_to_history("assistant", full_response)
@@ -744,6 +750,7 @@ async def api_health():
     else:
         ollama_ok = False
         try:
+            garde_ollama()
             async with httpx.AsyncClient(timeout=2.0) as client:
                 ollama_resp = await client.get("http://127.0.0.1:11434/api/tags")
                 ollama_ok = ollama_resp.status_code == 200

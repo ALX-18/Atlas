@@ -177,6 +177,12 @@ def pytest_configure(config):
     # un dossier JETABLE (ci-dessus) : on peut donc la brancher.
     os.environ["ATLAS_MEMORY"] = "real"
     os.environ["ATLAS_TEST_ROOT"] = str(_isolate_data())
+    # IF7 : la clé locale d'Atlas. La suite a la sienne, jetable ; jamais data/cle_locale d'Alexis.
+    cle = pathlib.Path(os.environ["ATLAS_TEST_ROOT"]) / "cle_locale_tests"
+    import secrets
+
+    cle.write_text(secrets.token_urlsafe(32), encoding="utf-8")
+    os.environ["ATLAS_CLE_LOCALE"] = str(cle)
 
 
 @pytest.fixture(autouse=True)

@@ -12,6 +12,13 @@ from core.atlas_logger import LOG_FILE  # redirigé vers un dossier temporaire p
 assert "atlas_tests_root_" in str(LOG_FILE), "isolation des données inactive (tests/conftest.py)"
 
 
+def _cle_fenetre() -> dict:
+    """IF7 : l'en-tête de la clé locale (celle de la suite), que porte la fenêtre desktop."""
+    from core import cle_locale
+
+    return cle_locale.entetes()
+
+
 @pytest.fixture(autouse=True)
 def clean_log_file():
     backup = LOG_FILE.read_text(encoding="utf-8") if LOG_FILE.exists() else None
@@ -82,7 +89,7 @@ def test_04_recent_logs_endpoint_returns_last_n():
         for d in data:
             f.write(json.dumps(d, ensure_ascii=False) + "\n")
 
-    client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
+    client = TestClient(main.app, base_url="http://127.0.0.1:8550", headers=_cle_fenetre())  # G1 : hôte local
     resp = client.get("/api/logs/recent", params={"limit": 2})
     assert resp.status_code == 200
     body = resp.json()
