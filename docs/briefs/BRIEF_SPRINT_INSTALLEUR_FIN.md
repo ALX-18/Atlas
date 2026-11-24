@@ -169,7 +169,32 @@ La fiche doit donc tenir sans Alexis à côté.
 
 **La règle qui ne change pas :** aucun lien n'est envoyé avant que le parcours sur `AtlasTest` soit passé et que les corrections soient reconstruites.
 
-## 6. Rappels
+## 6. Décisions du 23/11 : rapport validé, et Réunion n° 3
+
+**Le rapport du 23/11 est validé.** Points validés :
+- l'analyse de « où l'installeur écrit » ;
+- la sauvegarde de `data/` vérifiée par les empreintes ;
+- Tesseract « déjà là » désormais dit ;
+- les guides IF6 ;
+- l'écrasement de `GUIDE_TESTEUR.md`, dit franchement et restauré.
+
+**Le défaut du §7, point 9 (« Atlas ou Ollama d'un autre compte »)** a fait l'objet du premier Conseil des Claudes : `docs/reunions/REUNION_ATLAS_03_COMPTES_WINDOWS.md`. **Exécuter sa conclusion, points 1 à 8, avant le parcours sur `AtlasTest`.** Ce sera IF7, sur la branche `sprint-comptes-windows`.
+
+**Ordre du parcours sur `AtlasTest`, modifié :**
+- **Étape 0 (nouvelle) :** la session d'Alexis reste **ouverte**, avec son Atlas et son Ollama lancés.
+  - Sur `AtlasTest`, lancer seulement le diagnostic, puis l'installeur. Les deux doivent refuser **avant tout téléchargement**, avec le bon message.
+  - Aucune phrase, rien de retenu.
+  - Mesurer la lecture du propriétaire sans droits d'administrateur, et ce qui se passe quand deux comptes veulent le même port.
+- **Ensuite :** Alexis se déconnecte complètement de sa session, et la fiche se joue comme prévu.
+- **Après le parcours :** vérifier que « cabane » n'apparaît pas dans la mémoire d'Alexis.
+
+**Petits points acceptés :**
+- **CK4** : le test affiche la fin de la sortie d'erreur, pas seulement le début.
+- **`C:\Users\Public\AtlasTest`** est inscriptible par tous les comptes : il est effacé après le parcours.
+
+**Pas encore d'envoi aux testeurs.** L'avis extérieur de GPT sur la Réunion n° 3 est attendu, puis la validation d'Alexis.
+
+## 7. Rappels
 
 - Aucun installeur ne part chez un proche avant que ce brief soit validé.
 - En cas de doute sur les données d'Alexis : ne pas exécuter, demander.
