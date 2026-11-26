@@ -99,6 +99,44 @@ if ($ko.Count -eq 0) {
     else { $ko += "Cette machine ne convient pas a Atlas : sans carte NVIDIA de 6 Go, il faut au moins 16 Go de memoire vive" }
 }
 
+# --- IF7 : un Ollama ou un Atlas d'un AUTRE compte (127.0.0.1 est commun aux sessions Windows du PC) ---
+# Le proprietaire du processus qui ecoute, sans droits d'administrateur : illisible compte comme "pas a moi".
+function Proprietaire-Port([int]$port) {
+    $c = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue |
+         Where-Object { $_.LocalAddress -eq "127.0.0.1" -or $_.LocalAddress -eq "0.0.0.0" } |
+         Sort-Object { if ($_.LocalAddress -eq "127.0.0.1") { 0 } else { 1 } } | Select-Object -First 1
+    if (-not $c) {
+        # Get-NetTCPConnection muet : quelqu'un ecoute-t-il quand meme ?
+        $t = New-Object Net.Sockets.TcpClient
+        try { $ecoute = $t.ConnectAsync("127.0.0.1", $port).Wait(500) } catch { $ecoute = $false } finally { $t.Close() }
+        if ($ecoute) { return "illisible" } else { return "libre" }
+    }
+    $idp = [int]$c.OwningProcess
+    if ($idp -le 0) { return "illisible" }
+    $proc = Get-CimInstance Win32_Process -Filter "ProcessId=$idp" -ErrorAction SilentlyContinue
+    if (-not $proc) { return "illisible" }
+    $o = Invoke-CimMethod -InputObject $proc -MethodName GetOwner -ErrorAction SilentlyContinue
+    if (-not $o -or $o.ReturnValue -ne 0 -or -not $o.User) { return "illisible" }
+    if ($o.User -ieq $env:USERNAME -and $o.Domain -ieq $env:USERDOMAIN) { return "a_moi" }
+    return "autre"
+}
+$sortieCompte = " Pour utiliser Atlas ici, la personne de l'autre session doit se deconnecter : Demarrer > son nom > Se deconnecter (Changer d'utilisateur ne suffit pas). Ou bien redemarrez le PC, puis relancez."
+$autreCompte = @()
+foreach ($port in @(11434, 8550)) {
+    if ($Simuler -ne "") { $etat = if ($s.ports -and $s.ports."$port") { [string]$s.ports."$port" } else { "libre" } }
+    else { $etat = Proprietaire-Port $port }
+    $nom = if ($port -eq 11434) { "Ollama" } else { "Atlas" }
+    Dire ("{0,-9} : {1}" -f $nom, $(switch ($etat) { "libre" { "pas lance" } "a_moi" { "lance par ce compte" } "autre" { "LANCE PAR UN AUTRE COMPTE" } default { "PROPRIETAIRE ILLISIBLE" } }))
+    if ($etat -eq "autre") {
+        if ($port -eq 11434) { $m = "Ollama, le moteur d'Atlas, est deja lance dans une autre session Windows de ce PC. Atlas ne s'en sert pas : il appartient a un autre compte." }
+        else { $m = "Atlas est deja ouvert dans une autre session Windows de ce PC. Il ne peut tourner que pour une personne a la fois." }
+        $autreCompte += ($m + $sortieCompte)
+    } elseif ($etat -eq "illisible") {
+        $autreCompte += ("Atlas n'a pas pu verifier a qui appartient $nom, deja lance sur ce PC. Par prudence, il ne s'en sert pas. Si une autre personne a une session ouverte sur ce PC, elle doit se deconnecter : Demarrer > son nom > Se deconnecter (Changer d'utilisateur ne suffit pas). Ou bien redemarrez le PC, puis relancez.")
+    }
+}
+foreach ($m in $autreCompte) { $ko += $m }
+
 # --- Informations utiles (ne changent pas le verdict) ---
 if ($Simuler -eq "") {
     $py = Get-Command py -ErrorAction SilentlyContinue
@@ -117,6 +155,7 @@ if ($Sortie -ne "" -or $Simuler -ne "") {
     $lignes = @("verdict=$verdict", "modele=$modele", "provisoire=$(if ($provisoire) { 1 } else { 0 })", "sur=$sur",
                 "ram_gib=$ramGib", "vram_mib=$vram", "disk_free_gib=$freeGib")
     foreach ($m in $ko) { $lignes += "ko=$m" }
+    foreach ($m in $autreCompte) { $lignes += "autre_compte=$m" }
     foreach ($m in $warn) { $lignes += "attention=$m" }
     if ($Sortie -ne "") { [IO.File]::WriteAllLines($Sortie, [string[]]$lignes, (New-Object Text.UTF8Encoding($true))) }
     else { $lignes | ForEach-Object { Write-Output $_ } }

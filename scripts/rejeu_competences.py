@@ -36,10 +36,11 @@ import urllib.request
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 from checkup_dynamique import API, DATA, PY, ROOT, attendre, req  # noqa: E402
+from core import cle_locale  # noqa: E402  IF7 : clé jetable posée par checkup_dynamique
 
 
 def _get(chemin: str) -> dict:
-    with urllib.request.urlopen(API + chemin, timeout=10) as r:
+    with urllib.request.urlopen(urllib.request.Request(API + chemin, headers=cle_locale.entetes()), timeout=10) as r:
         return json.loads(r.read().decode("utf-8"))
 
 

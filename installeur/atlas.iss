@@ -67,7 +67,7 @@ Type: filesandordirs; Name: "{app}\installeur"
 var
   Verdict, Modele, Sur: String;
   Provisoire: Boolean;
-  Attentions, Refus: String;
+  Attentions, Refus, AutreCompte: String;
   Etapes: Integer;
   GarderDonnees: Boolean;
 
@@ -93,7 +93,7 @@ begin
     Exit;
   if not LoadStringsFromFile(Fichier, Lignes) then
     Exit;
-  Attentions := ''; Refus := '';
+  Attentions := ''; Refus := ''; AutreCompte := '';
   for I := 0 to GetArrayLength(Lignes) - 1 do
   begin
     if Valeur(Lignes[I], 'verdict') <> '' then Verdict := Valeur(Lignes[I], 'verdict');
@@ -102,6 +102,7 @@ begin
     if Valeur(Lignes[I], 'provisoire') = '1' then Provisoire := True;
     if Valeur(Lignes[I], 'attention') <> '' then Attentions := Attentions + '  - ' + Valeur(Lignes[I], 'attention') + #13#10;
     if Valeur(Lignes[I], 'ko') <> '' then Refus := Refus + '  - ' + Valeur(Lignes[I], 'ko') + #13#10;
+    if Valeur(Lignes[I], 'autre_compte') <> '' then AutreCompte := AutreCompte + Valeur(Lignes[I], 'autre_compte') + #13#10#13#10;
   end;
   Result := Verdict <> '';
 end;
@@ -113,6 +114,13 @@ begin
   begin
     SuppressibleMsgBox('Le diagnostic de cet ordinateur n''a pas pu se faire : l''installation s''arrête, rien n''a été ' +
                        'installé.', mbCriticalError, MB_OK, IDOK);
+    Exit;
+  end;
+  { IF7 : un Ollama ou un Atlas d'un autre compte Windows. Ce n'est pas « cette machine ne convient pas ». }
+  if AutreCompte <> '' then
+  begin
+    SuppressibleMsgBox('Atlas ne peut pas s''installer pour vous pour l''instant.' + #13#10#13#10 + AutreCompte +
+                       'L''installation s''arrête : rien n''a été installé ni téléchargé.', mbError, MB_OK, IDOK);
     Exit;
   end;
   if (Verdict = 'ko') or (Modele = '') then

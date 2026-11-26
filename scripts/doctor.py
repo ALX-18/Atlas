@@ -621,14 +621,38 @@ def check_voice(settings: dict | None) -> list[Check]:
 #  Sprint Check-up / CK2 — les bascules : celles qu'Atlas a faites, et leurs conditions
 # --------------------------------------------------------------------------- #
 
-def _atlas_health() -> dict | None:
-    """/api/health d'Atlas s'il tourne, sinon None."""
+def _verdict_atlas(port: int):
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from core.proprietaire import verifier
+
+    return verifier(port)
+
+
+def _atlas_health() -> dict:
+    """/api/health d'Atlas. IF7 : jamais d'exception avalée (un 401 n'est pas « Atlas ne tourne pas »), et la clé
+    n'est envoyée qu'à un Atlas de ce compte. {"etat": eteint | ok | cle_refusee | autre_compte | erreur, ...}"""
     port = int(((_load_settings() or {}).get("server", {}) or {}).get("port", 8550))
+    v = _verdict_atlas(port)
+    if v.etat == "libre":
+        return {"etat": "eteint", "detail": "Atlas n'est pas lancé"}
+    if v.etat != "a_moi":
+        return {"etat": "autre_compte", "detail": f"l'Atlas qui écoute sur le port {port} n'est pas à ce compte "
+                                                  f"({v.etat}) : doctor ne lui envoie pas la clé"}
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=15) as resp:
-            return json.loads(resp.read().decode("utf-8", "replace"))
-    except Exception:
-        return None
+        from core import cle_locale
+
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/health", headers=cle_locale.entetes())
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return {"etat": "ok", "sante": json.loads(resp.read().decode("utf-8", "replace"))}
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            return {"etat": "cle_refusee", "detail": "Atlas a refusé la demande de doctor (401) : la clé locale lue "
+                                                     "par doctor n'est pas celle d'Atlas. Quitter Atlas, puis le "
+                                                     "relancer, la remet d'accord."}
+        return {"etat": "erreur", "detail": f"HTTPError {e.code}: {e.reason}"}
+    except Exception as e:
+        return {"etat": "erreur", "detail": f"{type(e).__name__}: {e}"}
 
 
 def _onnx_present(settings: dict) -> tuple[bool, Path]:
@@ -643,10 +667,14 @@ def check_bascules() -> list[Check]:
 
     settings = _load_settings() or {}
     checks: list[Check] = []
-    sante = _atlas_health()
-    if sante is None:
+    lu = _atlas_health()
+    sante = lu.get("sante")
+    if lu["etat"] == "eteint":
         checks.append(Check("Bascules", "Bascules en cours dans Atlas", True, INFO,
                             "Atlas n'est pas lancé : seules les conditions ci-dessous sont vérifiées"))
+    elif sante is None:
+        checks.append(Check("Bascules", "Bascules en cours dans Atlas (lecture de l'API, avec la clé locale)", False,
+                            WARNING, lu["detail"]))
     else:
         actives = sante.get("bascules") or []
         if not actives:
@@ -713,7 +741,7 @@ def composants() -> list[dict]:
     """Chaque composant d'Atlas : présent, version, matériel utilisé, bascule active ou non."""
     settings = _load_settings() or {}
     voice = settings.get("voice", {}) or {}
-    sante = _atlas_health()
+    sante = _atlas_health().get("sante")
     actives = {b.get("cle"): b for b in ((sante or {}).get("bascules") or [])}
     lignes: list[dict] = []
 

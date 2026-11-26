@@ -22,6 +22,8 @@ from typing import Callable, Optional
 
 import httpx
 
+from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
+
 logger = logging.getLogger("atlas.modele_local")
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -68,6 +70,7 @@ def verifier_epinglage(modele: str, tags: Optional[list[dict]] = None) -> dict:
         from core.ollama_client import BASE_URL
 
         try:
+            garde_ollama()
             tags = httpx.get(f"{BASE_URL}/api/tags", timeout=5.0).json().get("models", [])
         except Exception:
             return {"etat": "injoignable", "attendue": attendu, "trouvee": None}
@@ -119,6 +122,7 @@ def _modele_charge(modele: str) -> bool:
     from core.ollama_client import BASE_URL
 
     try:
+        garde_ollama()
         charges = httpx.get(f"{BASE_URL}/api/ps", timeout=3.0).json().get("models", [])
     except Exception:
         return False
@@ -129,6 +133,7 @@ def _decharger(modele: str) -> bool:
     from core.ollama_client import BASE_URL
 
     try:
+        garde_ollama()
         httpx.post(f"{BASE_URL}/api/generate", json={"model": modele, "keep_alive": 0}, timeout=15.0)
         return True
     except Exception as e:

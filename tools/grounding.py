@@ -29,6 +29,8 @@ from typing import Optional, Any
 import pyautogui
 import requests
 
+from core.proprietaire import garde_ollama  # IF7 : jamais l'Ollama d'un autre compte
+
 logger = logging.getLogger("atlas.grounding")
 
 _OLLAMA_MODELS_CACHE: list[str] = []
@@ -421,6 +423,7 @@ def _list_ollama_models() -> list[str]:
         return _OLLAMA_MODELS_CACHE
 
     try:
+        garde_ollama()
         resp = requests.get("http://127.0.0.1:11434/api/tags", timeout=2.0)
         if resp.status_code != 200:
             return _OLLAMA_MODELS_CACHE
@@ -1402,6 +1405,7 @@ async def _try_vision(app_title: str, element_name: str) -> Optional[dict]:
                     timings["payload_size_bytes"] = len(json.dumps(payload_dict))
 
                     ollama_start = time.monotonic()
+                    garde_ollama()
                     resp = requests.post(
                         _OLLAMA_GENERATE_URL,
                         json=payload_dict,

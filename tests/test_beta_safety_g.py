@@ -42,7 +42,10 @@ def client():
 
     import main
 
-    return TestClient(main.app, base_url=ATLAS)
+    from core import cle_locale
+
+    # IF7 : la fenêtre desktop porte la clé locale du compte
+    return TestClient(main.app, base_url=ATLAS, headers=cle_locale.entetes())
 
 
 def _lancer(client, headers=None, **kwargs):
@@ -97,11 +100,21 @@ def test_g1_le_navigateur_ne_recoit_pas_l_autorisation_cors(client):
     {"Origin": ATLAS, "Sec-Fetch-Site": "same-origin"},        # interface web servie par Atlas
     {"Origin": "http://localhost:8550", "Sec-Fetch-Site": "same-origin"},
 ])
-def test_g1_la_fenetre_atlas_et_l_interface_web_fonctionnent(executed, client, entetes):
-    base = entetes.get("Origin", ATLAS)
-    r = _lancer(client, entetes) if base == ATLAS else \
-        client.post(f"{base}/api/chat", json={"message": "lance la calculatrice", "history": []},
-                    headers=entetes)
+def test_g1_la_fenetre_atlas_fonctionne_et_l_interface_web_est_coupee(executed, client, entetes):
+    """IF7 (décision d'Alexis, 24/11) : l'interface web est coupée ; seule la fenêtre porte la clé locale. Une
+    demande « même origine » sans la clé (l'ancienne interface web, ou un autre compte du PC) n'exécute rien."""
+    if entetes:
+        from fastapi.testclient import TestClient
+
+        import main
+
+        base = entetes["Origin"]
+        r = TestClient(main.app, base_url=base).post(
+            f"{base}/api/chat", json={"message": "lance la calculatrice", "history": []}, headers=entetes)
+        assert r.status_code == 401, f"{r.status_code} {r.text[:200]}"
+        assert executed == [], executed
+        return
+    r = _lancer(client, entetes)
     assert r.status_code == 200, f"{r.status_code} {r.text[:200]}"
     # Le moteur vérifie que l'application tourne et réessaie : avec un enregistreur à la
     # place du vrai lancement, la vérification échoue, d'où plusieurs appels.

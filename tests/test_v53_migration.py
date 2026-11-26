@@ -21,6 +21,13 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 SETTINGS_PATH = PROJECT_ROOT / "config" / "settings.json"
 
 
+def _cle_fenetre() -> dict:
+    """IF7 : l'en-tête de la clé locale (celle de la suite), que porte la fenêtre desktop."""
+    from core import cle_locale
+
+    return cle_locale.entetes()
+
+
 def _load_settings() -> dict:
     with open(SETTINGS_PATH, encoding="utf-8") as f:
         return json.load(f)
@@ -180,7 +187,7 @@ class TestClickSurAppParsing:
 class TestTesseractHealth:
     def test_health_endpoint_has_tesseract_status(self):
         import main
-        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550", headers=_cle_fenetre())  # G1 : hôte local
         resp = client.get("/api/health")
         assert resp.status_code == 200
         body = resp.json()
@@ -189,7 +196,7 @@ class TestTesseractHealth:
 
     def test_health_endpoint_has_vision_enabled(self):
         import main
-        client = TestClient(main.app, base_url="http://127.0.0.1:8550")  # G1 : hôte local
+        client = TestClient(main.app, base_url="http://127.0.0.1:8550", headers=_cle_fenetre())  # G1 : hôte local
         resp = client.get("/api/health")
         assert resp.status_code == 200
         body = resp.json()

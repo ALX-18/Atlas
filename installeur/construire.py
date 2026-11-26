@@ -75,13 +75,51 @@ def construire_paquet(dest: pathlib.Path = PAQUET / "atlas", ref: str = "HEAD") 
             cible.parent.mkdir(parents=True, exist_ok=True)
             cible.write_bytes(tar.extractfile(membre).read())
             pris.append(nom)
-    # Les réglages installés : ceux du dépôt, envoi des mails en simulation (IN : toujours, chez un proche)
+    regler_paquet(dest)
+    return pris
+
+
+# IF7 (Réunion n° 3) : ce que le paquet testeur impose, même lors d'une mise à jour qui garde settings.json
+# (atlas.iss : settings.json en onlyifdoesntexist ; paquet.json, lui, est remplacé à chaque installation).
+PAQUET_IMPOSE = {
+    "browser_bridge_enabled": False,
+    "_note": "IF7 : imposé par le paquet testeur, remplacé à chaque installation. Le pont navigateur reste fermé : "
+             "l'extension n'est pas livrée, le pont n'aurait aucun client légitime.",
+}
+
+
+def regler_paquet(dest: pathlib.Path) -> None:
+    """Les réglages installés : ceux du dépôt, envoi des mails en simulation (IN : toujours, chez un proche), sans
+    prénom, et le pont navigateur fermé (IF7), dans settings.json ET dans paquet.json."""
     reglages_f = dest / "config" / "settings.json"
     reglages = json.loads(reglages_f.read_text(encoding="utf-8"))
     reglages.setdefault("mail", {})["envoi"] = "simulation"
     reglages.setdefault("utilisateur", {})["prenom"] = ""        # demandé au premier lancement, chez la personne
+    reglages.setdefault("browser_bridge", {})["enabled"] = False
     reglages_f.write_text(json.dumps(reglages, ensure_ascii=False, indent=4) + "\n", encoding="utf-8")
-    return pris
+    (dest / "config" / "paquet.json").write_text(json.dumps(PAQUET_IMPOSE, ensure_ascii=False, indent=4) + "\n",
+                                                 encoding="utf-8")
+
+
+def _fautes_du_pont(dossier: pathlib.Path) -> list[str]:
+    """IF7 : le pont navigateur est fermé dans les réglages installés, et paquet.json le ferme après une mise à jour."""
+    config = dossier / "atlas" / "config"
+    if not (config / "settings.json").exists():
+        return []
+    fautes = []
+    try:
+        reglages = json.loads((config / "settings.json").read_text(encoding="utf-8"))
+        if (reglages.get("browser_bridge") or {}).get("enabled", True) is not False:
+            fautes.append("atlas/config/settings.json : le pont navigateur est ouvert (browser_bridge.enabled)")
+    except ValueError:
+        fautes.append("atlas/config/settings.json illisible")
+    try:
+        impose = json.loads((config / "paquet.json").read_text(encoding="utf-8"))
+        if impose.get("browser_bridge_enabled") is not False:
+            fautes.append("atlas/config/paquet.json ne ferme pas le pont navigateur")
+    except (OSError, ValueError):
+        fautes.append("atlas/config/paquet.json absent ou illisible : après une mise à jour, rien ne fermerait le pont")
+    return fautes
 
 
 # Ce qu'aucun fichier du paquet ne doit contenir (données d'Alexis, chemins de son PC, secrets)
@@ -122,6 +160,7 @@ def verifier_paquet(dossier: pathlib.Path) -> list[str]:
     if (dossier / "python").exists():
         fautes += [f"bibliothèque C++ de Microsoft absente du Python embarqué : {n}" for n in RUNTIME_VC
                    if not (dossier / "python" / n).exists()]
+    fautes += _fautes_du_pont(dossier)
     return fautes
 
 

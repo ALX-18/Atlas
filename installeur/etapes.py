@@ -44,12 +44,18 @@ from typing import Callable, Optional
 
 ICI = pathlib.Path(__file__).resolve().parent
 ROOT = ICI.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from core import proprietaire  # noqa: E402  IF7 : à qui appartient ce qui écoute
+from core.proprietaire import compte_courant, debut_processus  # noqa: E402
 PY = pathlib.Path(sys.executable)
 SOURCES = json.loads((ICI / "sources.json").read_text(encoding="utf-8"))
 CACHE = pathlib.Path(os.environ.get("ATLAS_CACHE_INSTALLATION") or (ICI / "cache"))
 ETAT = ICI / "etat.json"
 JOURNAL = ICI / "installation.log"
 OLLAMA_URL = "http://127.0.0.1:11434"
+OLLAMA_LANCE = ROOT / "data" / "ollama_lance.json"     # IF7 : l'Ollama lancé pour Atlas, qu'Atlas arrêtera
 MODELES = json.loads((ROOT / "config" / "modeles.json").read_text(encoding="utf-8"))
 
 # Test de capacité : ce qu'un palier doit tenir (Réunion n° 1 : vérifier la capacité réelle, pas la fiche).
@@ -189,7 +195,27 @@ def telecharger(source: dict, nom: str, progres: Callable[[float, str], None] = 
 #  Ollama
 # --------------------------------------------------------------------------- #
 
+def verdict_port(port: int) -> "proprietaire.Verdict":
+    return proprietaire.verifier(port)
+
+
+def verifier_comptes() -> None:
+    """IF7 : AVANT tout téléchargement. Un Ollama ou un Atlas qui écoute et n'appartient pas à ce compte (ou dont le
+    propriétaire est illisible) arrête l'installation, avec la sortie : se déconnecter, ou redémarrer le PC."""
+    for port, composant in ((proprietaire.PORT_OLLAMA, "Ollama"), (proprietaire.PORT_ATLAS, "Atlas")):
+        v = verdict_port(port)
+        journal(f"comptes : {composant} sur 127.0.0.1:{port} — {v.etat}"
+                + (f" (processus {v.pid})" if v.pid else ""))
+        if v.refuse:
+            raise Echec(proprietaire.message_refus(composant, v, sortie="installation"))
+
+
+def _refus_ollama(e: "proprietaire.AutreCompte") -> Echec:
+    return Echec(proprietaire.message_refus(e.composant, e.verdict, sortie="installation"))
+
+
 def _api(chemin: str, corps: Optional[dict] = None, delai: float = 10.0) -> dict:
+    proprietaire.garde_ollama()          # IF7 : chaque échange avec Ollama vérifie d'abord à qui il appartient
     donnees = json.dumps(corps).encode() if corps is not None else None
     req = urllib.request.Request(OLLAMA_URL + chemin, data=donnees, method="POST" if corps is not None else "GET",
                                  headers={"Content-Type": "application/json"})
@@ -212,6 +238,8 @@ def attendre_ollama(secondes: float = 300.0) -> str:
     while time.monotonic() < fin:
         try:
             return _api("/api/version", delai=3).get("version") or "?"
+        except proprietaire.AutreCompte as e:
+            raise _refus_ollama(e) from e        # un refus n'est pas une lenteur
         except Exception:
             time.sleep(2)
     raise Echec("Ollama est installé mais ne répond pas. Redémarrez l'ordinateur, puis relancez l'installation.")
@@ -242,12 +270,21 @@ JOURNAL_OLLAMA = ICI / "ollama_serveur.log"
 _GARDE: Optional["GardeAppOllama"] = None
 
 
-def apps_ollama() -> list:
+def _processus():
     import psutil
 
+    return psutil.process_iter(["name", "username"])
+
+
+def apps_ollama() -> list:
+    """IF7 : seulement les applications Ollama de CE compte. Celle d'un autre compte, ou au propriétaire illisible,
+    n'est jamais touchée."""
+    moi = (compte_courant() or "").strip().lower()
     trouves = []
-    for p in psutil.process_iter(["name"]):
-        if (p.info.get("name") or "").lower() == APP_OLLAMA:
+    for p in _processus():
+        if (p.info.get("name") or "").lower() != APP_OLLAMA:
+            continue
+        if moi and (p.info.get("username") or "").strip().lower() == moi:
             trouves.append(p)
     return trouves
 
@@ -260,7 +297,15 @@ def demarrer_ollama_sans_fenetre(exe: pathlib.Path, journal_: pathlib.Path) -> N
     spec = importlib.util.spec_from_file_location("atlas_lanceur", ICI / "lancer.py")
     lanceur = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(lanceur)
-    lanceur.demarrer_ollama_sans_fenetre(exe, journal_)
+    processus = lanceur.demarrer_ollama_sans_fenetre(exe, journal_)
+    pid = getattr(processus, "pid", None)
+    if pid:
+        try:
+            from core import ollama_lance
+
+            ollama_lance.noter(pid, debut_processus(pid), "installeur", OLLAMA_LANCE)   # IF7 : Atlas l'arrêtera
+        except Exception as e:
+            journal(f"Ollama lancé (processus {pid}) : note impossible ({type(e).__name__}) — Atlas ne l'arrêtera pas")
 
 
 class GardeAppOllama:
@@ -441,6 +486,7 @@ def etape_dependances(progres, sur: str) -> dict:
 # --------------------------------------------------------------------------- #
 
 def tirer_modele(modele: str, progres) -> None:
+    proprietaire.garde_ollama()          # IF7 : le modèle ne part jamais dans les fichiers d'un autre compte
     req = urllib.request.Request(OLLAMA_URL + "/api/pull", data=json.dumps({"model": modele, "stream": True}).encode(),
                                  method="POST", headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=7200) as r:
@@ -640,6 +686,7 @@ class Deroule:
 
     def _lancer(self) -> int:
         try:
+            verifier_comptes()           # IF7 : avant tout téléchargement, à chaque lancement (jamais « déjà fait »)
             self._faire("dependances", lambda: etape_dependances(self.ui.progres, self.sur))
             self._faire("ollama", lambda: etape_ollama(self.ui.progres))
             self._faire("tesseract", lambda: etape_tesseract(self.ui.progres))
@@ -650,6 +697,11 @@ class Deroule:
                 self.ui.fin(False, "Installation arrêtée : cet ordinateur est trop lent pour Atlas.")
                 return 3
             self._faire("reglages", lambda: etape_reglages(self.palier, self.premiere))
+        except proprietaire.AutreCompte as e:
+            e = _refus_ollama(e)
+            journal(f"échec : {e}")
+            self.ui.fin(False, f"L'installation n'est pas terminée.\n\n{e}")
+            return 1
         except Echec as e:
             journal(f"échec : {e}")
             self.ui.fin(False, f"L'installation n'est pas terminée : {e}")

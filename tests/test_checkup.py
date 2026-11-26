@@ -310,14 +310,14 @@ def test_ck2_doctor_montre_les_bascules_d_atlas(monkeypatch):
     doctor = _doctor()
     sante = {"bascules": [{"cle": "embeddings_onnx", "composant": "Embeddings", "cause": "modèle ONNX introuvable",
                            "perte": "rappel plus lent"}]}
-    monkeypatch.setattr(doctor, "_atlas_health", lambda: sante)
+    monkeypatch.setattr(doctor, "_atlas_health", lambda: {"etat": "ok", "sante": sante})
     checks = doctor.check_bascules()
     assert any(not c.ok and "modèle ONNX introuvable" in c.detail for c in checks)
 
 
 def test_ck2_doctor_sans_atlas_verifie_les_conditions_des_bascules(monkeypatch):
     doctor = _doctor()
-    monkeypatch.setattr(doctor, "_atlas_health", lambda: None)
+    monkeypatch.setattr(doctor, "_atlas_health", lambda: {"etat": "eteint", "detail": "Atlas n'est pas lancé"})
     noms = " | ".join(c.name for c in doctor.check_bascules())
     for attendu in ("ONNX", "EasyOCR", "Piper"):
         assert attendu in noms, noms
@@ -442,24 +442,31 @@ def _pytest_isole(tmp_path, code_test: str, env_extra=None):
                           cwd=ROOT, capture_output=True, text=True, encoding="utf-8", env=env, timeout=300)
 
 
+def _fin_des_sorties(r, n: int = 1500) -> str:
+    """IF7 / CK4 : la fin des deux sorties du pytest isolé (une erreur de chargement s'écrit souvent à la fin)."""
+    sortie, erreur = (r.stdout or "")[-n:], (r.stderr or "")[-n:]
+    return (f"code {r.returncode}\n--- fin de la sortie standard ---\n{sortie}\n"
+            f"--- fin de la sortie d'erreur ---\n{erreur}")
+
+
 def test_ck4_un_test_ignore_sans_justification_fait_echouer_la_suite(tmp_path):
     r = _pytest_isole(tmp_path, "import pytest\n\ndef test_a():\n    pytest.skip('flemme')\n")
-    assert r.returncode != 0, r.stdout[-1500:]
-    assert "sans justification" in r.stdout
+    assert r.returncode != 0, _fin_des_sorties(r)
+    assert "sans justification" in r.stdout, _fin_des_sorties(r)
 
 
 def test_ck4_une_sonde_qui_ment_fait_echouer_la_suite(tmp_path):
     """La raison est connue, mais sa condition n'est pas réunie : la sonde est tombée sur autre chose."""
     r = _pytest_isole(tmp_path, "import pytest\n\ndef test_a():\n    pytest.skip('Windows uniquement')\n")
-    assert r.returncode != 0, r.stdout[-1500:]
-    assert "condition" in r.stdout
+    assert r.returncode != 0, _fin_des_sorties(r)
+    assert "condition" in r.stdout, _fin_des_sorties(r)
 
 
 def test_ck4_un_test_ignore_justifie_passe_et_est_compte(tmp_path):
     r = _pytest_isole(tmp_path, "import pytest\n\ndef test_a():\n    pytest.skip('ChromaDB de test indisponible')\n",
                       {"ATLAS_TEST_NO_CHROMA": "1"})
-    assert r.returncode == 0, r.stdout[-1500:]
-    assert "tests ignorés : 1" in r.stdout
+    assert r.returncode == 0, _fin_des_sorties(r)
+    assert "tests ignorés : 1" in r.stdout, _fin_des_sorties(r)
 
 
 # --------------------------------------------------------------------------- #
@@ -579,3 +586,15 @@ def test_ck2_notifications_impossibles_sont_signalees(registre, monkeypatch):
     monkeypatch.setitem(sys.modules, "plyer", None)
     asyncio.run(notify("essai"))
     assert "notifications" in _cles(registre)
+
+
+def test_ck4_un_echec_du_pytest_isole_montre_la_fin_des_deux_sorties():
+    """Brief, 23/11 (§7 point 13) : l'échec instable n'a laissé que « …st introuvabl… », coupé par l'assertion.
+    Le message d'échec montre désormais la FIN de la sortie standard ET de la sortie d'erreur."""
+    from types import SimpleNamespace
+
+    r = SimpleNamespace(returncode=4, stdout="début " + "x" * 5000 + " FIN-SORTIE",
+                        stderr="début " + "y" * 5000 + " Le fichier spécifié est introuvable")
+    m = _fin_des_sorties(r)
+    assert "FIN-SORTIE" in m and "Le fichier spécifié est introuvable" in m and "code 4" in m
+    assert "début" not in m

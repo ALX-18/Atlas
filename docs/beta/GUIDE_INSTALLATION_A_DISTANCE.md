@@ -24,6 +24,14 @@ Vous recevez **deux choses, par deux chemins différents** :
 2. Tapez `Get-FileHash .\AtlasSetup.exe`.
 3. La ligne `Hash` doit être la même que l'empreinte reçue par message. Les majuscules ne comptent pas.
 
+## Si d'autres personnes ont un compte Windows sur cet ordinateur
+
+- Atlas ne tourne que pour une seule session Windows à la fois. Si quelqu'un d'autre a sa session ouverte avec Atlas ou Ollama lancé, le diagnostic, l'installation et Atlas s'arrêtent et disent quoi faire. Il y a deux sorties :
+  - cette personne se déconnecte : *Démarrer > son nom > Se déconnecter*. « Changer d'utilisateur » ne suffit pas ;
+  - ou bien vous redémarrez l'ordinateur.
+- Un autre compte ne peut pas parler à votre Atlas : il lui faut une clé que seul votre compte peut lire. En revanche, Ollama, le moteur, n'a pas de protection : quelqu'un qui s'y connaît pourrait s'en servir depuis un autre compte pendant que vous êtes connecté.
+- **Pour le test, utilisez de préférence un ordinateur où vous êtes seul, et n'y mettez rien de personnel.**
+
 ## 1. Le diagnostic : cet ordinateur convient-il ?
 
 Double-cliquez sur **`precheck_atlas.bat`**. Il ne fait que regarder : rien n'est installé ni modifié.

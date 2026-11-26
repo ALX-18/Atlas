@@ -28,12 +28,17 @@ import urllib.request
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PY = str(ROOT / ".venv" / "Scripts" / "python.exe")
 BASE = "http://127.0.0.1:8550/api"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from core import cle_locale  # noqa: E402  IF7 : l'Atlas d'essai et ce script partagent une clé jetable
+
+cle_locale.pour_essai()
 
 
 def _req(chemin: str, corps: dict | None = None, delai: float = 600.0) -> dict:
     donnees = json.dumps(corps).encode("utf-8") if corps is not None else None
     r = urllib.request.Request(BASE + chemin, data=donnees, method="POST" if corps is not None else "GET",
-                               headers={"Content-Type": "application/json"})
+                               headers={"Content-Type": "application/json", **cle_locale.entetes()})
     with urllib.request.urlopen(r, timeout=delai) as rep:
         return json.loads(rep.read().decode("utf-8"))
 
