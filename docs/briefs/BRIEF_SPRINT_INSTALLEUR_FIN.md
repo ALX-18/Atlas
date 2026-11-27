@@ -201,6 +201,40 @@ La fiche doit donc tenir sans Alexis à côté.
 - **Les critères d'envoi de GPT** sont ceux d'IF7. Chacun a son test rouge d'abord, et ceux qui exigent deux comptes se mesurent sur `AtlasTest`.
 - **Pas d'envoi aux testeurs avant que tous les critères soient mesurés.**
 
+## 6 bis. Décisions du 26/11 sur le rapport IF7 (`RAPPORT_SPRINT_COMPTES_WINDOWS.md`)
+
+**Rapport validé**, et la branche peut être fusionnée. Les points 1 à 8, la clé minimale et les 103 tests vus rouges sont validés. Le rejeu réel donne 401 sans clé, y compris sur `/api/memory/ingest` et `/api/confirm`.
+
+**Décisions sur les points laissés au superviseur :**
+
+- **§7, point 6 — le démarrage automatique d'Ollama : retiré, mais seulement si c'est Atlas qui a installé Ollama.**
+  - Sur un PC familial, cet Ollama relancé à chaque ouverture de session bloque les autres comptes et prend de la mémoire pour rien. Le lanceur d'Atlas démarre Ollama quand il en a besoin.
+  - L'installeur retire `Startup\Ollama.lnk` du compte courant **uniquement** quand il a installé Ollama lui-même, et **le dit dans le message de fin**.
+  - Un Ollama qui était déjà là n'est jamais touché.
+  - Test rouge d'abord. Mesure sur `AtlasTest` : après une déconnexion puis une reconnexion, aucun Ollama ne doit tourner tant qu'Atlas n'est pas lancé.
+- **§7, point 9 — vérifier le processus à l'autre bout de la connexion TCP déjà ouverte : reporté au Lot 3 de la revue Codex (RC15)**, avec la liaison de la confirmation à sa cible exacte. Il reste une fenêtre d'environ 2 ms, de faible gravité.
+- **§7, point 7 — les scripts de `scripts/manual/`** : ils prendront la clé jetable quand ils serviront de nouveau. Ce n'est pas bloquant.
+- **§7, point 1 — `config/searxng/` : l'origine est inconnue (Alexis, 26/11). On enquête en lecture seule, puis on le met en quarantaine.**
+  - Aucun code du dépôt ne crée ce dossier ; ce n'est vérifié que sur la copie du dépôt sur le Mac.
+  - **Hypothèse du superviseur, non vérifiée :** un ancien conteneur SearXNG, d'avant le sprint Sans Docker, a redémarré avec Docker Desktop. Son ancien montage `./config/searxng` lui fait écrire son `settings.yml` par défaut, qui pèse environ 60 à 70 Ko. Si c'est le cas, un SearXNG **écoute peut-être encore** sur un port de ce PC.
+  - **Enquête, en lecture seule :**
+    - `docker ps -a` et `docker inspect` : un conteneur SearXNG existe-t-il, avec quels montages et quels ports, à l'écoute ou non ?
+    - les ports à l'écoute (8001, 8888, 8080) et leurs propriétaires ;
+    - l'en-tête du `settings.yml`, comparé au fichier par défaut de SearXNG ;
+    - l'heure de démarrage de Docker Desktop le 24/11.
+  - **Ensuite :** déplacer le dossier **hors du dépôt**, dans `%USERPROFILE%\Atlas_quarantaine\searxng_20261124\`. **Ne pas le supprimer.**
+  - **Si un conteneur existe :** ne pas le supprimer ; le dire à Alexis, qui décide. Seul l'arrêt d'un conteneur qui écoute peut se faire tout de suite, et doit être dit.
+
+**Suite, dans cet ordre (précisé le 26/11) :**
+1. Fusion. Alexis relance son Atlas et vérifie la fenêtre et « Ouvrir » avec une vraie question.
+2. L'enquête sur `config/searxng/`, puis la quarantaine.
+3. Le retrait du démarrage automatique d'Ollama.
+4. **L'étape 0 seule sur `AtlasTest`** : la mesure à deux comptes (`mesure_comptes.bat`), sans installer Atlas sur `AtlasTest`. Elle répond tout de suite aux questions encore ouvertes : ce que Windows laisse lire du propriétaire, et deux comptes sur le même port.
+5. **La revue Codex, lots 1 à 5** (`BRIEF_SPRINT_REVUE_CODEX.md`).
+5 bis. **Le visuel d'Atlas** (décision d'Alexis, 26/11 : avant l'envoi, juste avant le test final), d'après `docs/design/MAQUETTE_ECRAN_PRINCIPAL_2026-08.dc.html`. Il passe d'abord par la Réunion n° 5 (technique d'affichage et sécurité de la fenêtre), puis par son propre brief.
+6. **Le parcours complet sur `AtlasTest`, une seule fois, sur le paquet final, visuel compris** : les critères d'IF7, puis ceux de la revue Codex. Le jouer avant les lots Codex obligerait à tout rejouer ensuite, puisque ces lots changent la désinstallation, le relevé et l'exécution.
+7. L'envoi aux testeurs.
+
 ## 7. Rappels
 
 - Aucun installeur ne part chez un proche avant que ce brief soit validé.
